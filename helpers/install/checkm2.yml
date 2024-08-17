@@ -1,0 +1,8 @@
+name: MGTKcheckm2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - checkm2 >= 1
+  - bioconda::metaphlan=4.1

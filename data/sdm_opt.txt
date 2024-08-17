@@ -1,0 +1,28 @@
+minSeqLength	50
+maxSeqLength	400
+minAvgQuality	20
+maxAmbiguousNT	2
+maxHomonucleotide	10
+QualWindowWidth	30
+QualWindowThreshhold	0
+TrimWindowWidth	15
+TrimWindowThreshhold	17
+maxBarcodeErrs	0
+maxPrimerErrs	3
+keepBarcodeSeq	1
+keepPrimerSeq	0
+fastqVersion	1
+TechnicalAdapter
+TrimStartNTs	0
+PEheaderPairFmt	1
+BinErrorModelMaxExpError	3.3
+BinErrorModelAlpha	0.01
+
+
+illuminaFwd	TACACTCTTTCCCTACACGACGCTCTTCCGATCT
+illuminaRev	GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT
+illuminaSngIdx	AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC
+illuminaSngUni	AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA
+RejectSeqWithoutRevPrim	F
+RejectSeqWithoutFwdPrim	F
+AmpliconShortPE	F

@@ -1,0 +1,17 @@
+name: MGTK
+channels:
+- https://conda.anaconda.org/conda-forge
+- https://conda.anaconda.org/anaconda
+- https://conda.anaconda.org/bioconda
+dependencies:
+  - conda-forge::r-biocmanager>1.30
+  - r-dplyr >= 1.1
+  - r-optparse >= 1.7
+  - r-rcolorbrewer >= 1.1_3
+  - r-ape >= 5.7
+  - r-phytools >= 0.7_90
+  - r-tidytree>=0.4
+  - r-phangorn >= 2.11.1
+  - r-ggplot2>=3.5
+  - r-devtools=2.4.5
+  - r-getopt>=1.20

@@ -1,0 +1,73 @@
+
+#requires version 2.0 with databases in "srtMRNA_path/rRNA_databases/silva*"
+srtMRNA_path	[BINDir]/sortmerna-2.0/
+srtMRNA_DBs	silva-euk-18s-id95.fasta,silva-bac-16s-id90.fasta,silva-arc-16s-id95.fasta,silva-euk-28s-id98.fasta,silva-bac-23s-id98.fasta,silva-arc-23s-id98.fasta
+FMGdir	[MFLRDir]/bin/fetchMG/
+
+LSUdbFA	[DBDir]/MarkerG/SILVA/128//SLV_128_LSU.fasta
+LSUtax	[DBDir]/MarkerG/SILVA/128/SLV_128_LSU.tax
+SSUdbFA	[DBDir]/MarkerG/SILVA/128/SLV_128_SSU.fasta
+SSUtax	[DBDir]/MarkerG/SILVA/128/SLV_128_SSU.tax
+ITSdbFA	[DBDir]/MarkerG/ITS_combi/ITS_comb.fa
+ITStax	[DBDir]/MarkerG/ITS_combi/ITS_comb.tax
+PR2dbFA	
+PR2tax	
+#PR2dbFA	[DBDir]/MarkerG/PR2//gb203_pr2_all_10_28_99p.fasta
+#PR2tax	[DBDir]/MarkerG/PR2//PR2_taxonomy.txt
+
+metPhl2_db	[DBDir]/MarkerG/metaphlan3.1/mpa_v31_CHOCOPhlAn_201901
+#leave empty to fallback to default install location for motus2
+motus2_DB	
+checkm2DB	[DBDir]/checkm2/CheckM2_database/uniref100.KO.1.dmnd
+
+
+#DBs for official GTDBtk scripts
+#GTDBtk_DB	[DBDir]/GTDBtk_ref/
+GTDBtk_DB	[DBDir]/MarkerG/GTDB_r207v2_MF/release207_v2/
+GTDBtk_mash	[DBDir]/MarkerG/GTDB_r207v2_MF/release207_v2/mashD/
+#this is used for GTDB python script from Joachim and MAG->GTDB marker gene tasks.. independent of GTDBtk version
+GTDBPath	[DBDir]/MarkerG/GTDB_r207_MF/markerGenes/
+GTDB_GTDB	[DBDir]/MarkerG/GTDB_r207_MF/gtdb_r207_lineageGTDB.tab
+GTDB_lnks	[DBDir]/MarkerG/GTDB_r207_MF/gtdb_r207_clustering.tab
+#GTDB_cutoff	[DBDir]/MarkerG/GTDB_r207_MF/markerGenes/cutoffs.txt
+GTDB_cutoff	[MFLRDir]/data/GTDBcutoffs.txt
+
+
+
+## Databases: note that these will be mostly copied to scratch dir, but since indexes are created calc to have at least twice the HD space available for these
+##most databases are only required for direct mapping and/or gene catalog assignments ##
+FOAMhmm_DB	[DBDir]/Funct/FOAM/FOAM-hmm_rel1.hmm
+eggNOG_DB	[DBDir]/Funct/eggNOG10/eggnog4.proteins.all.fa
+ABresHMM_DB	/g/bork/forslund/morehmms/Resfams.hmm
+eggNOG40_path_DB	[DBDir]/Funct/eggNOG10/
+eggNOGm_path_DB	[DBDir]/Funct/eggNOGmapper/v2.12/
+Moh_path_DB	[DBDir]/Funct/MohFuncts/
+test_DB	[DBDir]/Funct/MohFuncts/
+CAZy_path_DB	[DBDir]/Funct/CAZy/
+ABRfors_path_DB	[DBDir]/Funct/ABR_FORS/
+ABRcard_path_DB	[DBDir]/Funct/ABR_Card/
+KEGG_path_DB	[DBDir]/Funct/KEGG/
+ACL_path_DB	[DBDir]/Funct/Aclame/
+TCDB_path_DB	[DBDir]/Funct/TCDB/
+PATRIC_VIR_path_DB	[DBDir]/Funct/PATRIC/VirFac_KF/
+ABprod_path_DB	[DBDir]/Funct/ABprod_v1/
+VirDB_path_DB	[DBDir]/Funct/VIRDB/
+Module_path_DB	[DBDir]/Funct//myModules/Feb16/
+
+#Kraken_path_DB	/g/scb/bork/hildebra/DB/kraken/
+Kraken2_path_DB	[DBDir]/kraken2/
+Kraken2_mini	minikraken2_v1_8GB/
+#Kaiju_path_DB	/g/scb/bork/hildebra/DB/kaiju/
+
+
+#markerGene related DBs
+#specI, proGenomes: might soon be redundant
+specIPath0	[DBDir]/MarkerG/proGenomes2/markerGenes/
+specIPath	[DBDir]/MarkerG/proGenomes3/markerGenes/
+specI_GTDB	[DBDir]/MarkerG/proGenomes3/proGenomes3_specI_lineageGTDB.tab
+specI_lnks	[DBDir]/MarkerG/proGenomes3/proGenomes3_specI_clustering.tab
+specI_cutoff	[DBDir]/MarkerG/proGenomes3/markerGenes/cutoffs.txt
+
+
+#structural profiling via foldseek
+PtostT5_Weights	[MFLRDir]/data/DBs/PtostT5_W

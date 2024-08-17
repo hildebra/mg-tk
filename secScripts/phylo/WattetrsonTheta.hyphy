@@ -1,0 +1,62 @@
+RequireVersion ("2.5.0");
+
+LoadFunctionLibrary("libv3/all-terms.bf"); 
+LoadFunctionLibrary("libv3/IOFunctions.bf");
+LoadFunctionLibrary("libv3/tasks/alignments.bf");
+
+
+KeywordArgument ("alignment", "A nucleotide alignment in one of the formats supported by HyPhy");
+
+nuc_data.info = alignments.ReadNucleotideDataSet ("nuc_data", null);
+
+/* 
+    this previous line returns
+    {
+     "file":"/Users/sergei/Development/hyphy-develop/tests/hbltests/data/CD2.nex",
+     "name-mapping":null,
+     "partitions":  {
+        {"default", ""} 
+      },
+     "sequences":10,
+     "sites":561
+    }
+*/
+
+/*
+ compute the number of variable sites; this is a bit kludgy 
+*/
+
+function is_constant_site (site, frequencies) {
+    /* this gets called with each site in the dataset, for example
+        site : {{"CCCCTTTCCC"}}
+        frequencies : 
+            {
+            {0} 
+            {0.7} 
+            {0} 
+            {0.3} 
+            }
+            
+        A constant site will have frequencies of one of the characters as 1.
+    */
+    
+    return Max (frequencies, 0) != 1;
+}
+
+utility.SetEnvVariable ("COUNT_GAPS_IN_FREQUNCIES",FALSE);
+/* setting this to TRUE will count GAPS as polymorphic characters, otherwise they are ignored */
+
+DataSetFilter nuc_data.variable_sites = CreateFilter (nuc_data,1,"is_constant_site");
+
+variable_sites = nuc_data.variable_sites.sites;
+normalization  = 1;
+for (i = 2; i < nuc_data.info["sites"]; i += 1) {
+    normalization += 1/i;
+}
+
+io.PrintAndUnderline ("Watterson estimator based on nucleotide data", "-");
+
+console.log ("Sequences          = " + nuc_data.info["sequences"]);
+console.log ("Sites              = " + nuc_data.info["sites"]);
+console.log ("Segregating Sites  = " + variable_sites);
+console.log ("Watterson's theta  = " + variable_sites / normalization);

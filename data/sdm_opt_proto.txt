@@ -1,0 +1,20 @@
+minSeqLength	70
+maxSeqLength	600
+minAvgQuality	20
+maxAccumulatedError	5.5
+maxAmbiguousNT	1
+maxHomonucleotide	18
+QualWindowWidth	30
+QualWindowThreshhold	0
+TrimWindowWidth	20
+TrimWindowThreshhold	18
+maxBarcodeErrs	0
+maxPrimerErrs	0
+keepBarcodeSeq	1
+keepPrimerSeq	0
+fastqVersion	auto
+TechnicalAdapter
+TrimStartNTs	0
+PEheaderPairFmt	1
+BinErrorModelMaxExpError	5.0
+BinErrorModelAlpha	0.01

@@ -1,0 +1,284 @@
+#internal programs
+
+#MATAFILER C++ programs
+## MATAFILER specific C++ progs (hildebrand) 	ESSENTIAL ##
+#rare	rtk2
+rare	[MFLRDir]/bin/./rtk2
+sdm	sdm
+LCA	LCA
+readCov	[MFLRDir]/bin/./rdCover
+MSAfix	[MFLRDir]/bin/./MSAfix
+canopy	cc.bin	env:MGTKgtdbtk
+clusterMAGs	[MFLRDir]/bin/./clusterMAGs
+
+
+#elevated MF3 scripts (main routines)
+geneCat_scr	perl [MFLRDir]/secScripts/geneCat.pl
+MAGpipe	perl [MFLRDir]/secScripts/MGS.pl
+
+
+#local scripts 	ESSENTIAL
+cLSUSSU_scr	perl [MFLRDir]/secScripts/miTag/catchLSUSSU.pl
+lotusLCA_cLSU_scr	[MFLRDir]/secScripts/miTag/lotus_LCA_blast3.pl
+krakCnts_scr	[MFLRDir]/secScripts/GC/krak_count_tax.pl
+genelength_scr	[MFLRDir]/secScripts/assemblies/geneLengthFasta.pl
+secCogBin_scr	[MFLRDir]/secScripts/functions/parseBlastFunct2.pl
+KrisABR_scr	perl [MFLRDir]/secScripts/functions/ABRblastFilter2.pl
+sepCts_scr	perl [MFLRDir]/secScripts/assemblies/separateContigs.pl
+assStat_scr	perl [MFLRDir]/secScripts/assemblies/assemblathon_stats.pl
+renameCtg_scr	[MFLRDir]/secScripts/assemblies/renameCtgs.pl
+split_fasta4metaMDBG_scr	perl [MFLRDir]/secScripts/assemblies/split_fasta4metaMDBG.pl
+sizFilt_scr	perl [MFLRDir]/secScripts/assemblies/sizeFilterFas.pl
+buildTree_scr	perl [MFLRDir]/secScripts/phylo/buildTree5.pl
+sizSplit_scr	[MFLRDir]/secScripts/assemblies/splitFNAbyLength.pl
+contigKgdSplit_scr	[MFLRDir]/secScripts/assemblies/sortCtgKingdom.pl
+contigKgdSplit_scr2	[MFLRDir]/secScripts/assemblies/sortCtgKingdom2.pl
+calcGC_scr	[MFLRDir]/secScripts/composition/calcGC.pl
+sortSepReLen_scr	[MFLRDir]/secScripts/assemblies/sepReadLength.pl
+extre100_scr	[MFLRDir]/secScripts/GC/extrAllE100GC.pl
+decoyDB_scr	[MFLRDir]/secScripts/assemblies/deployMapDB.pl
+bamHdFilt_scr	[MFLRDir]/secScripts/assemblies/correctBamHD.pl
+hmmBestHit_scr	[MFLRDir]/secScripts/functions/bmn-HMMerBestHit.py
+mrgDia_scr	[MFLRDir]/secScripts/functions/combine_DIA.pl
+mrgMiTag_scr	[MFLRDir]/secScripts/miTag/miTagTaxTable.pl
+mrgMOUT2_scr	perl [MFLRDir]/secScripts/composition/mrgMotu2.pl
+FMGrwk_scr	perl [MFLRDir]/secScripts/assemblies/FMG_rwk.pl
+growth_scr	perl [MFLRDir]/helpers/growthRate.pl
+consCntupVCF_scr	perl [MFLRDir]/secScripts/SNP/consFNA2vcf.pl
+mp3Prs	perl [MFLRDir]/secScripts/functions/parseMP3.pl
+unsplitKrak_scr	perl [MFLRDir]/secScripts/composition/unsplit_krak.pl
+specIGC_scr	perl [MFLRDir]/secScripts/GC/annotateMGwSpecIs2.pl
+specIGC_scr_v0	perl [MFLRDir]/secScripts/GC/annotateMGwSpecIs.pl
+MG_LCA_scr	perl [MFLRDir]/secScripts/GC/MG_LCA.pl
+progenomes_prep_scr	perl [MFLRDir]/secScripts/MGS/reformatProGenomes.pl
+clusterMGS_scr	perl [MFLRDir]/secScripts/MGS/clusterMAGs.pl
+specIphylo_scr	perl [MFLRDir]/secScripts/GC/FMGgenes2tree.pl
+kmerPerGene_scr	perl [MFLRDir]/secScripts/GC/kmerPerGene.pl
+bamFilter_scr	perl [MFLRDir]/secScripts/assemblies/bamFilter.pl
+decluterGC_scr	perl [MFLRDir]/secScripts/GC/decluterGC.pl
+sortMGSGeneImport_scr	perl [MFLRDir]/secScripts/MGS/resortMGSgenes4importance.pl
+MAGMGSLCA_scr	perl [MFLRDir]/secScripts/MGS/markersPerMGS.pl
+eggNOGspl_scr	bash [MFLRDir]/secScripts/GC/eggNOG_split.sh
+Binner_scr	perl [MFLRDir]/secScripts/assemblies/runBinners.pl
+
+samcov2bed	perl [MFLRDir]/helpers/samcovToBedGraph.pl
+
+#requries ete3...
+taxid2tax_scr	python [MFLRDir]/secScripts/phylo/get_ranks.py
+
+#Python scripts
+FSTpy	/g/bork3/home/hildebra/dev/python/FST/scripts/fst_from_fasta.py
+fubarJson_scr	python [MFLRDir]/secScripts/phylo/fubarDNDS.py
+
+
+#link to R exe
+Rscript	Rscript
+
+#MFF R scripts
+Rpath	[MFLRDir]/secScripts/R_scripts/
+filterMB2core	[Rscript] [Rpath]/filterMB2.R
+neighborTree	[Rscript] [Rpath]/neighborTree.R
+vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R #Klara script
+normMiTag	[Rscript] [Rpath]/NormMiTag.R
+
+
+## taxonomic profiling, if requrested ##
+#can be metaphlan2 or metaphlan3 here
+metPhl2	metaphlan	env:MGTKcheckm2
+metPhl2Merge	merge_metaphlan_tables.py	env:MGTKcheckm2
+#kraken	kraken
+kraken2	kraken2
+TaxaTarget	python /hpc-home/hildebra/bin/taxaTarget/run_pipeline_scripts/run_protist_pipeline_fda.py
+motus2	motus	env:MGTKgtdbtk
+#kaijuDir	[BINDir]/kaiju/bin/
+#microCens	python [BINDir]/MicrobeCensus-1.1.0/scripts/run_microbe_census.py
+mTAGs	mtags
+metaeuk	metaeuk #[BINDir]/metaeuk/bin/
+GTDBtk	gtdbtk	env:MGTKgtdbtk
+
+
+#options for filters etc	ESSENTIAL
+#baseSDMopt_rel	[MFLRDir]/data/sdm_opt_inifilter_relaxed_noProb.txt
+baseSDMopt_rel	[MFLRDir]/data/sdm_opt_inifilter_relaxed.txt
+baseSDMopt	[MFLRDir]/data/sdm_opt_inifilter.txt
+baseSDMoptMiSeq	[MFLRDir]/data/sdm_opt_miSeq.txt
+baseSDMoptMiSeq_rel	[MFLRDir]/data/sdm_opt_miSeq_relaxed.txt
+baseSDMoptProto	[MFLRDir]/data/sdm_opt_proto.txt
+baseSDMopt454	[MFLRDir]/data/sdm_454.txt
+baseSDMoptPacBio	[MFLRDir]/data/sdm_PacBio.txt
+
+#genecat
+mmS2clstr	perl [MFLRDir]/secScripts/GC/mmS2clstr.pl
+
+#binning
+kmerFreqs	perl [MFLRDir]/secScripts/composition/calc.kmerfreq.pl
+kmerGeneWin	perl [MFLRDir]/secScripts/composition/kmer_Ngenes.pl
+maxBinFrmt	perl [MFLRDir]/secScripts/MGS/maxBin_rewrk.pl
+makeCanoGuides_scr	perl [MFLRDir]/secScripts/MGS/makeCanoGuides.pl
+mb2qualCheck_scr	perl [MFLRDir]/secScripts/MGS/extractMeBat2.pl
+taxPerMGS_scr	perl [MFLRDir]/secScripts/MGS/taxPerMGS.pl
+taxPerMGSgtdb_scr	perl [MFLRDir]/secScripts/MGS/taxPerMGS_gtdb.pl
+filtDeepCan	perl [MFLRDir]/secScripts/MGS/filterDeepCan.pl
+
+#SNPs / tree building - not public currently
+fasta2phylip_scr	perl [MFLRDir]/secScripts/phylo/fasta2phylip.pl
+vcfCons_scr	perl [MFLRDir]/secScripts/SNP/vcf2cons_mpi.pl
+vcfCons_FB_scr	perl [MFLRDir]/secScripts/SNP/vcf2cons.pl
+genRegions_scr	[MFLRDir]/secScripts/SNP/fasta_generate_regions.py
+contig2fast_scr	[PY3] [MFLRDir]/secScripts/SNP/contig2fasta.py
+MGS_strain1_scr	perl [MFLRDir]/secScripts/MGS/strain_within.pl
+MGS_strain2_scr	perl [MFLRDir]/secScripts/MGS/strain_within_2.2.pl
+MGSPhyloBetween_scr	perl [MFLRDir]/secScripts/MGS/phylo_MGS_between.pl
+
+
+#MAGs
+cmpBinScr	[MFLRDir]/secScripts/MGS/compoundBinning.pl
+
+#marker genes
+GTDBmg_scr	python [MFLRDir]/gits/XGTDB/extract_gtdb_mg.py
+
+
+
+## options for filters etc	ESSENTIAL ##
+#baseSDMopt_rel	[MFLRDir]/data/sdm_opt_inifilter_relaxed_noProb.txt
+baseSDMopt_rel	[MFLRDir]/data/sdm_opt_inifilter_relaxed.txt
+baseSDMopt	[MFLRDir]/data/sdm_opt_inifilter.txt
+baseSDMoptMiSeq	[MFLRDir]/data/sdm_opt_miSeq.txt
+baseSDMoptMiSeq_rel	[MFLRDir]/data/sdm_opt_miSeq_relaxed.txt
+
+essentialHMM	[MFLRDir]/data/essential.hmm
+essentialEUK	[MFLRDir]/data/eukCore.hmm
+
+illuminaTS3pe	[MFLRDir]/data/TruSeq3-PE.fa
+illuminaTS3se	[MFLRDir]/data/TruSeq3-SE.fa
+
+
+
+#external programs (should be installed via conda/mamba, but can be adopted here to local versions)
+
+
+## very specific usage,  not required ##
+#d2meta	[BINDir]/d2Meta/d2Meta/d2Meta.out
+#nonpareil	[BINDir]/nonpareil/nonpareil	#estimate metag coverage sequenced in your samples
+#growthP	python [BINDir]/growthpred-v1.07/./growthpred-v1.07.py
+#rnammer	[BINDir]/rna_mmer/./rnammer
+#microsats
+mreps	mreps
+
+
+
+
+### external programs ###
+#more essential programs are usually listed first in the lists
+
+## general purpose/OS ##
+pigz	pigz
+rsync	rsync
+trimomatic	[MFLRDir]/bin/trimmomatic-0.36.jar
+porechop	porechop
+bzip2	bzip2
+mergeRdScr	[MFLRDir]/helpers/merge-paired-reads.sh
+unmergeRdScr	[MFLRDir]/helpers/unmerge-paired-reads.sh
+#tabix	tabix
+
+
+##	alignment related - ESSENTIAL ##
+samtools	samtools
+bcftools	bcftools
+bwt2	bowtie2
+strobealign	strobealign
+kma	kma
+bwa	bwa
+minimap2	minimap2
+jgiDepth	jgi_summarize_bam_contig_depths #/g/bork3/home/hildebra/bin/metabat/./jgi_summarize_bam_contig_depths
+#bedCov	genomeCoverageBed
+#mosdepth	mosdepth #mosdepth turned out to be even slower than bedtools on metag data..
+hmmsearch	hmmsearch
+#if read merge is attempted in any step (typically for miTag, profiling)
+flash	flash #
+
+
+## gene predictions ##
+pprodigal	pprodigal
+#only if euk metagenomes to be processed
+#	env:MFF
+augustus	augustus
+whokaryote	whokaryote.py	env:MGTKwhokar
+
+
+
+## SNPs / tree building - not public currently ##
+#not required unless strain resolved metag is used. Most of this still not needed.. 
+iqtree	iqtree2	env:MGTKphylo
+#vcfLib_dir	[BINDir]/vcflib/bin/
+pal2nal	pal2nal.pl	env:MGTKphylo
+vsearch	vsearch
+raxmlng	raxml-ng	env:MGTKphylo
+#msaprobs	msaprobs
+clustalo	clustalo
+trimal	trimal	env:MGTKphylo
+mafft	mafft	env:MGTKphylo
+MUSCLE5	muscle
+raxml	raxmlHPC-PTHREADS-SSE3
+fasttree	FastTreeMP	env:MGTKphylo
+freebayes	freebayes	env:MGTKphylo
+ete3	ete3	env:MGTKphylo
+codeml	codeml	env:MGTKphylo
+phyml	phyml	env:MGTKphylo
+modeltest	modeltest-ng	env:MGTKphylo
+
+
+#     experimental
+treeDistScr	perl [MFLRDir]/bin/distv9.pl
+fna2faa	[MFLRDir]/bin/fna2faa
+
+
+
+## assembly, scaffolding operations (imrpoving assemblies with mate pairs) ##
+#essential
+spades	spades.py
+megahit	megahit
+#below only needed in specific situations
+nxtrim	nxtrim
+BESST	runBESST
+#gapfiller	perl [BINDir]/GapFiller/GapFiller_n.pl
+cloudspades	/ei/software/cb/cloudspades/3.12.0/x86_64/bin/spades.py  #used for 10X like assemblies
+flye	flye  #used for ONT/PacBio assemblies
+#metaMDBG	[MFLRDir]/bin/./metaMDBG	#	env:MGTKmetaMDBG
+metaMDBG	metaMDBG
+
+
+## gene catalogue ##
+cdhit	cd-hit
+mmseqs2	mmseqs
+
+
+
+## functional profiling ##
+diamond	diamond
+emapper	emapper.py  #eggNOGmapper.. pretty powerful tool that is currently underused in MATAFILER
+#mp3	[BNDir]/mp3v1.0/  #bit dodgy "virulence" finder, might remove at some point
+foldseek	foldseek
+
+
+## binning ##
+#maxBin	perl [MFLRDir]/bin/MaxBin-1.4.2/run_MaxBin.pl
+metabat2	metabat2	env:MGTKgtdbtk
+SemiBin	SemiBin	env:MGTKgtdbtk
+SemiBin2	SemiBin2	env:MGTKgtdbtk
+semibinGTDB	[DBDir]/mmseqs2-GTDB/
+#MetaDecoder	metadecoder
+#checkm	[SINGcmd]/checkm.simg checkm
+checkm	checkm
+#checkm2 requires to be installed in a conda environment called "checkm2" (same as in checkm2 github installation docs)
+checkm2	checkm2	env:MGTKcheckm2
+
+## marker gene detection/ usage ##
+#		miTag related
+#lambda	[MFLRDir]/bin/./lambda
+#lambdaIdx	[MFLRDir]/bin/lambda_indexer
+lambda	lambda3
+
+
+#debugging
+noneeneoneono	noneeneoneono

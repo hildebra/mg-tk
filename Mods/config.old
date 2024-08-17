@@ -1,0 +1,30 @@
+#MATAFILER config file
+#lines preceded by "#" are commented out and will be ignored by pipeline
+
+## base path to pipeline & DB & temp dirs - ESSENTIAL ##
+CONDcmd	micromamba
+CONDA	. "$MAMBA_ROOT_PREFIX/etc/profile.d/micromamba.sh"
+CONDAbaseEnv	MGTK
+
+MFLRDir	$MGTKDIR
+BINDir	empty
+DBDir	empty
+
+## tmp space config, for copying files locally and to global available tmp/scratch dirs
+nodeTmpDir	$SLURM_LOCAL_SCRATCH/MFTK/
+nodeTmpDirTAG	--localscratch=ssd:
+globalTmpDir	
+
+
+## submission config
+qsubPEenv	smp
+#submissionconfig: usually empty, but can have several ";" separated terms
+submissionConfig	
+#this is the cluster specific constraint for nodes that have avx2 support in their CPU. will be passed to sbatch as e.g. "--constraint=avx2"
+avx2_constraint	avx2
+subXtraCmd	
+
+mediumQueue	ei-medium,qib-medium,ei-long,qib-long	#24 hour WALLtime, default queue
+longQueue	ei-long,qib-long	#334 hour WALLtime
+gpuQueue	ei-gpu	#leave empty if no GPU queue available; queue specifically for gpu jobs (deep neural nets etc)
+highMemQueue	ei-largemem

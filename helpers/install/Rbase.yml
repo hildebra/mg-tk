@@ -1,0 +1,26 @@
+name: Rbase
+channels:
+- https://conda.anaconda.org/anaconda
+- https://conda.anaconda.org/bioconda
+- https://conda.anaconda.org/conda-forge
+dependencies:
+  - r-ade4
+  - r-ape
+  - r-base>=4.2
+  - r-cluster
+  - r-clusterr
+  - r-colorspace
+  - r-cpp11
+  - r-curl
+  - r-devtools
+  - r-dplyr
+  - r-getopt
+  - r-ggplot2
+  - r-knitr
+  - r-mclust
+  - r-nlme
+  - r-optparse
+  - r-permute
+  - r-plyr
+  - r-rcolorbrewer
+  - r-rcpp
