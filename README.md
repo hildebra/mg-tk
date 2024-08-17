@@ -42,13 +42,20 @@ MG-TK is a pipeline developed to
 MG-TK is implemented in Perl, C++ and uses R and python scripts. 
 
 Author: Falk Hildebrand <Falk.Hildebrand@gmail.com>
+## Installing MG-TK
 
-## Requirements
+<details>
+  <summary> Expand Installation section </summary>
+  
+
+### Requirements
 
 MG-TK requires a perl installation and sdm requires a fairly recent C++ compiler (like gcc or clang) that supports C++11.
 MG-TK currently only works under linux, and is expected to run on a computer cluster. Since the pipeline includes a lot of external sofware, you will need fully installed Micromamba ([https://mamba.readthedocs.io/en/latest/installation.html](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)).
 
-## Installing MG-TK
+
+### Installation
+
 
 MG-TK can be downloaded directly from Github, using:
 ```
@@ -96,6 +103,9 @@ bash helpers/install/installer.sh
 	- nodeTmpDir	`/path/on/node/to/tmp` -> on slurm systems this could be a variable, e.g. `$SLURM_LOCAL_SCRATCH/MG-TK/`
 
 - follow either assembly-dependent or assembly-independent tutorial
+
+</details>
+
 
 ## Running MG-TK
 
@@ -186,6 +196,7 @@ Mouse16t1	SubDir3		M16
  
 
 ## Examples
+
 <details>
   <summary> Expand example assembly with MG-TK </summary>
   
