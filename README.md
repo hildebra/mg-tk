@@ -3,7 +3,7 @@
 ## Table of Contents
 
 <details>
-  <summary>Expand section</summary>
+  <summary>Expand Table of Contents</summary>
   
 - [Introduction](#introduction)
 - [Requirements](#requirements)
@@ -186,15 +186,15 @@ Mouse16t1	SubDir3		M16
  
 
 ## Examples
-
+<details>
+  <summary> Expand example assembly with MG-TK </summary>
+  
 ### MG-TK metagenomic assembly and gene catalog
 
 The figure below shows example of steps involved in the assembly-dependent mode. White rectangles indicate inputs and outputs, grey boxes name each of the steps, and yellow boxes show names of the scripts that are generated and submitted in each step. Blue boxes indicate additional steps that are required for subsequent MGS analysis.
 
 <img src="./helpers/documentation/assembly-dependent.svg" style="width: 800px;"/>
 
-<details>
-  <summary> Expand example assembly with MG-TK </summary>
 
 #### 1. create mapping file
 
