@@ -189,9 +189,6 @@ Mouse16t1	SubDir3		M16
 
 - <ins>**Loading and saving a mapping file into R will likely lead to problems!**</ins> This is because the #DirPath tag sets the path for all samples underneath. Loading this into R will often skip the #DirPath line or reorder the samples, so saving this again will lead to wrong paths being set!
 
-
-- Naming: Use simple names as SmplID that are self descriptive. Avoid special characters, that is try to stay with letters in \[a-zA-Z0-9.\] character space for the smpl ids
-
 </details>
  
 
