@@ -2,6 +2,9 @@
 
 ## Table of Contents
 
+<details>
+  <summary>Expand section</summary>
+  
 - [Introduction](#introduction)
 - [Requirements](#requirements)
 - [Installing MG-TK](#installing-MG-TK)
@@ -25,6 +28,8 @@
 	- [Building phylogenetic trees with MG-TK](#building-phylogenetic-trees-with-MG-TK)
 - [Trouble shooting](#trouble-shooting)
 - [License, citations etc](#license,-citations-etc)
+
+</details>
 
 ## Introduction 
 
@@ -64,8 +69,6 @@ Last, you can run
 ```
 to check that some essential programs have been correctly installed and are available in the exptected environments. Note that this is only a subset of programs, but should cover most use cases of MG-TK. (This will also automatically run after each installation of MG-TK)
 
-More info on installation of software and databases: 
-https://github.com/hildebra/MATAF3.git
 
 ### Updating MG-TK
 
