@@ -440,6 +440,10 @@ _tldr; this mode requires several iterations to complete_
 
 ## Outputs
 
+
+<details>
+  <summary> Expand Outputs section </summary>
+
 ### General output structure
 
 In MG-TK, output can be either in 
@@ -484,6 +488,7 @@ The gene content of a MAG can be found in `Bin_SB/LOGandSUB/MAGvsGC.txt.gz`. The
 
 The final column, *other_genes*, gives a comma separated list of all the other genes which are part of this MAG. These are in the order they appear on the contig, with a double comma indicating the start of a new conting. Using this list and the gene function table explained above lets you link MAGs/MGS and function.
 
+</details>
 
 
 ## Additional information
