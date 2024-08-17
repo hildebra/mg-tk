@@ -869,10 +869,11 @@ cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
 
 ## Additional usage scenarios
 
-MG-TK can be used for a bulk of tasks not directly related to initial assembly, profiling or MAGs, but often related to postprocessing these. Two usage scenarios (map2tar and building phylogenies) are listed below.
-
 <details>
   <summary>Expand section</summary>
+
+MG-TK can be used for a bulk of tasks not directly related to initial assembly, profiling or MAGs, but often related to postprocessing these. Two usage scenarios (map2tar and building phylogenies) are listed below.
+
 
 ### map2tar mode
 
