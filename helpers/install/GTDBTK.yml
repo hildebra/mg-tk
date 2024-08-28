@@ -5,11 +5,11 @@ channels:
 - https://conda.anaconda.org/conda-forge
 #- https://repo.anaconda.com/pkgs/main
 dependencies:
+  - conda-forge::numpy
+  - conda-forge::scipy
+  - blas[build=openblas]
   - gtdbtk=2.3
   - pigz=2.8
-  - canopy>=0.25
-  - SemiBin=2.1
-  - metabat2=2.17
 #  - whokaryote=1.1.2 (downgrades pytorch etc..)
 #  - checkm2 >= 1 (downgrades pytorch etc..)
   - motus=3.1

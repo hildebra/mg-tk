@@ -1012,7 +1012,7 @@ sub readMap{
 	my %trackPrefixs;
 	
 	my $DOWARN = 1;
-	my $warnDeactivateMsg = "In cae you want to continue, insert \"#WARNING OFF\" underneath the header of your map file.\n";
+	my $warnDeactivateMsg = "In case you want to continue, insert \"#WARNING OFF\" underneath the header of your map file.\n";
 	#print $inF."\n";
 	open I,"<$inF" or die "Can't open map: $inF\n";
 	#AssGrps

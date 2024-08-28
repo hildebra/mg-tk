@@ -8,7 +8,7 @@ sdm	sdm
 LCA	LCA
 readCov	[MFLRDir]/bin/./rdCover
 MSAfix	[MFLRDir]/bin/./MSAfix
-canopy	cc.bin	env:MGTKgtdbtk
+canopy	cc.bin	env:MGTKbinners
 clusterMAGs	[MFLRDir]/bin/./clusterMAGs
 
 
@@ -263,9 +263,9 @@ foldseek	foldseek
 
 ## binning ##
 #maxBin	perl [MFLRDir]/bin/MaxBin-1.4.2/run_MaxBin.pl
-metabat2	metabat2	env:MGTKgtdbtk
-SemiBin	SemiBin	env:MGTKgtdbtk
-SemiBin2	SemiBin2	env:MGTKgtdbtk
+metabat2	metabat2	env:MGTKbinners
+SemiBin	SemiBin	env:MGTKbinners
+SemiBin2	SemiBin2	env:MGTKbinners
 semibinGTDB	[DBDir]/mmseqs2-GTDB/
 #MetaDecoder	metadecoder
 #checkm	[SINGcmd]/checkm.simg checkm
