@@ -145,10 +145,19 @@ if ! find_in_mamba_env "MGTKgtdbtk" ; then
 	$MAMBA_E create  -q -y -f $INSTdir/GTDBTK.yml 
 else 
 	echo "Updating gtdbtk environment"
-#	$MAMBA_E activate MGTKgtdbtk
 	$MAMBA_E update  -q -y -f $INSTdir/GTDBTK.yml 
-#	$MAMBA_E deactivate
 fi
+
+if ! find_in_mamba_env "MGTKbinners" ; then
+	echo "Installing MGTKbinners environment"
+	$MAMBA_E create  -q -y -f $INSTdir/Binners.yml
+else 
+	echo "Updating MGTKbinners environment"
+	$MAMBA_E update  -q -y -f $INSTdir/Binners.yml
+fi
+
+
+
 
 
 if ! find_in_mamba_env "MGTKcheckm2" ; then
