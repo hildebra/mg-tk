@@ -29,7 +29,8 @@ while ($line = <I>){
 		$seq =~ s/(.{1,80})/$1\n/gs;
 		print O "$ntag\n$seq"; 
 		print O2 "$ntag\t$ohd\n";
-		if ($ohd =~ m/>ctg[\d_x]+c$/){push(@circCtgs,$ntag);}
+		if ($ohd =~ m/>ctg[\d_x]+c$/){push(@circCtgs,$ntag);} #old metaMDBG
+		if ($ohd =~ m/>ctg[\d_x]+ .* circular=yes$/){push(@circCtgs,$ntag);}
 		$cnt++;
 		$seq = "";
 		chomp $line; $ohd = $line;

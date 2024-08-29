@@ -7,7 +7,8 @@
 
 *.mfc
 */*.mfc
-*/*.map
+runs
+runs/maps
 Mods/MATAFILERcfg.txt
 gits
 helpers/miTag/shini
@@ -15,7 +16,6 @@ data/GTDBcutoffs_o.txt
 configs
 tmp
 #  SNP
-helpers/install/progsChecked.sto
 TAMOC
 old_Ctrl
 config.txt
@@ -27,3 +27,5 @@ SebSNP
 Ana
 DBs
 data/DBs
+helpers/install/runningInstall.sto
+helpers/install/progsChecked.sto

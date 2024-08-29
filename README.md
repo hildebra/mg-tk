@@ -92,7 +92,7 @@ bash helpers/install/installer.sh
 
 - follow installation process (essentially `git clone https://github.com/hildebra/mg-tk.git` & run `bash helpers/install/installer.sh` )
 
-- After the instalation is complete, you will find the file named: "config.txt" inside of the MATAF3 directory. This is the main file where you have defined all the paths for directories and slurm configuation. Always check in order to ensure that all directories are correct: 
+- After the instalation is complete, you will find the file named: "config.txt" inside of the MG-TK directory. This is the main file where you have defined all the paths for directories and slurm configuation. Always check in order to ensure that all directories are correct: 
 
     - MFLRDir	`/path/to/your/mg-tk/installation/`
     - DBDir	`/path/to/your/database_dir/`
@@ -103,6 +103,48 @@ bash helpers/install/installer.sh
 	- nodeTmpDir	`/path/on/node/to/tmp` -> on slurm systems this could be a variable, e.g. `$SLURM_LOCAL_SCRATCH/MG-TK/`
 
 - follow either assembly-dependent or assembly-independent tutorial
+
+
+### Useful configurations to track and check on MG-TK jobs
+
+The most common reason why MG-TK jobs fail are related to node configurations (available ram, hdd space, CPUs). There are several alias' that are usful in checking on slurm jobs that are running on your local HPC, understanding how MG-TK processes your samples and fixing errors. Thus following up jobs and checking their error logs is essential in understanding limitations in your current environment and get your metagenomes processed effectively, as listed below:
+
+These aliases can be directly added to your ~/.bashrc (just make sure the .bashrc is loaded):
+
+```{sh}
+#list running jobs with more relevant info
+alias sq='squeue -u $USER -o "%8i %.4P %.14j %.2t %8M %.3C %.15R %20E"'
+#check where job bash, std output, error output is stored, dependencies etc
+alias si='scontrol show job'
+#delete jobs that have DependencyNever status
+alias scDN="squeue -u $USER | grep dencyNev | cut -f11 -d' ' | xargs  -t -i scancel {}"
+#show the number of jobs currently running for different users on your cluster; useful for estimating how busy the HPC currently is
+alias busy="squeue | sed -E 's/ +/\t/g' | cut -f5 | sort | uniq -c | sed -E 's/ +//' | sort -k1 -n -t' '"
+#show output log of job
+sio() {
+JID=$1
+if test "$#" -eq 0; then
+JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
+fi
+cat $(scontrol show job $JID | grep 'StdOut' | sed 's/.*=//g')
+}
+#show error log of job
+sie() {
+JID=$1
+if test "$#" -eq 0; then
+JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
+fi
+cat $(scontrol show job $JID | grep 'StdErr' | sed 's/.*=//g')
+}
+#show bash script (commands) of job
+sis() {
+JID=$1
+if test "$#" -eq 0; then
+JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
+fi
+cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
+}
+```
 
 </details>
 
@@ -218,8 +260,8 @@ Example:
 #!/bin/bash
 #SBATCH -J SUB_MF
 #SBATCH -N 1 --cpus-per-task=1 --mem=10024 --export=ALL
-#SBATCH -o [currentDir]/run_mataf3_mhit.mfc.otxt
-#SBATCH -e [currentDir]/run_mataf3_mhit.mfc.etxt
+#SBATCH -o [currentDir]/run_mgtk_mhit.mfc.otxt
+#SBATCH -e [currentDir]/run_mgtk_mhit.mfc.etxt
 #SBATCH -p "ei-long,qib-long"
 
 set -e
@@ -247,14 +289,14 @@ perl $MF3DIR/MG-TK.pl -map $MAP-assembleMG 2 -spadesCores 12 -spadesKmers "25,43
 
 #### 4. Running MG-TK
 
-- Run with `bash run_mataf3_mhit.sh` --> this will submit a lot of different jobs to the HPC queue
+- Run with `bash run_mgtk_mhit.sh` --> this will submit a lot of different jobs to the HPC queue
 
  console output:
 ```
         This is MG-TK 0.33
         Using qsubsystem: slurm
         Using qsubsystem: slurm
-        /projects/data/results/mataf3_test1/LOGandSUB/qsub.log
+        /projects/data/results/mgtk_test1/LOGandSUB/qsub.log
         Reset range of samples to 40
 
         ======= Mouse11T0 - 0 - M11T0 =======
@@ -267,7 +309,7 @@ perl $MF3DIR/MG-TK.pl -map $MAP-assembleMG 2 -spadesCores 12 -spadesKmers "25,43
         SUB:_CS1
 ```
 
-- more advanced usage: run `sbatch run_mataf3_mhit.sh`. This will submit the job to the cluster queue, and from there the .mfc job will submit more jobs. The output from MG-TK will be stored in `#SBATCH -o [currentDir]/run_mataf3_mhit.mfc.otxt` and `#SBATCH -e [currentDir]/run_mataf3_mhit.mfc.etxt` defined above.
+- more advanced usage: run `sbatch run_mgtk_mhit.sh`. This will submit the job to the cluster queue, and from there the .mfc job will submit more jobs. The output from MG-TK will be stored in `#SBATCH -o [currentDir]/run_mgtk_mhit.mfc.otxt` and `#SBATCH -e [currentDir]/run_mgtk_mhit.mfc.etxt` defined above.
 
 
 #### 5. rerun MG-TK
@@ -292,7 +334,7 @@ set -e
 ulimit -c 0;
 
 #creates gene catalog in the specified outdir with specified cores, attempting to reuse existing dirs (in case catalog creation failed):
-perl /hpc-home/project/MATAF3/secScripts/geneCat.pl \
+perl /hpc-home/project/mg-tk/secScripts/geneCat.pl \
 		-map /ei/projects/data/results/mapping_file.map \
 		-GCd /ei/projects/data/results/genecat \
 		-mem 200 -cores 24 -clusterID 95 -doStrains 0 -continue 1 \
@@ -819,50 +861,6 @@ To take advantage of this, I strongly recommend to ask your sysadmin where the l
 
 </details>
 
-### Useful configurations to track and check on MG-TK jobs
-
-The most common reason why MG-TK jobs fail are related to node configurations (available ram, hdd space, CPUs). There are several alias' that are usful in checking on slurm jobs that are running on your local HPC, understanding how MG-TK processes your samples and fixing errors. Thus following up jobs and checking their error logs is essential in understanding limitations in your current environment and get your metagenomes processed effectively, as listed below:
-
-<details>
-  <summary>Expand section</summary>
-
-These aliases can be directly added to your ~/.bashrc (just make sure the .bashrc is loaded):
-
-```{sh}
-#list running jobs with more relevant info
-alias sq='squeue -u $USER -o "%8i %.4P %.14j %.2t %8M %.3C %.15R %20E"'
-#check where job bash, std output, error output is stored, dependencies etc
-alias si='scontrol show job'
-#delete jobs that have DependencyNever status
-alias scDN="squeue -u $USER | grep dencyNev | cut -f11 -d' ' | xargs  -t -i scancel {}"
-#show the number of jobs currently running for different users on your cluster; useful for estimating how busy the HPC currently is
-alias busy="squeue | sed -E 's/ +/\t/g' | cut -f5 | sort | uniq -c | sed -E 's/ +//' | sort -k1 -n -t' '"
-#show output log of job
-sio() {
-JID=$1
-if test "$#" -eq 0; then
-JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
-fi
-cat $(scontrol show job $JID | grep 'StdOut' | sed 's/.*=//g')
-}
-#show error log of job
-sie() {
-JID=$1
-if test "$#" -eq 0; then
-JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
-fi
-cat $(scontrol show job $JID | grep 'StdErr' | sed 's/.*=//g')
-}
-#show bash script (commands) of job
-sis() {
-JID=$1
-if test "$#" -eq 0; then
-JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
-fi
-cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
-}
-```
-</details>
 
 ## Additional usage scenarios
 
@@ -913,7 +911,7 @@ perl $MF3DIR/MG-TK.pl map2tar \
 #!/usr/bin/perl
 use strict; use warnings;
 
-my $bts = "/path/to/MATAF3/secScripts/phylo/buildTree5.pl";
+my $bts = "/path/to/MG-TK/secScripts/phylo/buildTree5.pl";
 my $inD = "/path/to/input/dir/phylo/";
 my $outD = $inD."/bts/";
 my $tempD = "/path/to/scratch/dir/treetest/";

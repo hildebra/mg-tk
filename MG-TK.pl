@@ -6546,7 +6546,7 @@ sub longRdAssembly{
 		$contigRecovery .= "\nmv $nodeTmp/assembly.fasta $nodeTmp/scaffolds.fasta\n\n";
 	} elsif($MFopt{DoAssembly}==4 || $MFopt{DoAssembly}==5){ #metaMDBG
 		my $mMDBG = getProgPaths("metaMDBG");
-		$cmd .= "$mMDBG asm -t $nCores $nodeTmp " . join(" ",@inRds) . "\n";
+		$cmd .= "$mMDBG asm --threads $nCores --out-dir $nodeTmp --in-hifi " . join(" ",@inRds) . "\n";
 		$cmd .= "rm -rf $nodeTmp/tmp/;\n";
 		$contigRecovery .= "zcat $nodeTmp/contigs.fasta.gz > $nodeTmp/scaffolds.fasta; rm $nodeTmp/contigs.fasta.gz\n\n";
 		
@@ -6556,7 +6556,7 @@ sub longRdAssembly{
 	}
 	$cmd .= "\nrm -rf $nodeTmp2\n";
 	
-	$cmd .= getProgPaths("activateBase")."\n";
+	#$cmd .= getProgPaths("activateBase")."\n"; #not needed any longer.. all assemblers are in base env
 	
 	
 	#from here could as well be separate 1 core job

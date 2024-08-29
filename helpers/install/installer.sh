@@ -48,6 +48,7 @@ MFdir=$(realpath -s $SCRIPT_DIR/../..)
 
 #remove stone that declares programs are checked by MG-TK
 rm -f $MFdir/helpers/install/progsChecked.sto
+touch $MFdir/helpers/install/runningInstall.sto
 
 mkdir -p $MFdir/gits/ 
 INSTdir=$MFdir/helpers/install/
@@ -84,17 +85,16 @@ if ! find_in_mamba_env "MGTK\s" ; then
 #just in case it crashes, this often recovers it..
 	$MAMBA_E create -q -y -f $INSTdir/MG-TK.yml #-q -y
 	$MAMBA_E activate MGTK
-	echo "Installing R packages in MGTK environment"
-	Rscript $INSTdir/reqPackages.R
+	#echo "Installing R packages in MGTK environment";	Rscript $INSTdir/reqPackages.R
 	#pip install biopython
 else 
 	echo "Updating base MGTK conda environment.. Please be patient"
 					#	$MAMBA_E activate MGTK
 	$MAMBA_E update -q -y -f $INSTdir/MG-TK.yml #-q -y
 	
-	echo "Updating R packages in MGTK environment"
-	{ Rscript $INSTdir/reqPackages.R
-	} || { 		echo "Rscript install failed.. trying direct excecution";		$INSTdir/./reqPackages.R;	}
+	#echo "Updating R packages in MGTK environment"
+	#{ Rscript $INSTdir/reqPackages.R
+	#} || { 		echo "Rscript install failed.. trying direct excecution";		$INSTdir/./reqPackages.R;	}
 fi
 
 #exit
@@ -144,7 +144,7 @@ if ! find_in_mamba_env "MGTKgtdbtk" ; then
 	echo "Installing MGTKgtdbtk environment"
 	$MAMBA_E create  -q -y -f $INSTdir/GTDBTK.yml 
 else 
-	echo "Updating gtdbtk environment"
+	echo "Updating MGTKgtdbtk environment"
 	$MAMBA_E update  -q -y -f $INSTdir/GTDBTK.yml 
 fi
 
@@ -235,6 +235,7 @@ fi
 #later toadd..
 #git clone https://github.com/GaetanBenoitDev/metaMDBG.git;mima create -y -f conda_env.yml;activate metaMDBG
 
+rm -f $MFdir/helpers/install/runningInstall.sto
 
 
 echo "Finished MG-TK install"
