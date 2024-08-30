@@ -27,6 +27,7 @@
 	- [map2tar mode](#map2tar-mode)
 	- [Building phylogenetic trees with MG-TK](#building-phylogenetic-trees-with-MG-TK)
 - [Trouble shooting](#trouble-shooting)
+	- [Known issues](#known-issues)
 - [License, citations etc](#license,-citations-etc)
 
 </details>
@@ -104,6 +105,20 @@ bash helpers/install/installer.sh
 
 - follow either assembly-dependent or assembly-independent tutorial
 
+### Run example data
+
+We have prepared an example dataset that can be run directly after installing MG-TK and configuring it (see above). This example will 1) download public short and long read metagenomes 2) assemble short reads and 3) assemble short+long reads (hybrid assembly).
+
+Please go to the directory mg-tk/examples/
+
+To download all required data, run first 
+```{sh}
+0.getExmplData.sh
+```
+
+After this is finished (check in the newly created mg-tk/examples/data/ dir for ~1.3Gb of data), you can either run 1.runMGTK_illumina.mfc (short read metagenomics) or 2.runMGTK_hybrid.mfc (short+long reads). Note that these are non-seniscal examples, i.e. the short and long reads are from completely independent experiments, don't expect interpretable results, this is purely to check if the technical process can run to completion.
+
+How do you know everything finished as it should? Wait until all submitted jobs have finished, run the 1. or 2. script again until it reports that nothing is left to do. (Note:kill eventual "DependencyNeverSatisified" jobs for 1-2 times, if persists there might be a problem with runnning certain programs, where you need to start checking error logs, see Q&A below).
 
 ### Useful configurations to track and check on MG-TK jobs
 
@@ -941,6 +956,12 @@ Explanation: $inD is an input dir with complete genomes, the script will extract
 
 This section lists a number of typically occurring problems that are usually not addressable by programming/bug fixing. Please look here first if an error you encountered is already listed.
 
+### Known issues
+
+This is a beta release of MG-TK. Some parts of the pipeline will currently not run, because we have not started yet linking in the various databases being used. Known DBs missing: 
+- LSU/SSU DBs ((needed for miTag approaches, flag -profileRibosome )
+- GTDB, for MAG classification (needed in gene catalog step)
+- all functional annotation databases (needed in gene catalog step or flag -profileFunct )
 
 ### Setting environmental variables
 

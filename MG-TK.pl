@@ -129,9 +129,9 @@ my $submSytem = ""; #user supplied submission system flag.. default is empty and
 my $mateInsertLength = 20000; #controls expected mate insert size , import for bowtie2 mappings
 my %jmp=();
 my $logDir = ""; #this is the local logdir
-my $sharedTmpDirP = ""; #e.g. /scratch/MATAFILER/
+my $sharedTmpDirP = ""; #e.g. /scratch/MG-TK/
 #$sharedTmpDirP = "/g/scb/bork/hildebra/tmp/" if (`hostname` !~ m/submaster/);
-my $nodeTmpDirBase = "";#/tmp/MATAFILER/
+my $nodeTmpDirBase = "";#/tmp/MG-TK/
 my $nodeHDDspace = 30; #30 Gb; default value
 my $baseDir = ""; my $baseOut = "";
 my $mapFile = ""; my $baseID = "";
@@ -192,7 +192,7 @@ my $loop2completion_ini=0;
 #MFcontstants: object to store essential paths/file endings
 my %MFcontstants;
 
-#MFopt: global object with options for MATAFILER. Added in MF v0.5, slowly rebuild MF around this system
+#MFopt: global object with options for MG-TK. Added in MF v0.5, slowly rebuild MF around this system
 my %MFopt; 
 
 #keep track of DBs that the metagenome will be filtered against..
@@ -3441,7 +3441,7 @@ sub sdmClean(){
 	if ($seqTec ne ""){#override defaults from map
 		$curReadTec = $seqTec; $curSTech = $seqTec;
 	} 
-	checkSeqTech($curReadTec, "MATAFILER.pl::sdmClean");
+	checkSeqTech($curReadTec, "MG-TK.pl::sdmClean");
 	my $is3rdGen = is3rdGenSeqTech($curReadTec);
 
 	
@@ -4060,12 +4060,16 @@ sub seedUnzip2tmp{
 			#die $paX1[0]."\n";
 			push @pa1 , @paX1; push @pa2 , @paX2; @libInfoX = $xtraRdsTech x @paX1; push @libInfo, @libInfoX;
 		} elsif (-e $fastp2[0] ){
-			if ($fastp2[0]=~ m/,/){die "MATAFILER.pl::support reads have comma: $fastp2[0]!\nExiting..\n";}
-			if ($fastp2[0] !~ m/\.bam$/){die "MATAFILER.pl::support reads not bam formatted: $fastp2[0]!\nExiting..\n";}
+			if ($fastp2[0]=~ m/,/){die "MG-TK.pl::support reads have comma: $fastp2[0]!\nExiting..\n";}
+			if ($fastp2[0] !~ m/\.bam$/ && $fastp2[0] !~ m/\.fastq\.gz?$/ && $fastp2[0] !~ m/\.fq\.gz$/){die "MG-TK.pl::support reads not bam or fq.gz formatted: $fastp2[0]!\nExiting..\n";}
 			push @libInfoX, $xtraRdsTech;
-			push @paBamX, @fastp2;
+			if ($fastp2[0] =~ m/\.bam$/){
+				push @paBamX, @fastp2;
+			} else {
+				push @paXs, @fastp2;
+			}
 		} else {
-			die "MATAFILER.pl:: Can't find support reads @fastp2!\nExiting..\n";
+			die "MG-TK.pl:: Can't find support reads @fastp2!\nExiting..\n";
 		}
 	}
 		#die "@libInfo\n$libInfo[1]\n";
@@ -4127,6 +4131,7 @@ sub seedUnzip2tmp{
 		print "Input size raw (Mb): " . int($inputFileSizeMB{$curSmpl}) ;
 		print " Fastq pairs: " . scalar(@pa1) if (@pa1);
 		print " Fastq Singls: " . scalar (@pas) if (@pas);
+		print " Fastq Supports Singls: " . scalar (@paXs) if (@paXs);
 		print " Bam Singls: " . scalar (@paBam) if (@paBam);
 		print " Bam Supports Singls: " . scalar (@paBamX) if (@paBamX);
 		
@@ -4312,7 +4317,7 @@ sub seedUnzip2tmp{
 				($jobN, $tmpCmd) = qsubSystem($logDir."UNZP.sh",$unzipcmd,$numCore,"20G",$jobN,$jDepe,"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 				$QSBoptHR->{tmpSpace} = $tmpSHDD;
 			} else {
-				die "MATAFILER.pl:: unzipcmd not excecutable due to \$lowEffort not correctly set ($lowEffort)!\n";
+				die "MG-TK.pl:: unzipcmd not excecutable due to \$lowEffort not correctly set ($lowEffort)!\n";
 			}
 			$WT += 30;
 			#print " FDFS ";

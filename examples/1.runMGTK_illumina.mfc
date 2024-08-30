@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH -N 1
+#SBATCH --cpus-per-task=1
+#SBATCH -o 1.runMGTK_illumina.mfc.otxt
+#SBATCH -e 1.runMGTK_illumina.mfc.etxt
+#SBATCH --mem=22400
+#SBATCH --export=ALL
+#SBATCH -p "ei-medium,qib-medium,qib-long,ei-long"
+#  SBATCH --time=248:00:00
+# #SBATCH --localscratch=ssd:10
+#SBATCH -J subPB
+set -e
+ulimit -c 0;
+
+
+if [ ! -e $MGTKDIR/examples/data/SRR8797713_2.fq.gz ]; then
+	echo "Input file not found (data/SRR8797713_2.fq.gz), run first 0.getExmplData.sh"
+	exit
+fi 
+
+echo ""
+echo ""
+echo "Simple example (nonsensical data) for testing MG-TK short read metagenomic assembly workflow"
+echo "Run, wait for all jobs to finish. Then rerun to capture unfinished tasks. Repeat until no further jobs are submitted"
+echo "By default, these results will be saved in $MGTKDIR/examples/data dir for this test."
+echo "    However, this is not recommended for larger runs, where it is better to keep the input data and results dir separate from the MG-TK dir."
+echo ""
+echo ""
+
+MAP=$MGTKDIR//examples/maps/testAG.map
+perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -mergeReads 0 -maxConcurrentJobs 800 \
+-inputBAMregex '.*\.bam$' \
+-assembleMG 1 -spadesCores 12 -spadesKmers "25,43,67,87,111,127" -spadesMemory 200 -MetaBat2 2 -asssemblyHddSpace 150 \
+-mapReadsOntoAssembly 1 -saveReadsNotMap2Assembly 0 -remap2assembly 0  -mappingMem 7 -logQualvsLen 1 \
+-mapper -1 -profileFunct 0 -reParseFunct 0 -reProfileFunct 0 -diamondDBs ABRc -kmerPerGene 0 \
+-reduceScratchUse 1 -getAssemblConsSNP 1 -redoAssmblConsSNP 0 -profileRibosome 0 -reProfileRibosome 0 \
+-profileMOTU2 0 -profileMetaphlan2 0 -rmSmplLocks 1 \
+-submit 1  \
+-from 0 -to 6
+exit
+#-ignore smpl1,smpl2 -> ignore specific samples
+#-filterHostKrak2DB /path/to/kraken2/DB/human/ -filterHostRds 1 -> filter reads from host against specific, kraken2 database

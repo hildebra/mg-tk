@@ -957,6 +957,12 @@ sub getDirsPerAssmblGrp{
 	return(\%DOs,\%map);
 }
 
+sub resolve_path($){
+	my ($inP) = @_;
+	$inP =~ s/\$([A-Z0-9_]*)/$ENV{$1}/g;
+	return $inP;
+}
+
 sub is3rdGenSeqTech{
 	my $curReadTec = $_[0];
 	my $is3rdGen = 0; #important flag for long reads (Oxford Nanopore / PacBio)
@@ -1021,11 +1027,11 @@ sub readMap{
 		$cnt++;s/\R//g;chomp;
 		next if (length($_) ==0);
 		if (m/^#/ && $cnt > 0 ){#check for ssome global parameters
-			if (m/^#DirPath\s(\S+).*$/){$dir2dirs = $1; $dir2dirs.="/" unless ($dir2dirs=~m/\/$/); push(@dir2dirsA,$dir2dirs);}
-			if (m/^#OutPath\s+(\S+)/){$dir2out = $1; $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);}
+			if (m/^#DirPath\s(\S+).*$/){$dir2dirs = resolve_path($1); $dir2dirs.="/" unless ($dir2dirs=~m/\/$/); push(@dir2dirsA,$dir2dirs);}
+			if (m/^#OutPath\s+(\S+)/){$dir2out = resolve_path($1); $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);}
 			if (m/^#RunID\s+(\S+)/){$baseID = $1; $inDirSet=0;}
-			if (m/^#mocatFiltPath\s+(\S+)/){$mocatFiltPath = $1;}
-			if (m/^#illuminaClip\s+(\S+)/){$illuminaClip = $1;}
+			if (m/^#mocatFiltPath\s+(\S+)/){$mocatFiltPath = resolve_path($1);}
+			if (m/^#illuminaClip\s+(\S+)/){$illuminaClip = resolve_path($1);}
 			if (m/^#NodeTmpDir\s+(\S+)/){$NodeTmpD = $1;}
 			if (m/^#GlobalTmpDir\s+(\S+)/){$GlbTmpD = $1;}
 			if (m/^#WARNING\sOFF/){$DOWARN=0;print "Warning: Deactivated Warnings while reading the map file! ..\n";}
@@ -1140,7 +1146,30 @@ sub readMap{
 		
 		
 		#die "$SupRdsCol\t@spl\n$spl[$SupRdsCol]\n";
-		if ($SupRdsCol >= 0 && $SupRdsCol < @spl) { if(length($spl[$SupRdsCol]) > 0 && $spl[$SupRdsCol] !~ m/\/$/ && -d $spl[$SupRdsCol]) {$spl[$SupRdsCol].="/";} $ret{$curSmp}{SupportReads} = $spl[$SupRdsCol]; } else {$ret{$curSmp}{SupportReads} = "";}
+		if ($SupRdsCol >= 0 && $SupRdsCol < @spl) { 
+			if(length($spl[$SupRdsCol]) > 0 && $spl[$SupRdsCol] !~ m/\/$/ && -d $spl[$SupRdsCol]) {
+				$spl[$SupRdsCol].="/";
+			}
+			#resolve paths.. split on , for multiple files/cases
+			my @spl2 = split /;/,$spl[$SupRdsCol];
+			my @spl4 = ();
+			foreach my $case (@spl2){
+				my @spl3 = split /:/,$case;
+				if (@spl3>=2){
+					my $out = shift @spl3;$out .=  ":";
+					foreach (@spl3){$out .=resolve_path($_);}
+					push (@spl4,$out);
+				} else {
+					push (@spl4,$case);
+				}
+			}
+			$ret{$curSmp}{SupportReads} = join(",",@spl4); 
+			
+			#print "\n\n$ret{$curSmp}{SupportReads} \n\n";
+			
+		} else {
+			$ret{$curSmp}{SupportReads} = "";
+		}
 		if ($rLenCol >= 0){$ret{$curSmp}{readLength} = $spl[$rLenCol];} else {$ret{$curSmp}{readLength} = 0;}
 		if ($ExcludeAssemble >= 0){$ret{$curSmp}{ExcludeAssem} = $spl[$ExcludeAssemble];} else {$ret{$curSmp}{ExcludeAssem} = 0;}
 		$ret{$curSmp}{cut5pR2} = 0;

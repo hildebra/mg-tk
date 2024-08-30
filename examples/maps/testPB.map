@@ -1,0 +1,14 @@
+#SmplID	SmplPrefix	SupportReads	INFO	SeqTech	Pth	AssmblGrps	sampleID	Individual	TimePoint
+#WARNING	OFF
+#RunID	2.testPB								
+#OutPath	$MGTKDIR/examples/output/								
+#DirPath	$MGTKDIR/examples//data
+
+S4zm	SRR8797713	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq				S4zm_R1177-S0001	0
+S4qia	SRR8797712	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz,$MGTKDIR/examples//data/SRR15489009_sub.fq.gz		hiSeq				S4zm_R1177-S0001	0
+S4zmGG1	SRR8797713	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq		I1		S4zm_R1177-S0001	0
+S4qiaGG2	SRR8797712	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq		I1		S4zm_R1177-S0001	0
+S4qiaGG3	SRR8797712	PB:$MGTKDIR/examples//data/SRR15489009_sub.fq.gz		hiSeq		I1		S4zm_R1177-S0001	0
+S4zmS1	SRR8797713			hiSeq		I2		S4zm_R1177-S0001	0
+S4qiaS2	SRR8797712			hiSeq		I2		S4zm_R1177-S0001	0
+S4qiaS3	SRR8797712			hiSeq		I3		S4zm_R1177-S0001	0

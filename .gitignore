@@ -5,8 +5,7 @@
 # *.[oa]
 # *~
 
-*.mfc
-*/*.mfc
+runs/*.mfc
 runs
 runs/maps
 Mods/MATAFILERcfg.txt
@@ -15,17 +14,14 @@ helpers/miTag/shini
 data/GTDBcutoffs_o.txt
 configs
 tmp
-#  SNP
 TAMOC
 old_Ctrl
 config.txt
 Xperimental
 old_Ctrl
-maps
-runs
-SebSNP
-Ana
 DBs
 data/DBs
 helpers/install/runningInstall.sto
 helpers/install/progsChecked.sto
+examples/data
+examples/output

@@ -1,0 +1,42 @@
+#SmplID	Path	AssmblGrps	MapGrps	SupportReads
+#OutPath	/outpath/for/data/			
+#RunID	ExampleMATA			
+#DirPath	/something/input/MetaHIT/
+MH1	MH0272	201	201	
+MH2	MH0037	202	202	
+MH3	MH0424	203	203	
+MH4	O2.UC18-2	204	204	
+MH5	V1.UC11-5	205	205	
+MH6	V1.UC13-3	206	206	
+MH7	MH0431	209	209	
+#DirPath	/g/something/swedish.T2D/			
+SWE1	NG-5636_628	207	207	
+#DirPath	/g/something/CC/			
+CC1	CCMD11006829ST-21-0	208	208	
+#DirPath	/g/something/HMP_stool/
+HM28	764002286-stool2	h24	h24	
+HM42	159005010-stool2	h7	h7	
+#HM9	158802708-stool1	h6	h6	#removed
+#HM9_1	158802708-stool1.2013	178	178	 #removed
+#DirPath	/g/asd/sdlks/MM/			
+MM1	alien-11-0-0/	1	1	
+MM2	alien-11-2-0/	2	2	
+MM3	alien-11-374-0/	354	3	miSeq:/g/somewhere/solexa/2015-09-07-000000000-ABUYN/
+MM4	alien-11-376-0/	4	4	
+MM5	alien-11-377-0/	5	5	mate:/g/bork/solexa/2016-04-28-C8NHLACXX
+MM12X2	alien-11-600-1/	12	12	
+MM12	alien-11-600-0/	12	12	
+MM13	alien-11-630-0/	13	13	
+#DirPath	/g/sad/data2/ABR_TS/			
+ABR-1-0	ERS813907	a1	a1	
+ABR-1-C1	ERS813908	a2	a2	
+ABR-1-C3	ERS813909	a3	a3	
+ABR-1-C6	ERS813910	a4	a4	
+ABR-1-P2	ERS813911	a5	a5	
+ABR-1-P28	ERS813912	a6	a6	
+ABR-2-0	ERS813913	a7	a7	
+ABR-2-C1	ERS813914	a8	a8	
+ABR-2-C3	ERS813915	a9	a9	
+ABR-2-C6	ERS813916	a10	a10	
+ABR-2-P2	ERS813917	a11	a11	
+ABR-2-P28	ERS813918	a12	a12	
