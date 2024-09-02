@@ -73,7 +73,7 @@ fi
 #exit;
 
 
-# For all micromamba installs, we use --channel-priority 0. This sets to 
+# For all micromamba installs, we use --channel-priority 1. This sets to 
 # "flexible" priority - from conda docs "the solver may reach into lower 
 # priority channels to fulfill dependencies, rather than raising an 
 # unsatisfiable error". This should help avoid a lot of dependency problems
@@ -81,16 +81,16 @@ fi
 if ! find_in_mamba_env "MGTK\s" ; then
 	echo "Creating base MGTK conda environment.. This might take awhile"
 	#first install spades that seems to require a lot of mem..
-	#$MAMBA_E create --channel-priority 0 -q -y -n MFF spades
+	#$MAMBA_E create --channel-priority 1 -q -y -n MFF spades
 #just in case it crashes, this often recovers it..
-	$MAMBA_E create -q -y -f $INSTdir/MG-TK.yml #-q -y
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/MG-TK.yml #-q -y
 	$MAMBA_E activate MGTK
 	#echo "Installing R packages in MGTK environment";	Rscript $INSTdir/reqPackages.R
 	#pip install biopython
 else 
 	echo "Updating base MGTK conda environment.. Please be patient"
 					#	$MAMBA_E activate MGTK
-	$MAMBA_E update -q -y -f $INSTdir/MG-TK.yml #-q -y
+	$MAMBA_E update --channel-priority 1 -q -y -f $INSTdir/MG-TK.yml #-q -y
 	
 	#echo "Updating R packages in MGTK environment"
 	#{ Rscript $INSTdir/reqPackages.R
@@ -142,18 +142,18 @@ fi
 #additional dependencies not in the main yml..
 if ! find_in_mamba_env "MGTKgtdbtk" ; then
 	echo "Installing MGTKgtdbtk environment"
-	$MAMBA_E create  -q -y -f $INSTdir/GTDBTK.yml 
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/GTDBTK.yml 
 else 
 	echo "Updating MGTKgtdbtk environment"
-	$MAMBA_E update  -q -y -f $INSTdir/GTDBTK.yml 
+	$MAMBA_E update --channel-priority 1 -q -y -f $INSTdir/GTDBTK.yml 
 fi
 
 if ! find_in_mamba_env "MGTKbinners" ; then
 	echo "Installing MGTKbinners environment"
-	$MAMBA_E create  -q -y -f $INSTdir/Binners.yml
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/Binners.yml
 else 
 	echo "Updating MGTKbinners environment"
-	$MAMBA_E update  -q -y -f $INSTdir/Binners.yml
+	$MAMBA_E update --channel-priority 1 -q -y -f $INSTdir/Binners.yml
 fi
 
 
@@ -162,7 +162,7 @@ fi
 
 if ! find_in_mamba_env "MGTKcheckm2" ; then
 	echo "Installing MGTKcheckm2 environment"
-	$MAMBA_E create  -q -y -f $INSTdir/checkm2.yml 
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/checkm2.yml 
 	$MAMBA_E activate MGTKcheckm2
 	checkm2 database --download --path $MFdir/DBs/
 	$MAMBA_E deactivate
@@ -207,18 +207,18 @@ fi
 
 if ! find_in_mamba_env "MGTKphylo" ; then
 	echo "Installing MGTKphylo environment"
-	$MAMBA_E create --channel-priority 0 -q -y -f $INSTdir/phylo.yml 
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/phylo.yml 
 else 
 	echo "Updating MGTKphylo environment"
-	$MAMBA_E update --channel-priority 0 -q -y -f $INSTdir/phylo.yml 
+	$MAMBA_E update --channel-priority 1 -q -y -f $INSTdir/phylo.yml 
 fi
 
 if ! find_in_mamba_env "MGTKwhokar" ; then
 	echo "Installing MGTKwhokar environment"
-	$MAMBA_E create --channel-priority 0 -q -y -f $INSTdir/whokaryote.yml 
+	$MAMBA_E create --channel-priority 1 -q -y -f $INSTdir/whokaryote.yml 
 else 
 	echo "Updating MGTKwhokar environment"
-	$MAMBA_E update --channel-priority 0 -q -y -f $INSTdir/whokaryote.yml 
+	$MAMBA_E update --channel-priority 1 -q -y -f $INSTdir/whokaryote.yml 
 fi
 
 
