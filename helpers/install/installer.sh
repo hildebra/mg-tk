@@ -64,6 +64,16 @@ if [ ! -f $MFdir/config.txt ] ; then
 fi
 
 
+if find_in_bashrc "##------------> MATAFILER ADDED" ; then
+	echo "It seems your ~/.bashrc still contains an old MATAFILER install (lines after "
+	echo "\"##------------> MATAFILER ADDED\" )."
+	echo "Please delete all MATAFILER added lines from your bashrc, as this is incompatible with MG-TK"
+	echo "Rerun MG-TK installer after this is done"
+	echo "      Exiting.."
+	exit 
+fi
+
+
 if ! find_in_bashrc "##------------> MG-TK ADDED" ; then
 	printf "\n\n##------------> MG-TK ADDED <----------##\nexport MGTKDIR=$MFdir/\nexport PERL5LIB=\"\$PERL5LIB:$MFdir/\"\n##------------> MG-TK ADDED <----------##\n\n" >> ~/.bashrc
 	echo "Added MG-TK modules to .bashrc"

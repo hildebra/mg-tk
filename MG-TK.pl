@@ -1572,7 +1572,7 @@ sub postprocess{
 		my $gcmd = "";
 		$gcmd .= "#creates gene catalog in the specified outdir with specified cores, attempting to reuse existing dirs (in case catalog creation failed):\n";
 		$gcmd .= "$gcScr -map $mapFile -GCd [insert outdir] -mem 200 -cores [cores] -clusterID 95 -doStrains $MFopt{DoConsSNP} -continue 1 -binSpeciesMG $MFopt{DoMetaBat2} -useCheckM2 $MFopt{useCheckM2} -useCheckM1 $MFopt{useCheckM1} -MGset [FMG/GTDB] \n";
-		print "\n\nNext step, create a genecatalog (95% id) call (modify first): \nsbatch $GCsub\n";
+		print "\n\nNext step, create a genecatalog. Call (but modify first): \nsbatch $GCsub\n";
 		$QSBoptHR->{doSubmit} = 0;
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
 		my ($jobN, $tmpCmd) = qsubSystem($GCsub,$gcmd,1,"80G","GeCat","","",1,[],$QSBoptHR) ;

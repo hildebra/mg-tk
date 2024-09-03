@@ -42,7 +42,8 @@ MG-TK is a pipeline developed to
 
 MG-TK is implemented in Perl, C++ and uses R and python scripts. 
 
-Author: Falk Hildebrand <Falk.Hildebrand@gmail.com>
+Author: Falk Hildebrand <Falk.Hildebrand@gmail.com> 
+
 ## Installing MG-TK
 
 <details>
@@ -51,7 +52,7 @@ Author: Falk Hildebrand <Falk.Hildebrand@gmail.com>
 
 ### Requirements
 
-MG-TK requires a perl installation and sdm requires a fairly recent C++ compiler (like gcc or clang) that supports C++11.
+MG-TK requires a perl installation and sdm requires a fairly recent C++ compiler (like gcc or clang) that supports C++11; these will be automatically installed in the install script.
 MG-TK currently only works under linux, and is expected to run on a computer cluster. Since the pipeline includes a lot of external sofware, you will need fully installed Micromamba ([https://mamba.readthedocs.io/en/latest/installation.html](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)).
 
 
@@ -103,22 +104,7 @@ bash helpers/install/installer.sh
     - globalTmpDir	`/path/to/your/scratch/`
 	- nodeTmpDir	`/path/on/node/to/tmp` -> on slurm systems this could be a variable, e.g. `$SLURM_LOCAL_SCRATCH/MG-TK/`
 
-- follow either assembly-dependent or assembly-independent tutorial
-
-### Run example data
-
-We have prepared an example dataset that can be run directly after installing MG-TK and configuring it (see above). This example will 1) download public short and long read metagenomes 2) assemble short reads and 3) assemble short+long reads (hybrid assembly).
-
-Please go to the directory mg-tk/examples/
-
-To download all required data, run first 
-```{sh}
-0.getExmplData.sh
-```
-
-After this is finished (check in the newly created mg-tk/examples/data/ dir for ~1.3Gb of data), you can either run 1.runMGTK_illumina.mfc (short read metagenomics) or 2.runMGTK_hybrid.mfc (short+long reads). Note that these are non-seniscal examples, i.e. the short and long reads are from completely independent experiments, don't expect interpretable results, this is purely to check if the technical process can run to completion.
-
-How do you know everything finished as it should? Wait until all submitted jobs have finished, run the 1. or 2. script again until it reports that nothing is left to do. (Note:kill eventual "DependencyNeverSatisified" jobs for 1-2 times, if persists there might be a problem with runnning certain programs, where you need to start checking error logs, see Q&A below).
+- follow either example runs, assembly-dependent or assembly-independent tutorial (Examples section below)
 
 ### Useful configurations to track and check on MG-TK jobs
 
@@ -165,6 +151,10 @@ cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
 
 
 ## Running MG-TK
+
+<details>
+  <summary> Expand Installation section </summary>
+
 
 MG-TK is programmed for HPC environments (Linux) and was conceptualized to process 1000's of metagenomes. It relies therefore on job schedulers (slurm, SGE and LSF are supported) and multiple safeguards to resume failed jobs. Please see examples below for specific runs.
 
@@ -248,11 +238,33 @@ Mouse16t1	SubDir3		M16
 
 </details>
  
+</details>
+
 
 ## Examples
 
 <details>
   <summary> Expand example assembly with MG-TK </summary>
+  
+  
+  
+### MG-TK example dataset
+
+We have prepared an example dataset that can be run directly after installing MG-TK and configuring it (see above). This example will 1) download public short and long read metagenomes 2) assemble short reads and 3) assemble short+long reads (hybrid assembly).
+
+Please go to the directory mg-tk/examples/
+
+To download all required data, run first 
+```{sh}
+bash 0.getExmplData.sh
+```
+
+After this is finished (check in the newly created mg-tk/examples/data/ dir for ~1.3Gb of data), you can either run 1.runMGTK_illumina.mfc (short read metagenomics) or 2.runMGTK_hybrid.mfc (short+long reads). Note that these are non-seniscal examples, i.e. the short and long reads are from completely independent experiments, don't expect interpretable results, this is purely to check if the technical process can run to completion.
+
+How do you know everything finished as it should? Wait until all submitted jobs have finished, run the 1. or 2. script again until it reports that nothing is left to do. (Note:kill eventual "DependencyNeverSatisified" jobs for 1-2 times, if persists there might be a problem with runnning certain programs, where you need to start checking error logs, see Q&A below).
+
+In the next section we will give examples on how to create your own MG-TK runs.
+  
   
 ### MG-TK metagenomic assembly and gene catalog
 
@@ -1012,10 +1024,15 @@ You can also delete **all** jobs where the dependency failed, saving you a lot o
 ## License, citations etc
 
 ### Used software
-plenty.. please refer to helpers/install/MG-TK.yml, helpers/install/GTDBTK.yml, helpers/install/checkm2.yml and reqPackages.R
 
-Other important software used:
-sdm, LCA: both part of https://lotus2.earlham.ac.uk/
+plenty.. please refer to helpers/install/\*.yml for software that is available on Conda.
+
+Other software used that was adapted and/or developed specifically for MG-TK (all implemented in C++):
+[sdm](https://github.com/hildebra/sdm), [LCA](https://github.com/hildebra/LCA): for 1) read qual filtering 2) least common ancestor calculations in tax assignments. Both are part of our amplicons sequencing pipeline [LotuS2](https://lotus2.earlham.ac.uk/)
+[clusterMAGs](https://github.com/hildebra/clusterMAGs): cluster MAGs into MGS (metagenomic species) based on conserved marker genes
+[camopy2](https://github.com/hildebra/canopy2): canopy clustering of gene catalogues, a much more efficient implementation of the [original algorithm](http://www.nature.com/articles/nbt.2939)
+[MSAfix](https://github.com/hildebra/MSAfix): fixes frameshifts in MSA that sometimes occur, important for high senstive intraspecific phylogenies
+[rdCover](https://github.com/hildebra/rdCover): calculates read coverage of genes, genomes etc based on mappings.
 
 ### Citing MG-TK
 
@@ -1029,7 +1046,7 @@ Falk Hildebrand <Falk.Hildebrand@gmail.com>
 
 ### License
 
- Copyright (c) 2017-2023 Falk Hildebrand
+ Copyright (c) 2017-2024 Falk Hildebrand
 
  MG-TK is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
