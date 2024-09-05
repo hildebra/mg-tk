@@ -28,3 +28,4 @@ mediumQueue	ei-medium,qib-medium,ei-long,qib-long	#24 hour WALLtime, default que
 longQueue	ei-long,qib-long	#334 hour WALLtime
 gpuQueue	ei-gpu	#leave empty if no GPU queue available; queue specifically for gpu jobs (deep neural nets etc)
 highMemQueue	ei-largemem
+shortQueue	ei-short	#45 min walltime

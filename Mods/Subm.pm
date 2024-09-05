@@ -330,13 +330,17 @@ sub qsubSystem($ $ $ $ $ $ $ $ $ $){
 	my $queues = "\"".$optHR->{medQueue}."\"";#"\"medium_priority\"";
 	my $time = $optHR->{medTime};#"24:00:00";
 	if ($optHR->{useHiMemQueue} == 1){
-		$queues = "\"".$optHR->{highMemQueue}."\"";
+		$queues = "\"".$optHR->{highMemQueue}."\"";$optHR->{useHiMemQueue}=0;
 	} elsif ($optHR->{useLongQueue} ==1){
 		$queues = "\"".$optHR->{longQueue}."\"";#"\"medium_priority\"";
-		$time = "335:00:00";
+		$time = "335:00:00";$optHR->{useLongQueue}=0;
 	} elsif ($optHR->{useGPUQueue} ==1){
 		$queues = "\"".$optHR->{gpuQueue}."\"";#"\"medium_priority\"";
+		$time = "23:00:00";$optHR->{useGPUQueue}=0;
+	} elsif ($optHR->{useShortQueue} ==1){
+		$queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
 		$time = "23:00:00";
+		$optHR->{useShortQueue}=0;
 	}
 	my @jspl = split(";",$waitJID); @jspl = grep /\S/, @jspl;
 
@@ -496,8 +500,9 @@ sub MFnext($ $ $ $){
 	#print "$logF\n$jDepe\n\n"; 
 	$QSBoptHR->{afterAny}=1;
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
+	$optHR->{useShortQueue} =1;
 	qsubSystem($logF,$cmd,1,"1G",$jobN,$jDepe,"",1,\{},$QSBoptHR);
-	$QSBoptHR->{afterAny}=0;
+	$QSBoptHR->{afterAny}=0;$optHR->{useShortQueue}=0;
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
 }
 
