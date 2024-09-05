@@ -245,7 +245,7 @@ sub getProgPaths{
 	if (exists($CONFIG_HASH{$srchVar})){
 		return $CONFIG_HASH{$srchVar};
 	} else {
-		die "Can't find configuration for $srchVar in MATAFILER config.txt\n" if ($required != 0);
+		die "Can't find configuration for $srchVar in MATAFILER config ($CONFIG_FILE)\n" if ($required != 0);
 	}
 	
 	return "";

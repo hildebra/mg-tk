@@ -116,13 +116,15 @@ sub emptyQsubOpt{
 	$qmode = findQsubSys($qmode);
 	die "qsub system mode has to be \'lsf\', \'bash\', \'slurm\' or \'sge\'!\n" if ($qmode ne "lsf" &&$qmode ne "slurm" && $qmode ne "sge"&& $qmode ne "bash");
 	my $MFdir = getProgPaths("MFLRDir");
-	my $longQ = getProgPaths("longQueue",0); my $shortQ =  getProgPaths("shortQueue",0); my $medQ = getProgPaths("mediumQueue",0);
+	my $longQ = getProgPaths("longQueue",0); my $shortQ =  getProgPaths("shortQueue",0); my $medQ = getProgPaths("mediumQueue",1);
+	#die "$shortQ\n";
 	my $gpuQ = getProgPaths("gpuQueue",0);
 	my $himemQ = getProgPaths("highMemQueue",0);
-	if ($longQ eq ""){$longQ = "medium_priority";  $shortQ = "medium_priority"; }
-	if ($medQ eq "" ){$medQ = $shortQ;};
+	if ($longQ eq ""){$longQ =  $medQ;}
+	if ($medQ eq "" ){die "FATAL: no medium queue defined!\n";};
 	if ($gpuQ eq "" ){$gpuQ = $medQ;};
 	if ($himemQ eq "" ){$himemQ = $medQ;};
+	if ($shortQ eq "" ){$shortQ = $medQ;};
 	my $xtraNodeCmds = getProgPaths("subXtraCmd",0);
 	$xtraNodeCmds = "" unless (defined $xtraNodeCmds);
 	my $medTime = getProgPaths("medTime",0);	my $shortTime = getProgPaths("shortTime",0);
@@ -153,6 +155,7 @@ sub emptyQsubOpt{
 		shortTime => $shortTime, #2hrs
 		useLongQueue => 0,
 		useGPUQueue => 0,
+		useShortQueue => 0,
 		useHiMemQueue => 0,
 		submissionConfig => $subConfig,
 		constraint => \@constr,
@@ -333,13 +336,15 @@ sub qsubSystem($ $ $ $ $ $ $ $ $ $){
 		$queues = "\"".$optHR->{highMemQueue}."\"";$optHR->{useHiMemQueue}=0;
 	} elsif ($optHR->{useLongQueue} ==1){
 		$queues = "\"".$optHR->{longQueue}."\"";#"\"medium_priority\"";
-		$time = "335:00:00";$optHR->{useLongQueue}=0;
+		#$time = "335:00:00";
+		$optHR->{useLongQueue}=0;
 	} elsif ($optHR->{useGPUQueue} ==1){
 		$queues = "\"".$optHR->{gpuQueue}."\"";#"\"medium_priority\"";
-		$time = "23:00:00";$optHR->{useGPUQueue}=0;
+		#$time = "23:00:00";
+		$optHR->{useGPUQueue}=0;
 	} elsif ($optHR->{useShortQueue} ==1){
 		$queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
-		$time = "23:00:00";
+		#$time = "00:45:00";
 		$optHR->{useShortQueue}=0;
 	}
 	my @jspl = split(";",$waitJID); @jspl = grep /\S/, @jspl;
@@ -500,9 +505,9 @@ sub MFnext($ $ $ $){
 	#print "$logF\n$jDepe\n\n"; 
 	$QSBoptHR->{afterAny}=1;
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-	$optHR->{useShortQueue} =1;
+	$QSBoptHR->{useShortQueue} =1;
 	qsubSystem($logF,$cmd,1,"1G",$jobN,$jDepe,"",1,\{},$QSBoptHR);
-	$QSBoptHR->{afterAny}=0;$optHR->{useShortQueue}=0;
+	$QSBoptHR->{afterAny}=0;$QSBoptHR->{useShortQueue}=0;
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
 }
 
