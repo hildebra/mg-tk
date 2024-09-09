@@ -18,7 +18,7 @@ use File::Basename;
 use Getopt::Long qw( GetOptions );
 
 use Cwd; use English;
-use Mods::GenoMetaAss qw( fileGZe splitFastas readMapS systemW readGFF getAssemblPath);  
+use Mods::GenoMetaAss qw( fileGZe splitFastas readMapS systemW readGFF getAssemblPath resolve_path);  
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive);
 use Mods::IO_Tamoc_progs qw(getProgPaths buildMapperIdx);
 use Mods::TamocFunc qw(getSpecificDBpaths readTabbed3 checkMF);
@@ -155,11 +155,7 @@ my %FMGfileList;
 
 my $mapF = "?";#$ARGV[0];#"/g/bork5/hildebra/data/metaGgutEMBL/MM.txt";
 my $GCdir = "";
-#$GCdir = $ARGV[1] if (@ARGV > 1);#"/g/scb/bork/hildebra/SNP/GNMass/";
-#die $mapF."\n@ARGV\n";
-#$numCor = $ARGV[2] if (@ARGV > 2);
 my $cdhID = 95; my $minGeneL = 100;
-#$cdhID = $ARGV[3] if (@ARGV > 3);
 my $extraRdsFNA = "";
 #only used in MGS.pl script:
 my $useCheckM1= 0; my $useCheckM2 =1;
@@ -278,6 +274,11 @@ if ($totMem5 == -1){
 #basic outdir handling..
 $GCdir.="/" unless ($GCdir =~ m/\/$/);
 if ($GCdir eq "" ){die"no valid output (gene cat) dir specified\n";}
+#print "\n\n$GCdir\n";
+
+$GCdir = resolve_path($GCdir);
+
+#die "\n\n$GCdir\n";
 
 if ($tmpDirDef eq $tmpDir){
 	$GCdir =~ m/\/([^\/]+)\/?$/;
@@ -307,13 +308,21 @@ if ($useGTDBmg eq "GTDB"){
 if ($mapF eq ""){
 	die "empty mapfile given\n";
 }
+$mapF =~ s/\/\//\//g;
 if ($mapF =~ m/^\??$/){
 	if (-e "$qsubDir/GCmaps.inf"){
 		$mapF = `cat $qsubDir/GCmaps.inf`;
 		die "extracted mapf from $qsubDir/GCmaps.inf\n does not exist:\n$mapF\n" if (!-e $mapF&& $mapF !~ m/,/);
 	} else {
 		die "Can't find expected copy of inmap in GC outdir: $GCdir\n";
-		#$mapF = "$qsubDir/inmap.txt";
+	}
+} elsif (-e "$qsubDir/GCmaps.inf" && -e "$qsubDir/GCmaps.inf"){
+	
+	my $mapFOri = `cat $qsubDir/GCmaps.ori`;$mapFOri =~ s/\/\//\//g;
+	if ($mapFOri = $mapF){ #same as in input arg.. great, replace with local copies!
+		$mapF = `cat $qsubDir/GCmaps.inf`;
+	} else {
+		die "Continuing run, but inmap does not seem to match!\nOriginal map: $mapFOri\n-map arg: $mapF\nExiting.. delete gene cat folder before proceeding (or use original map)\n";
 	}
 }
 
@@ -426,7 +435,7 @@ if (!-e $prepStone && (!-e "$GCdir/B0//compl.fna" || !-e "$GCdir/B0//compl.fna.g
 #prep base dirs..
 if ($justCDhit==0){
 	if (-d $GCdir && -d $qsubDir){printL "Warning: outdir $GCdir exists.. delete and recreate? (7s wait)\n"; sleep 7;}
-	system ("rm -r $GCdir\n");#mkdir -p $GCdir/globalLOGs");
+	system ("rm -rf $GCdir\n");#mkdir -p $GCdir/globalLOGs");
 } 
 system "mkdir -p $stoneDir" unless (-d $stoneDir); 
 
@@ -895,6 +904,7 @@ sub geneCatFlow($ $ $ $ ){
 		if ($submitLocal){die"Can;t find $OutD/$primaryClusterCLS" unless (-e "$OutD/$primaryClusterCLS");}
 		my $newMapp = ""; $newMapp = "-oldMapStyle" if ($oldNameFolders > 0);
 		my $cmd1 = "$rareBin geneMat -i $OutD/$primaryClusterCLS -t $numCorL -o $OutD/$countMatrixP $newMapp -map $mapF -refD $assDirs $geneMatSupplFlag -gz\n"; #add flag -useCoverage to get coverage estimates instead
+		#print "$cmd1\n";
 		my $cmd2 = "$rareBin geneMat -i $OutD/$primaryClusterCLS -t $numCorL -o $OutD/Mat.cov $newMapp -map $mapF -refD $assDirs $geneMatSupplFlag -useCoverage -gz\n\nrm $OutD/Mat.cov.genes2rows.txt"; #coverage mat
 		my $cmd3 = "$rareBin geneMat -i $OutD/$primaryClusterCLS -t $numCorL -o $OutD/Mat.med $newMapp -map $mapF -refD $assDirs $geneMatSupplFlag -useCovMedian -gz\nrm $OutD/Mat.med.genes2rows.txt"; #coverage mat
 		$cmd1 .= "\ntouch $matrixSton\n";
@@ -1457,12 +1467,14 @@ sub prepCDhit(){
 	my @maps = split(/,/,$mapF);
 	my @newMaps;my $cntMaps=0;
 	foreach my $mm (@maps){
-		system "cp $mm $qsubDir/map.$cntMaps.txt"; push (@newMaps,"$qsubDir/map.$cntMaps.txt"); $cntMaps++;
+		#system "cp $mm $qsubDir/map.$cntMaps.txt"; 
+		system "envsubst < $mm  > $qsubDir/map.$cntMaps.txt";
+		push (@newMaps,"$qsubDir/map.$cntMaps.txt"); $cntMaps++;
 	}
 	open O,">$qsubDir/GCmaps.inf"; print O join ",",@newMaps; close O;
 	open O,">$qsubDir/GCmaps.ori"; print O join ",",@maps; close O;
+	$mapF = join ",",@newMaps; #always work with copied versions of maps
 	#die();
-	#if ($BIG==0){	$numCor = 24; $totMem = 30; }
 
 	 my @probSample=();
 	#detecting and removing wrong / corrupted samples..
@@ -1570,6 +1582,7 @@ sub prepCDhit(){
 		}
 				
 		if (-d "$tmpDir/$COGdir") { #COGs were created
+			sleep(5);
 			print "Concatenating FMG/GTDB gene files\n";
 			opendir(DIR, "$tmpDir/$COGdir/") or die $!;
 			my @cogfiles = grep {/^preclus\..*\.fna\.\d+/ && -f "$tmpDir/$COGdir/$_" } readdir(DIR); close DIR;
@@ -2164,8 +2177,8 @@ sub addCOGgenes{
 	close Oc;
 	print "\nFound $COGcnt $COGdir genes\n";
 	#print "$logstr\n";
-	print "$outFcls\n\n";
-	open O,">$GCdir/LOGandSUB/${COGdir}.clusN.log"; print O $logstr; close O;
+	print "added IDs to $outFcls\n\n";
+	open O,">$GCdir/LOGandSUB/${COGdir}.clusN.log" or die $!; print O $logstr; close O;
 }
 
 sub mergeClsSam(){

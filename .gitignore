@@ -25,3 +25,5 @@ helpers/install/runningInstall.sto
 helpers/install/progsChecked.sto
 examples/data
 examples/output
+examples/*.otxt
+examples/*.etxt

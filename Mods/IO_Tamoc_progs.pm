@@ -226,8 +226,6 @@ sub getProgPaths{
 		#print "ARRAY\n";
 		@multVars = @{$srchVar};
 	}
-	
-	
 	if (scalar(keys %CONFIG_HASH) == 0){
 		#read in config hash _once_
 		loadConfigs();
@@ -252,7 +250,7 @@ sub getProgPaths{
 }
 
 sub activateBase{
-	die "activateBase:: not used";
+	die "Mods/IO_Tamoc_progs.pm::activateBase:: not used";
 	my $ret = "";
 	#my $condaA = getProgPaths("CONDA");
 	#$ret = "$condaA\n$CONDcmd activate $1\n$reV";

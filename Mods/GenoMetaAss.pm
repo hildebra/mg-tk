@@ -1,6 +1,6 @@
 package Mods::GenoMetaAss;
 use warnings;
-use Cwd 'abs_path';
+#use Cwd 'abs_path';
 use strict;
 #use List::MoreUtils 'first_index'; 
 use Mods::IO_Tamoc_progs qw(getProgPaths);
@@ -8,7 +8,7 @@ use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Exporter qw(import);
 our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFastqCnts readNCBItax   lcp prefix_find
 		readMap readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
-		renameFastHD  prefixFAhd parse_duration
+		renameFastHD  prefixFAhd parse_duration resolve_path
 		clenSplitFastas getAssemblPath fileGZe fileGZs filsizeMB
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
 		unzipFileARezip systemW is_integer 
@@ -753,6 +753,7 @@ sub getAssemblPath{
 	my $cD = $_[0];
 	my $newpath = "";
 	$newpath = $_[1] if (@_ > 1);
+	$newpath =~ s/\/\//\//g;$newpath =~ s/\/\//\//g;
 	my $dieOnFail=1;
 	$dieOnFail = $_[2] if (@_ > 2);
 	my $firstF = "$cD/assemblies/metag/assembly.txt";
@@ -764,10 +765,12 @@ sub getAssemblPath{
 	open my $I,"<$firstF" or die "GenoMetaAss::getAssemblPath::Assembly path missing: $cD\n";
 	my $metaGD = <$I>;#= `cat $cD/assemblies/metag/assembly.txt`; 
 	chomp $metaGD;
+	my $metaGD2 = $metaGD;$metaGD2 =~ s/\/\//\//g;$metaGD2 =~ s/\/\//\//g;
+	
 	close $I;
 	if ($newpath ne ""){
-		if ($newpath ne $metaGD || !-d $metaGD  ){#needs replacement?
-			print "replacing $metaGD with $newpath\n";
+		if ($newpath ne $metaGD2 || !-d $metaGD  ){#needs replacement?
+			print "replacing $metaGD with $newpath\n" ;
 			open my $I,">$firstF"; print $I $newpath; close $I;
 			$metaGD = $newpath;
 		}
@@ -957,9 +960,16 @@ sub getDirsPerAssmblGrp{
 	return(\%DOs,\%map);
 }
 
+
+#should only be used for dirs!
 sub resolve_path($){
 	my ($inP) = @_;
+	return "" if ($inP eq "");
 	$inP =~ s/\$([A-Z0-9_]*)/$ENV{$1}/g;
+	#doesn't work: dir might not exist yet!
+	#$inP = `realpath $inP` ; chomp $inP; $inP .= "/";
+	#if (-d $inP && $inP !~ m/\/$/){$inP .= "/";}
+	$inP =~ s/\/\//\//g;$inP =~ s/\/\//\//g;
 	return $inP;
 }
 
