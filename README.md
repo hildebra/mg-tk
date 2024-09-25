@@ -26,7 +26,7 @@
 - [Additional usage scenarios](#additional-usage-scenarios)
 	- [map2tar mode](#map2tar-mode)
 	- [Building phylogenetic trees with MG-TK](#building-phylogenetic-trees-with-MG-TK)
-- [Trouble shooting](#trouble-shooting)
+- [FAQ](#FAQ)
 	- [Known issues](#known-issues)
 - [License, citations etc](#license,-citations-etc)
 
@@ -147,6 +147,12 @@ cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
 }
 ```
 
+### Known issues
+
+This is a beta release of MG-TK. Some parts of the pipeline will currently not run, because we have not started yet linking in the various databases being used. Known DBs missing: 
+- LSU/SSU DBs ((needed for miTag approaches, flag -profileRibosome )
+- GTDB, for MAG classification (needed in gene catalog step)
+- all functional annotation databases (needed in gene catalog step or flag -profileFunct )
 </details>
 
 
@@ -961,19 +967,17 @@ Explanation: $inD is an input dir with complete genomes, the script will extract
 </details>
 
 
-## Trouble shooting
+## FAQ
 
 <details>
-  <summary>Expand trouble shooting section</summary>
+  <summary>Expand frequently asked questions section</summary>
 
 This section lists a number of typically occurring problems that are usually not addressable by programming/bug fixing. Please look here first if an error you encountered is already listed.
 
-### Known issues
+### FAQ
 
-This is a beta release of MG-TK. Some parts of the pipeline will currently not run, because we have not started yet linking in the various databases being used. Known DBs missing: 
-- LSU/SSU DBs ((needed for miTag approaches, flag -profileRibosome )
-- GTDB, for MAG classification (needed in gene catalog step)
-- all functional annotation databases (needed in gene catalog step or flag -profileFunct )
+- Q: What is a \*.mfc file?
+A: mfc stands for 'MATAFILER control file' and refers to the original name of MG-TK: MATAFILER. .mfc files are used to store the call to MG-TK, but could as well be named \*.sh or \*.something
 
 ### Setting environmental variables
 
