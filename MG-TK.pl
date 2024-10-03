@@ -41,7 +41,7 @@ use Mods::Subm qw (qsubSystemWaitMaxJobs qsubSystem emptyQsubOpt findQsubSys qsu
 
 
 #local subs
-sub announce_MATAFILER;
+sub announce_MGTK;
 sub smplStats; sub checkDrives; 
 sub isLastSampleInAssembly;
 sub uploadRawFilePrep; sub unploadRawFilePostprocess;
@@ -216,7 +216,7 @@ my %locStats; #keeps statistics of samples in hash (from already finished sample
 
 
 #say hello to user 
-announce_MATAFILER();
+announce_MGTK();
 setDefaultMFconfig();
 getCmdLineOptions;
 checkMF(1);
@@ -1249,10 +1249,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#%%%%%%%%%%%%%%%%   functions dependent on assembly -> submit post-assembly   #%%%%%%%%%%%%%%%%
 	#  ---------     primary assembly mapping -----------------------   map reads to Assembly      ------------------------------
 	if ($MappingGo && !$eFinMapCovGZ && $MFopt{map2Assembly} && ($MFopt{DoAssembly} || $mapAssFlag)){ #mapping to the assembly (can be multi-sample assembly as well)
+		my $moveMappings = 0; $moveMappings =1 if (!$eFinMapCovGZ && -e "$mapOut/$SmplName-smd.bam.coverage.gz");
 		my $mapNow =0;
-		$mapNow = 1 if ($AssemblyGo ||  $efinAssLoc || ($ePreAssmbly && $doPreAssmFlag) );#controls if several samples are assembled together and this needs to be waited for
+		$mapNow = 1 if (!$moveMappings && ($AssemblyGo ||  $efinAssLoc || ($ePreAssmbly && $doPreAssmFlag) ) );#controls if several samples are assembled together and this needs to be waited for
 		print "main map\n";
 		my $unAlDir = "$mapOut/unaligned/";$unAlDir = "" if (!$MFopt{SaveUnalignedReads}); #in most cases we don't need unaligned reads..
+		
 		my %dirset = 	(nodeTmp=>$nodeSpTmpD,outDir => "$finalMapDir/", unalDir => $unAlDir,
 						sbj => $metaGassembly, assGrp => $cAssGrp,  smplName => $SmplName,
 						glbTmp => $smplTmpDir."/toMGctgs/",glbMapDir => $mapOut,mapSupport => 0,
@@ -1262,6 +1264,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		my ($map2Ctgs,$delaySubmCmd,$mapOptHr) = mapReadsToRef(\%dirset, \%AsGrps,
 			$AsGrps{$cAssGrp}{AssemblJobName}.";$jdep");#\@libsCFP);
 		my ($map2Ctgs_2,$delaySubmCmd_2,$mapStat)  = bamDepth(\%dirset,$map2Ctgs,$mapOptHr);
+	
 		
 #		die;
 		$delaySubmCmd .= "\n".$delaySubmCmd_2;
@@ -1274,7 +1277,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			$AsGrps{$cAssGrp}{PostAssemblCmd} .= $delaySubmCmd;
 			push(@{$AsGrps{$cAssGrp}{$cpyStrm}},$mapOut."/*",$finalMapDir);
 			#print "\n\nmapcopydel\n";
-		}elsif (!$eFinMapCovGZ && -e "$mapOut/$SmplName-smd.bam.coverage.gz"){ 
+		}elsif ($moveMappings){ 
 			#this part is checking only if files were not copied..
 			#just do it.. 
 			print "Moving mappings from globaltmp to finaldir\n";
@@ -7345,7 +7348,7 @@ sub getCmdLineOptions{
 
 
 
-sub announce_MATAFILER{
+sub announce_MGTK{
 	
 	
 #	print "888b     d888        d8888 88888888888     d8888 8888888888 8888888 888      8888888888 8888888b.  \n";#
