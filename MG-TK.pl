@@ -5143,7 +5143,7 @@ sub mapReadsToRef{
 	#system($algCmd." -U $p2 -S $tmpOut22\n");
 	#die "$algCmd\n";
 	my $nodeCln = "\nrm -rf $nodeTmp\n";
-	print "$cntAli new alignments\n" if ($cntAli > 0);
+	#print "$cntAli new alignments\n" if ($cntAli > 0);
 #	die $logDir.$bashN."bwtMap.sh";
 	if ( $bamFresh  ){
 		#die "$unzipcmd.$algCmd.$nodeCln";
