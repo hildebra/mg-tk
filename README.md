@@ -1027,6 +1027,9 @@ You can also delete **all** jobs where the dependency failed, saving you a lot o
 
 ## License, citations etc
 
+<details>
+  <summary> Expand section </summary>
+
 ### Used software
 
 plenty.. please refer to helpers/install/\*.yml for software that is available on Conda.
@@ -1064,3 +1067,5 @@ Falk Hildebrand <Falk.Hildebrand@gmail.com>
 
  You should have received a copy of the GNU General Public License
  along with the source code.  If not, see <http://www.gnu.org/licenses/>.
+
+</details>
