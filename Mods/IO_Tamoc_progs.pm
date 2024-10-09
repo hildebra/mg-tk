@@ -218,6 +218,7 @@ sub loadConfigs{
 	$CONFIG_HASH{"BINDir"} = $BINpath;
 	$CONFIG_HASH{"DBDir"} = $DBpath;
 	$CONFIG_HASH{"Rscript"} = $Rscriptcmd;
+	$CONFIG_HASH{"Rpath"} = $Rpath;
 	print "  Done. ";
 }
 

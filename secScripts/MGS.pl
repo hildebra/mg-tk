@@ -45,7 +45,10 @@ sub invertIndex;
 sub createDeepCorrM;
 sub replaceLowQualMGS4MAG;
 
+
+
 #my $metab2Bin = getProgPaths("metabat2");
+
 my $canBin = getProgPaths("canopy");
 my $rareBin = getProgPaths("rare");
 my $Rpath = getProgPaths("Rpath");
@@ -54,8 +57,6 @@ my $avx2Constr = getProgPaths("avx2_constraint",0); #"avx2"; #keyword that can b
 
 
 #add this? https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4748697/figure/fig-1/
-
-
 my $inD = "";#$ARGV[0];
 my $outD = "";
 
