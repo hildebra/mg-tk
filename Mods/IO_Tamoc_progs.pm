@@ -142,7 +142,7 @@ sub loadConfigs{
 	#my $condaA = getProgPaths("CONDA");
 	#die "@CONFIG_TEXT\n";
 	print "converting config files.. ";
-	my $TMCpath = "";my $Tset=0; my $BINpath = "";my $Bset=0; 
+	my $TMCpath = "";my $Tset=0; my $BINpath = "";my $Bset=0; my $Rpath=""; my $RpathSet=0;
 	my $DBpath = "";my $DBset=0; my $SINGcmd = ""; my $SINGset=0; 
 	my $CONDset = 0; my $CONDcmd="";my $CONDset2 = 0; my $CONDA="";my $CONDset3 = 0; my $CONDAbaseEnv="MFF";
 	my $PY3cmd = ""; my $PY3set=0; my $Rscriptcmd = ""; my $Rscriptset=0;
@@ -153,6 +153,13 @@ sub loadConfigs{
 #			next;
 		} elsif (!$Bset && $l =~ m/^BINDir\t([^#]+)/){
 			$BINpath = truePath($1); $Bset=1;
+		} elsif (!$RpathSet && $l =~ m/^Rpath\t([^#]+)/){
+			my $prePath = $1;
+			if (!$Tset){die"Problem in configs: MFLRDir needs to be set before Rpath\n";}
+			$prePath =~s/\[MFLRDir\]/$TMCpath/;
+			$Rpath= truePath($prePath);
+			$RpathSet=1;
+			#die "\n\n$prePath\n$Rpath\n";
 		} elsif (!$DBset && $l =~ m/^DBDir\t([^#]+)/){
 			$DBpath = truePath($1); $DBset=1;
 		} elsif (!$SINGset && $l =~ m/^SINGcmd\t([^#]+)/){
@@ -190,6 +197,7 @@ sub loadConfigs{
 			$reV =~ s/\[SINGcmd\]/$SINGcmd/;
 			$reV =~ s/\[PY3\]/$PY3cmd/;
 			$reV =~ s/\[Rscript\]/$Rscriptcmd/;
+			$reV =~ s/\[Rpath\]/$Rpath/;
 			if ($l =~ m/env:([^#^\t]+)/){
 				
 				$reV = "$CONDA;$CONDcmd activate $1\n$reV";

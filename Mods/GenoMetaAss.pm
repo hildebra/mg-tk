@@ -1198,7 +1198,7 @@ sub readMap{
 		if ($EstCovCol >= 0){$ret{$curSmp}{DoEstCoverage} = $spl[$EstCovCol];} else {$ret{$curSmp}{DoEstCoverage} = 0;}
 		if ($AssGroupCol >= 0 && $spl[$AssGroupCol] ne ""){
 			my $curAG = $spl[$AssGroupCol];
-			if ($curAG !~ /\D/){die "Error in .map, sample $curSmp: AssmblGrps are not allowed to be purely numeric characters!\ncurrent AssmblGrps: $curAG\n\n";}
+			if ($DOWARN && $curAG !~ /\D/){die "Error in .map, sample $curSmp: AssmblGrps are not allowed to be purely numeric characters!\ncurrent AssmblGrps: $curAG\n\n";}
 			
 			$ret{$curSmp}{AssGroup} = $curAG ;
 			if (!exists($agBP{$curAG}{CntAimAss})){$agBP{$curAG}{CntAimAss}=0;}
