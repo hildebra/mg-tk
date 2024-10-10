@@ -60,11 +60,14 @@ MG-TK currently only works under linux, and is expected to run on a computer clu
 
 
 MG-TK can be downloaded directly from Github, using:
-```
+
+```bash
 git clone https://github.com/hildebra/mg-tk.git
 ```
+
 MG-TK comes with an installation script, that uses micromamba. Ensure you have micromamba installed for your account on a linux HPC. Then run:
-```
+
+```bash
 bash helpers/install/installer.sh
 ```
 
@@ -73,10 +76,16 @@ This will guide you through the installation (should run completely automatic) a
 If you are having issues with package conflicts when `installer.sh` is creating environments, trying setting your channel priority to flexible: `micromamba config set channel_priority flexible`
 
 Last, you can run 
-```
+
+```bash
+# Activate MGTK environment every time you need to run MG-TK
+micromamba activate MGTK
+
 ./MG-TK.pl -checkInstall
 ```
-to check that some essential programs have been correctly installed and are available in the exptected environments. Note that this is only a subset of programs, but should cover most use cases of MG-TK. (This will also automatically run after each installation of MG-TK)
+
+to check that some essential programs have been correctly installed and are available in the exptected environments. 
+Note that this is only a subset of programs, but should cover most use cases of MG-TK. (This will also automatically run after each installation of MG-TK)
 
 
 ### Updating MG-TK
@@ -133,7 +142,7 @@ cat $(scontrol show job $JID | grep 'StdOut' | sed 's/.*=//g')
 sie() {
 JID=$1
 if test "$#" -eq 0; then
-JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
+JID=$(squeue -u $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
 fi
 cat $(scontrol show job $JID | grep 'StdErr' | sed 's/.*=//g')
 }
@@ -141,7 +150,7 @@ cat $(scontrol show job $JID | grep 'StdErr' | sed 's/.*=//g')
 sis() {
 JID=$1
 if test "$#" -eq 0; then
-JID=$(squeue -u hildebra | grep $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
+JID=$(squeue -u $USER | grep -v 'interact' | awk '{$1=$1};1' | cut -f1 -d' ' | head -1)
 fi
 cat $(scontrol show job $JID | grep 'Command' | sed 's/.*=//g')
 }
