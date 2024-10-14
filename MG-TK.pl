@@ -1424,17 +1424,20 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 
 
-print "\n\n###################################\n".$baseOut."\nFINISHED MATAFILER submission loop\n###################################\n\n";
-
-
+print "\n\n###################################\n".$baseOut."\nFINISHED MG-TK submission loop\n";
 
 postprocess();
+
+
+print "###################################\n\n";
+
+
+
 
 
 
 close $QSBoptHR->{LOG};
 exit(0);
-die();
 
 
 
@@ -1574,8 +1577,19 @@ sub postprocess{
 		my $GCsub = $baseOut."/GeneCat_pre.sh";
 		my $gcmd = "";
 		$gcmd .= "#creates gene catalog in the specified outdir with specified cores, attempting to reuse existing dirs (in case catalog creation failed):\n";
-		$gcmd .= "$gcScr -map $mapFile -GCd [insert outdir] -mem 200 -cores [cores] -clusterID 95 -doStrains $MFopt{DoConsSNP} -continue 1 -binSpeciesMG $MFopt{DoMetaBat2} -useCheckM2 $MFopt{useCheckM2} -useCheckM1 $MFopt{useCheckM1} -MGset [FMG/GTDB] \n";
-		print "\n\nNext step, create a genecatalog. Call (but modify first): \nsbatch $GCsub\n";
+		my $sugGCmem = 100; 
+		$sugGCmem = 200 if ($presentAssemblies > 100);
+		$sugGCmem = 700 if ($presentAssemblies > 500);
+		$sugGCmem = 1200 if ($presentAssemblies > 1000);
+		$sugGCmem = 2500 if ($presentAssemblies > 5000);
+		my $sugGCcores = 12;
+		$sugGCcores = 24 if ($presentAssemblies > 100);
+		$sugGCcores = 32 if ($presentAssemblies > 500);
+		$sugGCcores = 48 if ($presentAssemblies > 1000);
+		$sugGCcores = 72 if ($presentAssemblies > 5000);
+
+		$gcmd .= "$gcScr -map $mapFile -GCd [insert outdir] -mem $sugGCmem -cores $sugGCcores -clusterID 95 -doStrains $MFopt{DoConsSNP} -continue 1 -binSpeciesMG $MFopt{DoMetaBat2} -useCheckM2 $MFopt{useCheckM2} -useCheckM1 $MFopt{useCheckM1} -MGset GTDB \n";
+		print "\n\nNext step, create a genecatalog with call to (but modify .sh first!): \nsbatch $GCsub\n";
 		$QSBoptHR->{doSubmit} = 0;
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
 		my ($jobN, $tmpCmd) = qsubSystem($GCsub,$gcmd,1,"80G","GeCat","","",1,[],$QSBoptHR) ;
@@ -7242,7 +7256,8 @@ sub getCmdLineOptions{
 		"mapSortMem=i" => \$MFopt{mapSortMemGb}, #mem for samtools sort in GB
 		"rmDuplicates=i" => \$MFopt{MapperRmDup},
 		"mappingCores=i" => \$MFopt{MapperCores},
-		"mapperFilterIll=s" => \$MFopt{bamfilterIll},
+		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality
+		"mapperFilterPB=s" => \$MFopt{bamfilterPB},
 	#mapping related (assembly)
 		"remap2assembly|redoMap2assembly=i" => \$MFopt{redoAssMapping},
 		"JGIdepths=i" => \$MFopt{DoJGIcoverage},

@@ -71,16 +71,16 @@ sub checkProg($ $ $){
 	
 	print "Checking $progN..";
 	my $bin1 = getProgPaths($progI);
-	#print "$bin1\n";
+	print "$bin1\n";
 	my @bin = split /\n/,$bin1;
 	my $idxA = 0; my $binA="";
 	for (my $i=0;$i<@bin;$i++){if ($bin[$i] =~ m/micromamba\s*activate\s/){
 			$idxA=$i;$binA=`$bin[$idxA];which $bin[$idxA+1]`;
-			#die "\n\n".$outpt."\n\n\n";
+			#die "\n\n".$binA."\n\n\n";
 			$idxA++;last;
 		} 
 	}
-	#print "@bin\n\nwhich $bin[$idxA]\n";
+	#print "@bin\n\nwhich $bin[$idxA]\n$idxA\n";
 	$binA = `which $bin[$idxA]` if ($idxA==0);
 	unless ($binA){
 		die "Fatal: Could not excectute: $bin[$idxA] ! Please check MATAFILER install!\nExiting MATAFILER\n";
@@ -102,6 +102,8 @@ sub checkMFFInstall{
 	checkProg("clusterMAGs","clusterMAGs",1);
 	checkProg("rarefaction toolkit2 (rtk2)","rare",1);
 	checkProg("least common ancestor (LCA)","LCA",1);
+	#env MGTKbinners
+	checkProg("canopy clustering genome binner","canopy",0);
 	
 	checkProg("pigz","pigz",0);
 	checkProg("bzip2","bzip2",0);
@@ -134,8 +136,6 @@ sub checkMFFInstall{
 	checkProg("cdhit seq clustering","cdhit",1);
 	
 	
-	#env gtdbrk
-	checkProg("canopy clustering genome binner","canopy",0);
 
 	
 	#binners

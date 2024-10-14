@@ -40,15 +40,27 @@ MAP=$MGTKDIR//examples/maps/testPB.map
 
 perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -mergeReads 0 -maxConcurrentJobs 800 \
 -inputBAMregex '.*\.bam$' \
--assembleMG 5 -spadesCores 12 -spadesKmers "25,43,67,87,111,127" -spadesMemory 200 -MetaBat2 2 -asssemblyHddSpace 150 \
--mapReadsOntoAssembly 1 -saveReadsNotMap2Assembly 0 -remap2assembly 0  -mappingMem 7 -logQualvsLen 1 \
--mapper -1 -profileFunct 0 -reParseFunct 0 -reProfileFunct 0 -diamondDBs ABRc -kmerPerGene 0 \
--reduceScratchUse 1 \
--getAssemblConsSNP 1 -redoAssmblConsSNP 0 \
--profileRibosome 0 -reProfileRibosome 0 \
--profileMOTU2 0 -profileMetaphlan2 0 \
--legacyFolders 0 -rmSmplLocks 1 \
+-assembleMG 5 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory 50 \
+-Binner 2  \
+-mapper -1 -mappingCores 11 -mappingMem 12 -mapSortMem 13 -mapReadsOntoAssembly 1 -mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10' -rmDuplicates 1 \
+-getAssemblConsSNP 1 -rmSmplLocks 0 \
 -submit 1 -inputReadLength 150 -inputReadLengthSuppl 8000 \
--from 0 -to 10
+-from 0 -to 99
+
+
+echo ""
+echo ""
+echo "Yet more MG-TK options to explore in this .sh, while waiting for jobs to finish :)"
+
 exit;
+
+
+#-from 0 -to 99 -> start at sample 0 in .map, go until 99 samples. Hint: since this map only has 8 samples, MG-TK will stop at sample 8
+#-assembleMG 5 : hybrid assembly
+#-inputBAMregex '.*\.bam$' if PacBio reads are stored as .bam. In this example, they're stored as fastq, thus flag is actually not needed
+#-mappingCores 12 -> use 12 cores for mapping tasks
+# -mappingMem 12 -mapSortMem 13 -> use 11 Gb and 13 Gb memory for the mapping and the sort mapping steps, respectively
+#-mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10'  -> post-map filtering of alignments for illumina and PacBio reads, respectively. E.g. illumina reads are kept if: <=5% ANI, >=75% of read aligned, >=20 mapping quality
+#-rmDuplicates 1 -> remove duplicate reads detected by mapper/samtools
+#if you want to remove host reads, you can create a kraken2 databases for the human genome and link it into MG-TK with this flag:
 #-filterHostKrak2DB /path/to/kraken2/DB/human/ -filterHostRds 1 -> filter reads from host against specific, kraken2 database

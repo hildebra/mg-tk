@@ -21,7 +21,7 @@ fi
 echo ""
 echo ""
 echo "Simple example (nonsensical data) for testing MG-TK short read metagenomic assembly workflow"
-echo "Run, wait for all jobs to finish. Then rerun to capture unfinished tasks. Repeat until no further jobs are submitted"
+echo "Run, wait for all jobs to finish. Then rerun to capture unfinished tasks. Repeat until no further jobs are submitted."
 echo "By default, these results will be saved in $MGTKDIR/examples/output/ dir for this test."
 echo "    However, this is not recommended for larger runs, where it is better to keep the input data and results dir separate from the MG-TK dir."
 echo ""
@@ -29,14 +29,30 @@ echo ""
 
 MAP=$MGTKDIR//examples/maps/testAG.map
 perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -mergeReads 0 -maxConcurrentJobs 800 \
--inputBAMregex '.*\.bam$' \
--assembleMG 1 -spadesCores 12 -spadesKmers "25,43,67,87,111,127" -spadesMemory 200 -MetaBat2 2 -asssemblyHddSpace 150 \
--mapReadsOntoAssembly 1 -saveReadsNotMap2Assembly 0 -remap2assembly 0  -mappingMem 7 -logQualvsLen 1 \
--mapper -1 -profileFunct 0 -reParseFunct 0 -reProfileFunct 0 -diamondDBs ABRc -kmerPerGene 0 \
--reduceScratchUse 1 -getAssemblConsSNP 1 -redoAssmblConsSNP 0 -profileRibosome 0 -reProfileRibosome 0 \
--profileMOTU2 0 -profileMetaphlan2 0 -rmSmplLocks 1 \
+-assembleMG 2 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory  20 -Binner 2 \
+-mapReadsOntoAssembly 1 -saveReadsNotMap2Assembly 0  -mappingMem 7 \
+-mapper 5   -getAssemblConsSNP 1 -rmSmplLocks 0 \
 -submit 1  \
--from 0 -to 6
+-from 0 -to 3
+
+
+echo ""
+echo ""
+echo "Have a look at this .sh file, to learn more about MG-TK options, while waiting for jobs to finish :)"
+
 exit
+
+#-mapper 5 -> use strobealign to map. Setting this to -1 will use a default mapper
+#-submit 1  -> set to "0" to dry-run mg-tk (check that all file paths exist)
+#assembly options: megahit assembler, kmers to be assembled, 20Gb of mem requested 
+#-assembleMG 2 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory  20
 #-ignore smpl1,smpl2 -> ignore specific samples
+#-rmSmplLocks 0 -> change to "1" in case you want to enfore MG-TK to start jobs for every sample, even if processes (assembly, mapping etc) are still running for a given sample
+#-mergeReads 0 -> merge reads before assembly (modern assemblers do this better internally, deactivated by default)
+#-maxConcurrentJobs 800 -> how many jobs to have concurrently submitted to this HPC before MG-TK will wait for free'd up submission slots
+
+#if you want to remove host reads, you can create a kraken2 databases for the human genome and link it into MG-TK with this flag:
 #-filterHostKrak2DB /path/to/kraken2/DB/human/ -filterHostRds 1 -> filter reads from host against specific, kraken2 database
+
+#there are many more flags in MG-TK. Have a look at the documentation to see these
+

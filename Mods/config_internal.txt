@@ -76,10 +76,10 @@ Rscript	Rscript
 
 #MFF R scripts
 Rpath	[MFLRDir]/secScripts/R_scripts/
-filterMB2core	[Rscript] [Rpath]/filterMB2.R
-neighborTree	[Rscript] [Rpath]/neighborTree.R
-vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R #Klara script
-normMiTag	[Rscript] [Rpath]/NormMiTag.R
+filterMB2core	[Rscript] [Rpath]/filterMB2.R	env:MGTK_R
+neighborTree	[Rscript] [Rpath]/neighborTree.R	env:MGTK_R
+vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R	env:MGTK_R
+normMiTag	[Rscript] [Rpath]/NormMiTag.R	env:MGTK_R
 
 
 ## taxonomic profiling, if requrested ##

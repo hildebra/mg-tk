@@ -108,10 +108,20 @@ sub setConfigFile{
 }
 
 sub truePath{
-	my ($TMCpath) = @_;
+	my ($TMCpath) = $_[0];
+	my $enforce=0; $enforce = $_[1] if (@_ > 1);
+	
+	if ($enforce){
+		if ($TMCpath =~ m/\$([^\$^\/^\\]+)/){
+			my $envVar = $ENV{$1};
+			$TMCpath =~ s/\$([^\$^\/^\\]+)/$envVar/;
+		}
+		#die "$TMCpath\n";
+	}
+	
 	if ($TMCpath =~ m/^\$/){
-	$TMCpath =~ s/^\$//; 
-	$TMCpath = $ENV{$TMCpath};
+		$TMCpath =~ s/^\$//; 
+		$TMCpath = $ENV{$TMCpath};
 	}
 	return $TMCpath;
 
@@ -167,7 +177,12 @@ sub loadConfigs{
 		} elsif (!$CONDset && $l =~ m/^CONDcmd\t([^#]+)/){
 			$CONDcmd = truePath($1); $CONDset=1;
 		} elsif (!$CONDset2 && $l =~ m/^CONDA\t([^#]+)/){
-			$CONDA = truePath($1); $CONDset2=1;
+			$CONDA = truePath($1,1); my $Ctmp = $CONDA; $Ctmp =~ s/^[\.\s]+//g;
+			if (!-s $Ctmp){die "\n\nWARNING:\nCould not find conda config at $CONDA !\n please ensure \"micromamba.sh\" or \"mambda.sh\" exist at this location\n\n";}
+			if ($CONDA !~ m/^\./ || $CONDA !~ m/mamba.sh/){
+				die "Your \"CONDA\" seems to be wrongly setup. Ensure this is configured in \"[MG-TK-dir]/config.txt\" and has a form similar to:\"\nCONDA\t. \$MAMBA_ROOT_PREFIX/etc/profile.d/mamba.sh\n\"\n";
+			}
+			$CONDset2=1;
 		} elsif (!$CONDset3 && $l =~ m/^CONDAbaseEnv\t([^#]+)/){
 			$CONDAbaseEnv = truePath($1); $CONDset3=1;
 			

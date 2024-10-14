@@ -3,7 +3,7 @@
 
 ## base path to pipeline & DB & temp dirs - ESSENTIAL ##
 CONDcmd	micromamba
-CONDA	. "$MAMBA_ROOT_PREFIX/etc/profile.d/micromamba.sh"
+CONDA	. $MAMBA_ROOT_PREFIX/etc/profile.d/mamba.sh
 CONDAbaseEnv	MGTK
 
 MFLRDir	$MGTKDIR
