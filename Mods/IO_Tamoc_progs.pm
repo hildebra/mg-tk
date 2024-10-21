@@ -19,11 +19,15 @@ our @EXPORT_OK = qw(getProgPaths
 
 sub decideMapper($ $){
 	my ($MapperProg,$readTec) = @_;
-	if ($MapperProg == -1 ) {
+	if ($MapperProg < 0 ) {
 		if ($readTec eq "PB" || $readTec eq "ONT"){  #default to minimap2 for 3rd gen seq
 			$MapperProg = 3;
 		} else {#otherwise use bowtie2
-			$MapperProg = 1;
+			if ($MapperProg == -1){
+				$MapperProg = 1 ;
+			} elsif ($MapperProg == -2){
+				$MapperProg = 5 ; #.. or strobealign
+			}
 		}
 	}
 	if ($MapperProg<1 || $MapperProg>5){

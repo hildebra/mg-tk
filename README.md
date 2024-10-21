@@ -658,7 +658,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-checkM1 [0|1]			using checkM1 to assess bin quality
 
 # mapping
-	-mapper [1|2|3|4]				1: bowtie2, 2:bwa, 3: minimap2, 4:kma, -1:auto (Default: -1)
+	-mapper [1|2|3|4]				1: bowtie2, 2:bwa, 3: minimap2, 4:kma, 5:strobealign -1:auto (bowtie2 short, minimap2 long reads), -2:auto(strobealign short, minimap2 long). (Default: -1)
 	-mappingCores [#]				cores # used for mapping
 	-mappingMem [#]				memory # used for mapping bwa/bwt2 in GB (Default: auto)
 	-mapSortMem  [#]			memory # used for samtools sort in GB (Default: auto)
