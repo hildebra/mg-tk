@@ -663,7 +663,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-mappingMem [#]				memory # used for mapping bwa/bwt2 in GB (Default: auto)
 	-mapSortMem  [#]			memory # used for samtools sort in GB (Default: auto)
 	-mappingCoverage			1: calculate coverage per predicted gene, contig, windows (Default: 1)
-	-mapSupportReadsOntoAssembly [#]   1: map also support reads (e.g. PacBio in case of hybrid assemblies) onto final assembly
+	-mapSupportReadsOntoAssembly [#]   1: map also support reads (e.g. PacBio in case of hybrid assemblies) onto final assembly. (Default: 0)
 	-rmDuplicates [0|1]			1: remove read duplicates (Default: 1)
 	-mapperFilterIll [# # #]				parameters for postprocessing mappings for short read data (Default: "0.05 0.75 20")
 	-mapReadsOntoAssembly [0|1] 	1: map original reads to assembly to estimate contig (and bin, gene etc) abundance (Default: 1)

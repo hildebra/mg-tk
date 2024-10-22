@@ -181,10 +181,18 @@ sub loadConfigs{
 		} elsif (!$CONDset && $l =~ m/^CONDcmd\t([^#]+)/){
 			$CONDcmd = truePath($1); $CONDset=1;
 		} elsif (!$CONDset2 && $l =~ m/^CONDA\t([^#]+)/){
-			$CONDA = truePath($1,1); my $Ctmp = $CONDA; $Ctmp =~ s/^[\.\s]+//g;
-			if (!-s $Ctmp){die "\n\nWARNING:\nCould not find conda config at $CONDA !\n please ensure \"micromamba.sh\" or \"mambda.sh\" exist at this location\n\n";}
-			if ($CONDA !~ m/^\./ || $CONDA !~ m/mamba.sh/){
-				die "Your \"CONDA\" seems to be wrongly setup. Ensure this is configured in \"[MG-TK-dir]/config.txt\" and has a form similar to:\"\nCONDA\t. \$MAMBA_ROOT_PREFIX/etc/profile.d/mamba.sh\n\"\n";
+			$CONDA = $1;
+			if ($CONDA =~ m/\[CONDcmd\]/){
+				die "Ensure \"CONDcmd\" is set in config before \"CONDA\"\n" if (!$CONDset);
+				$CONDA =~ s/\[CONDcmd\]/$CONDcmd/;
+			}
+			if ($CONDA !~ m/shell hook/){
+				$CONDA = truePath($CONDA,1); 
+				my $Ctmp = $CONDA; $Ctmp =~ s/^[\.\s]+//g;
+				if (!-s $Ctmp){die "\n\nWARNING:\nCould not find conda config at $CONDA !\n please ensure \"micromamba.sh\" or \"mambda.sh\" exist at this location\n\n";}
+				if ($CONDA !~ m/^\./ || $CONDA !~ m/mamba.sh/){
+					die "Your \"CONDA\" seems to be wrongly setup. Ensure this is configured in \"[MG-TK-dir]/config.txt\" and has a form similar to:\"\nCONDA\t. \$MAMBA_ROOT_PREFIX/etc/profile.d/mamba.sh\n\"\n";
+				}
 			}
 			$CONDset2=1;
 		} elsif (!$CONDset3 && $l =~ m/^CONDAbaseEnv\t([^#]+)/){
