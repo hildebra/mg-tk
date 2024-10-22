@@ -41,9 +41,9 @@ MAP=$MGTKDIR//examples/maps/testPB.map
 perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -mergeReads 0 -maxConcurrentJobs 800 \
 -inputBAMregex '.*\.bam$' \
 -assembleMG 5 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory 50 \
--Binner 2  \
--mapper -1 -mappingCores 11 -mappingMem 12 -mapSortMem 13 -mapReadsOntoAssembly 1 -mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10' -rmDuplicates 1 \
--getAssemblConsSNP 1 -rmSmplLocks 0 \
+-Binner 2 -redoBinning 0 \
+-mapper -1 -mappingCores 11 -mappingMem 12 -mapSortMem 13 -mapReadsOntoAssembly 1 -mapSupportReadsOntoAssembly 1 -mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10' -rmDuplicates 1 \
+-getAssemblConsSNP 1 -getAssemblConsSNPsuppRds 1 -rmSmplLocks 1 \
 -submit 1 -inputReadLength 150 -inputReadLengthSuppl 8000 \
 -from 0 -to 99
 
@@ -59,6 +59,7 @@ exit;
 #-assembleMG 5 : hybrid assembly
 #-inputBAMregex '.*\.bam$' if PacBio reads are stored as .bam. In this example, they're stored as fastq, thus flag is actually not needed
 #-mappingCores 12 -> use 12 cores for mapping tasks
+#-mapSupportReadsOntoAssembly 1 -> also map the PacBio (support) reads onto the hybrid assembly. This will create a separate .cram in the map/ dir.
 # -mappingMem 12 -mapSortMem 13 -> use 11 Gb and 13 Gb memory for the mapping and the sort mapping steps, respectively
 #-mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10'  -> post-map filtering of alignments for illumina and PacBio reads, respectively. E.g. illumina reads are kept if: <=5% ANI, >=75% of read aligned, >=20 mapping quality
 #-rmDuplicates 1 -> remove duplicate reads detected by mapper/samtools

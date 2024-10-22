@@ -547,9 +547,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$BinningOut = "$binningDir/MD/$smplIDs[-1]" if ($MFopt{DoMetaBat2} == 3);
 	
 	
+	#stones
 	my $STOcram = "$CRAMmap.sto";
 	my $STOsupCram = "$SupCRAMmap.sto";
 	my $STOmapFinal="$finalMapDir/done.sto";
+	my $STOsnpCons = "$contigsSNP.SNP.cons.stone"; #	my $SNPstone = $ofasConsDir."SNP.cons.stone";
+	my $STOsnpSuppCons = "$contigsSNP.SNP.supp.cons.stone";
 	
 	# collect stats on seq qual, assembly etc
 	if ($alwaysDoStats){
@@ -709,7 +712,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system("rm -rf  $binningDir/");
 	}
 	#debug case: binning was empty
-	if ($MFopt{DoMetaBat2} && $MFopt{BinnerRedoEmpty} && -e $BinningOut && !-s $BinningOut){
+	if ($MFopt{DoMetaBat2} && ( $MFopt{BinnerRedoAll} || ($MFopt{BinnerRedoEmpty} && -e $BinningOut && !-s $BinningOut) ) ){
 		#die;
 		print "redoing binning due to empty bins (flag -redoEmptyBins 1) ..\n";
 		system "rm -rf $binningDir";
@@ -923,6 +926,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
 	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && !-e $vcfSNP)));
+	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
+	
+	
 	#die "genePredSNP $genePredSNP\n";
 	my $calc2ndMapSNP = 0; $calc2ndMapSNP = 1 if ($MFopt{Do2ndMapSNP});
 	my $pseudAssFlag = 0; $pseudAssFlag = 1 if ($MFopt{pseudoAssembly} && $map{$curSmpl}{ExcludeAssem} eq "0" && (!-e $pseudoAssFileFinal.".sto" || !$boolGenePredOK));
@@ -947,7 +953,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#some more flow control..
 	if (
 		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
-		!$calcConsSNP && !$calcMetaBat2 && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
+		!$calcConsSNP && !$calcSuppConsSNP && !$calcMetaBat2 && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
 		 && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag
 		#&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && 
 		#!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq ""
@@ -1355,7 +1361,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#die "@{$AsGrps{$cAssGrp}{MapCopies}}\n";
 	
-	if ($calcConsSNP && $allMapDone){
+	if ( ($calcConsSNP || $calcSuppConsSNP) && $allMapDone){
 		#die "conssnp:: $calcConsSNP $allMapDone $finalMapDir\n";
 		#my $ofas = "$curOutDir/SNP/genePred/genes.shrtHD.SNPc.fna";
 		my %SNPinfo = (gff => "$finalCommAssDir/genePred/genes.gff",
@@ -1363,26 +1369,21 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						mapD => "$finalMapDir",
 						SNPcaller => $MFopt{SNPcallerFlag},
 						ofas => $contigsSNP, #primary file of contigs
-						genefna => $genePredSNP,
-						genefaa => $genePredAASNP,
-						vcfFile => $vcfSNP,
-						gffFile => "$finalCommAssDir/genePred/genes.gff",
-						nodeTmpD => $nodeSpTmpD,
-						scratch => "$smplTmpDir/SNP/",
-						smpl => $SmplName,
-						bamcram => $bamcramMap,
-						depthF => $coveragePerCtg,
-						firstInSample => 1, #($i == 0 ? 1 : 0)
-						bpSplit => 1e6,
-						runLocal => 1,
-						SeqTech => $map{$curSmpl}{SeqTech},
-						cmdFileTag => "ConsAssem",
-						#jdeps => $map2Ctgs_2,
-						maxCores => $MFopt{maxSNPcores},
-						memReq => $MFopt{memSNPcall},
-						dependency => $AsGrps{$cAssGrp}{BinDeps},
-						split_jobs => $MFopt{SNPconsJobsPsmpl},
-						overwrite => $MFopt{redoSNPcons});
+						genefna => $genePredSNP,genefaa => $genePredAASNP,
+						vcfFile => $vcfSNP,gffFile => "$finalCommAssDir/genePred/genes.gff",
+						nodeTmpD => $nodeSpTmpD,scratch => "$smplTmpDir/SNP/",
+						smpl => $SmplName,bamcram => $bamcramMap,
+						depthF => $coveragePerCtg,firstInSample => 1, #($i == 0 ? 1 : 0)
+						bpSplit => 1e6,runLocal => 1,SeqTech => $map{$curSmpl}{SeqTech},SeqTechSuppl => "",
+						cmdFileTag => "ConsAssem",maxCores => $MFopt{maxSNPcores},memReq => $MFopt{memSNPcall},
+						dependency => $AsGrps{$cAssGrp}{BinDeps},split_jobs => $MFopt{SNPconsJobsPsmpl},
+						overwrite => $MFopt{redoSNPcons},
+						STOconSNP => $STOsnpCons, STOconSNPsupp => "",
+					);
+		$SNPinfo{SeqTechSuppl} = "PB" if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/);
+		if ($calcSuppConsSNP){
+			$SNPinfo{STOconSNPsupp} = $STOsnpSuppCons   ; #trigger for also looking at cons SNP for support reads
+		}
 		my $consSNPdep = createConsSNP(\%SNPinfo);
 		add2SampleDeps(\@sampleDeps, [$consSNPdep]);
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
@@ -1681,6 +1682,7 @@ sub submitGenomeBinner{
 	
 	my $seqTec = "hiSeq";
 	if (exists($map{$curSmpl}{SeqTech})){$seqTec = $map{$curSmpl}{SeqTech};}
+	if ($MFopt{DoAssembly} == 5){$seqTec = "hybrid";}
 	#die "$seqTec\n";
 	
 
@@ -1743,6 +1745,12 @@ sub createConsSNP{
 		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}."-smd.".$SNPinfo{bamcram});
 		$SNPinfo{MAR} = \@mapping;
 	}
+	if ($SNPinfo{STOconSNPsupp} ne "" && !exists($SNPinfo{MARsupp})){
+		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}."sup-smd.".$SNPinfo{bamcram});
+		$SNPinfo{MARsupp} = \@mapping;
+		#$finalMapDir/$SmplName.sup-smd.bam.coverage.gz
+		
+	} 
 #	my ($ovcf,$jdep) = SNPconsensus_vcf2(\%SNPinfo);
 	my ($ovcf,$jdep) = SNPconsensus_vcf(\%SNPinfo);
 
@@ -6243,13 +6251,15 @@ sub scndMap2Genos{
 				ofas => "$bwt2outD[$i]/$bamBaseNameS[$i].SNPc.$MFopt{SNPcallerFlag}.fna", #only output needed for this.. unless I later want to add also a gene calling.. (not needed for TEC2 reb)
 				#vcfFile => "$bwt2outD[$i]/$bamBaseNameS[$i].$MFopt{SNPcallerFlag}.vcf",
 				firstInSample => ($i == 0 ? 1 : 0), 
-				SeqTech => $map{$curSmpl}{SeqTech},
+				SeqTech => $map{$curSmpl}{SeqTech}, SeqTechSuppl => $map{$curSmpl}{seqTechX},
 				nodeTmpD => $dirset{nodeTmp}, #$nodeSpTmpD,
 				scratch => $dirset{glbTmp}, #"$smplTmpDir/SNP/",
 				qsubDir => $dirset{qsubDir}, jdeps => $map2CtgsY.";$bwt2ndMapDep",
 				cmdFileTag => $bwt2ndMapNmds[$i],
 				smpl => $bamBaseNameS[$i], maxCores => $MFopt{maxSNPcores}, memReq => $MFopt{memSNPcall},
-				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons});
+				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons} );
+				
+
 			my $consSNPdep = createConsSNP(\%SNPinfo);
 			add2SampleDeps($sampleDepsAR, [$consSNPdep]);
 			#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
@@ -7127,7 +7137,7 @@ sub setDefaultMFconfig{
 
 
 	#SNPs
-	$MFopt{DoConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
+	$MFopt{DoConsSNP}=0; $MFopt{DoSuppConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
 	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
 
@@ -7245,6 +7255,7 @@ sub getCmdLineOptions{
 		"BinnerScratchTmp=i" => \$MFopt{useBinnerScratch}, #very specific (undocumented) use of scratch instead of nodetmp dir
 		#"binSpeciesMG=i" => \$MFopt{DoBinning},#deactivated, replaced by MetaBat2
 		"redoEmptyBins=i" => \$MFopt{BinnerRedoEmpty}, #debug option; redo bins that are empty (no bin detected). Note: this can sometimes happen for metagenomes
+		"redoBinning=i" => \$MFopt{BinnerRedoAll}, 
 	#gene prediction on assembly
 		"predictEukGenes=i" => \$MFopt{DoEukGenePred},#severely limits total predicted gene amount (~25% of total genes)
 		"kmerPerGene=i" => \$MFopt{kmerPerGene}, #calculate kmer frequencies for each gene instead of per scaffold
@@ -7273,6 +7284,7 @@ sub getCmdLineOptions{
 	#SNPs 
 		"get2ndMappingConsSNP=i" => \$MFopt{Do2ndMapSNP},#SNPs (onto mapping)
 		"getAssemblConsSNP=i" => \$MFopt{DoConsSNP},  #SNPs (onto self assembly) #calculates consensus SNP of assembly (useful for checking assembly gets consensus and Assmbl_grps)
+		"getAssemblConsSNPsuppRds=i" => \$MFopt{DoSuppConsSNP}, #same as getAssemblConsSNP, but SNP calling for support reads
 		"redoAssmblConsSNP=i" => \$MFopt{redoSNPcons},
 		"redoGeneExtrSNP=i" => \$MFopt{redoSNPgene},
 		"SNPjobSsplit=i" => \$MFopt{SNPconsJobsPsmpl}, #how many parallel jobs are run on each 

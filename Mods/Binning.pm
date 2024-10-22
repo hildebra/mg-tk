@@ -666,7 +666,7 @@ sub runSemiBin{
 	my $senv = "--environment human_gut";
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
-	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT");#PAcBIo/ONT
+	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
 	my $cmd = "###preparing BAMs..\n$uncramCmd\n\n";
 	$cmd .= "echo \"CRAM->BAM finished\"\n";
 #	my $cmd = "";

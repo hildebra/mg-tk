@@ -656,6 +656,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-redoEmptyBins [0|1]		mostly for debugging: redo every sample where no bins where found (note that in some metagenomes there might be no bins)
 	-checkM2 [0|1]			using checkM2 to assess bin quality
 	-checkM1 [0|1]			using checkM1 to assess bin quality
+	-redoBinning [0|1]			redo binning
 
 # mapping
 	-mapper [1|2|3|4]				1: bowtie2, 2:bwa, 3: minimap2, 4:kma, 5:strobealign -1:auto (bowtie2 short, minimap2 long reads), -2:auto(strobealign short, minimap2 long). (Default: -1)
