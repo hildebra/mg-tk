@@ -108,7 +108,8 @@ sub setupHPC;
 #.52: 6.6.24: start implementation (.3di). more checks on correct pipe excecution.
 #,53: 27.7.24: routine to check if some essential programs have been correctly installed and are avaialble. added flag -checkInstall. Moved geneCat.pl and MGS.pl to secScripts/ dir to avoid confusion on where to start..
 #.54: 15.8.24: renamed MATAFILER to mg-tk
-my $MATFILER_ver = 0.54;
+#.55: 23.10.24: integrated -getAssemblConsSNPsuppRds -SNPconsMinDepth flags and functionalities
+my $MATFILER_ver = 0.55;
 
 
 #operation mode?
