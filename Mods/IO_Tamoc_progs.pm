@@ -218,13 +218,13 @@ sub loadConfigs{
 			
 			#die "$reV  $XVar  $l\n";
 			
-			$reV =~s/\[MFLRDir\]/$TMCpath/;
-			$reV =~ s/\[BINDir\]/$BINpath/;
-			$reV =~ s/\[DBDir\]/$DBpath/;
-			$reV =~ s/\[SINGcmd\]/$SINGcmd/;
-			$reV =~ s/\[PY3\]/$PY3cmd/;
-			$reV =~ s/\[Rscript\]/$Rscriptcmd/;
-			$reV =~ s/\[Rpath\]/$Rpath/;
+			$reV =~s/\[MFLRDir\]/$TMCpath/ if ($Tset);
+			$reV =~ s/\[BINDir\]/$BINpath/ if ($Bset);
+			$reV =~ s/\[DBDir\]/$DBpath/ if ($DBset);
+			$reV =~ s/\[SINGcmd\]/$SINGcmd/ if ($SINGset);
+			$reV =~ s/\[PY3\]/$PY3cmd/ if ($PY3set);
+			$reV =~ s/\[Rscript\]/$Rscriptcmd/ if ($Rscriptset);
+			$reV =~ s/\[Rpath\]/$Rpath/ if ($RpathSet);
 			if ($l =~ m/env:([^#^\t]+)/){
 				
 				$reV = "$CONDA;$CONDcmd activate $1\n$reV";
