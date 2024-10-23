@@ -7266,7 +7266,7 @@ sub getCmdLineOptions{
 		"mapUnmapped=i" => \$MFopt{useUnmapped},
 		"mappingCoverage=i" => \$MFopt{mapModeCovDo},
 		"mappingMem=i" => \$MFopt{MapperMemory}, #total mem for mini2/kma/bwa/bwt2 in GB
-		"mapSortMem=i" => \$MFopt{mapSortMemGb}, #mem for samtools sort in GB
+		"mapSortMem=i" => \$MFopt{mapSortMemGb}, #total mem for samtools sort in GB
 		"rmDuplicates=i" => \$MFopt{MapperRmDup},
 		"mappingCores=i" => \$MFopt{MapperCores},
 		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality
@@ -7352,11 +7352,10 @@ sub getCmdLineOptions{
 	die "\"-assemblMemory\" argument contains characters: $MFopt{AssemblyMemory}" if ($MFopt{AssemblyMemory} !~ m/[\d-]+/);
 	die "\"-BinnerMem\" argument contains characters: $MFopt{BinnerMem}" if ($MFopt{BinnerMem}  !~ m/[\d-]+/);
 	die "\"-SNPmem\" argument contains characters: $MFopt{memSNPcall}" if ($MFopt{memSNPcall} !~ m/[\d-]+/);
-	if ($MFopt{MapperMemory} == -1 && $MFopt{MapperProg} >2){
-		$MFopt{MapperMemory} = 30 ;
-	} else {
-		$MFopt{MapperMemory} = 15 ;
-	}	
+	if ($MFopt{MapperMemory} == -1 ){
+		if($MFopt{MapperProg} >2){$MFopt{MapperMemory} = 30 ;
+		} else {$MFopt{MapperMemory} = 15 ;}	
+	}
 
 	if ($MFopt{DoDiamond} && $MFopt{reqDiaDB} eq ""){die "Functional profiling was requested (-profileFunct 1), but no DB to map against was defined (-diamondDBs)\n";}
 	$MFopt{AssemblyKmers} = "-k $MFopt{AssemblyKmers}" unless ($MFopt{AssemblyKmers} =~ m/^-k/);
