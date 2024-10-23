@@ -682,6 +682,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-SNPcaller [MPI|FB]				"MPI" mpileup or ".FB" for freebayes (Default: MPI)
 	-SNPcores [#]				number of cores ‘#’ used for SNP calling
 	-SNPmem [#]				Memory allocated for consensus SNP calling process in Gb (Default: 23)
+	-SNPconsMinDepth [#]			how many reads coverage to include position for consensus call? (Default: 0)
 
 # functional profiling (raw reads without assemblies)
 	-profileFunct [0|1]				1: do diamond functional profiling (Default: 0)

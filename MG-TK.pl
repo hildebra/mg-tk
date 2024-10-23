@@ -17,7 +17,7 @@ use vars qw($CONFIG_FILE);
 
 
 #load MF specific modules
-use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp lcp readFastHD prefixFAhd prefix_find gzipopen 
+use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp lcp readFastHD prefixFAhd prefix_find gzipopen fileGZe
 			readFasta writeFasta systemW getAssemblPath  filsizeMB
 			iniCleanSeqSetHR checkSeqTech is3rdGenSeqTech hasSuppRds 
 			getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp);
@@ -534,6 +534,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $genePredSNP = "$SNPdir/genes.shrtHD.SNPc.$MFopt{SNPcallerFlag}.fna.gz";
 	my $genePredAASNP = "$SNPdir/proteins.shrtHD.SNPc.$MFopt{SNPcallerFlag}.faa.gz";
 	my $vcfSNP = "$SNPdir/allSNP.$MFopt{SNPcallerFlag}.vcf";	$vcfSNP = "" if (!$MFopt{saveVCF});
+	my $vcfSNPsupp = "$SNPdir/allSNP.$MFopt{SNPcallerFlag}-sup.vcf";	$vcfSNPsupp = "" if (!$MFopt{saveVCF});
 	my $CRAMmap = "$finalMapDir/$SmplName-smd.cram";
 	my $SupCRAMmap = "$finalMapDir/$SmplName.sup-smd.cram";
 	my $inputRawFile = "$curOutDir/input_raw.txt";
@@ -925,7 +926,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#die "$assemblyBuildIndexFlag  $MFopt{DoAssembly}  && !$assemblyFlag  && $MFopt{map2Assembly} && ($mapAssFlag || $mapSuppAssFlag ) \n". mapperDBbuilt($finAssLoc,$MFopt{MapperProg})  ."\n";
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
-	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && !-e $vcfSNP)));
+	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
+	
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
 	
@@ -1370,9 +1372,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						SNPcaller => $MFopt{SNPcallerFlag},
 						ofas => $contigsSNP, #primary file of contigs
 						genefna => $genePredSNP,genefaa => $genePredAASNP,
-						vcfFile => $vcfSNP,gffFile => "$finalCommAssDir/genePred/genes.gff",
+						vcfFile => $vcfSNP,vcfFileSupp => "$vcfSNPsupp",gffFile => "$finalCommAssDir/genePred/genes.gff",
 						nodeTmpD => $nodeSpTmpD,scratch => "$smplTmpDir/SNP/",
-						smpl => $SmplName,bamcram => $bamcramMap,
+						smpl => $SmplName,bamcram => $bamcramMap,minDepth => $MFopt{consSNPminDepth},
 						depthF => $coveragePerCtg,firstInSample => 1, #($i == 0 ? 1 : 0)
 						bpSplit => 1e6,runLocal => 1,SeqTech => $map{$curSmpl}{SeqTech},SeqTechSuppl => "",
 						cmdFileTag => "ConsAssem",maxCores => $MFopt{maxSNPcores},memReq => $MFopt{memSNPcall},
@@ -1746,7 +1748,7 @@ sub createConsSNP{
 		$SNPinfo{MAR} = \@mapping;
 	}
 	if ($SNPinfo{STOconSNPsupp} ne "" && !exists($SNPinfo{MARsupp})){
-		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}."sup-smd.".$SNPinfo{bamcram});
+		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}.".sup-smd.".$SNPinfo{bamcram});
 		$SNPinfo{MARsupp} = \@mapping;
 		#$finalMapDir/$SmplName.sup-smd.bam.coverage.gz
 		
@@ -6255,7 +6257,7 @@ sub scndMap2Genos{
 				nodeTmpD => $dirset{nodeTmp}, #$nodeSpTmpD,
 				scratch => $dirset{glbTmp}, #"$smplTmpDir/SNP/",
 				qsubDir => $dirset{qsubDir}, jdeps => $map2CtgsY.";$bwt2ndMapDep",
-				cmdFileTag => $bwt2ndMapNmds[$i],
+				cmdFileTag => $bwt2ndMapNmds[$i], minDepth => $MFopt{consSNPminDepth},
 				smpl => $bamBaseNameS[$i], maxCores => $MFopt{maxSNPcores}, memReq => $MFopt{memSNPcall},
 				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons} );
 				
@@ -7138,7 +7140,7 @@ sub setDefaultMFconfig{
 
 	#SNPs
 	$MFopt{DoConsSNP}=0; $MFopt{DoSuppConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
-	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23;
+	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
 
 	#Func annotation
@@ -7292,6 +7294,7 @@ sub getCmdLineOptions{
 		"SNPcaller=s" => \$MFopt{SNPcallerFlag},
 		"SNPcores=i" => \$MFopt{maxSNPcores},
 		"SNPmem=i" => \$MFopt{memSNPcall}, #memory for consensus SNP job in Gb
+		"SNPconsMinDepth=i" => \$MFopt{consSNPminDepth}, #how many reads coverage to include position for consensus call?
 		
 	#functional profiling (diamond)
 		"profileFunct=i"=> \$MFopt{DoDiamond},

@@ -46,7 +46,7 @@ def main():
 	reTransl_table = re.compile("^# Model Data:.+transl_table=(\d+);")
 	reID = re.compile("^ID=\d+_(\d+);.+start_type=(.+);")
 	posfreq = re.compile("POS=(.*) FR=(.*) FREQT")
-	refreq = re.compile(" COV=(\d+) .* FREQT=(.*)$")
+	refreq = re.compile(" COV=(\d+) .* FREQT=(.*) CONFL=")
 
 
 	## Save contigs as dict

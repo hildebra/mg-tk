@@ -174,7 +174,7 @@ sub getRegionsBam{
 
 sub pileupcall{
 	
-	my ($tarR,$tag,$SNPIHR,$QSBoptHR,$scrDir,$tmpOut,$myParL,$crAR,$run2ctg,$rdep) = @_;
+	my ($tarR,$tag,$SNPIHR,$QSBoptHR,$scrDir,$tmpOut,$myParL,$crAR) = @_;
 	
 	my @curReg = @{$crAR};
 	
@@ -187,6 +187,10 @@ sub pileupcall{
 	my $qsubDirE = $SNPIHR->{qsubDir};
 	my $runLocalTmp = $SNPIHR->{runLocal};
 	my $x = $SNPIHR->{JNUM};
+	my $threads = 0;#$SNPIHR->{threads};
+	my $run2ctg = $SNPIHR->{run2ctg};
+	my $rdep = $SNPIHR->{rdep} ;
+
 
 	my $useFB = 1;	$useFB = 0 if (uc($SNPIHR->{SNPcaller}) eq "MPI");
 	my $overwrite = $SNPIHR->{overwrite};
@@ -196,7 +200,7 @@ sub pileupcall{
 	#freebayes std options
 	my $frAllOpts= "-u -i -m $minMQ -q $minBQ -C 1 -F 0.1 -k -X --pooled-continuous --report-monomorphic  --min-repeat-entropy 1 --use-best-n-alleles 2 -G 1 ";
 	#bcftools options #-q = map qual -Q = base qual
-	my $bcfAllOpts = "--count-orphans --min-BQ $minBQ -d 12000 --skip-indels --min-MQ $minMQ -a DP,AD,ADF,ADR,SP"; #Pernille
+	my $bcfAllOpts = "--count-orphans --min-BQ $minBQ -d 12000 --threads $threads --skip-indels --min-MQ $minMQ -a DP,AD,ADF,ADR,SP"; #Pernille
 	
 	if ($tag eq "sup-"){
 		if ($SNPIHR->{SeqTechSuppl} eq "ONT"){$bcfAllOpts.=" -X ont ";
@@ -238,7 +242,7 @@ sub pileupcall{
 			if ($useFB){
 				$cmd2 .= " -t $bedF $tarR->[0] > $tmpOut.$tag$i && rm $bedF $locXtrCmd\n"; #--region '$curReg[$i]'
 			} else {
-				$cmd2 .= " -R $bedF $tarR->[0] | $bcftBin call --output-type v --ploidy 1 --multiallelic-caller -M --output-type v | lz4 -c > $tmpOut.$tag$i.lz4  && rm $bedF $locXtrCmd\n"; 
+				$cmd2 .= " -R $bedF $tarR->[0] | $bcftBin call --output-type v --ploidy 1 --multiallelic-caller -M --output-type v | bgzip -c > $tmpOut.$tag$i.gz  && rm $bedF $locXtrCmd\n"; 
 			}
 		} else {
 			die "incomplete control structure SNP.pm\n";
@@ -271,6 +275,7 @@ sub SNPconsensus_vcf{
 	my $ctg2fas = getProgPaths("contig2fast_scr");
 	my $pigzBin  = getProgPaths("pigz");
 	#my $py3 = getProgPaths("py3activate",0);my $py3d = getProgPaths("pydeacti",0);
+	my $bcftBin = getProgPaths("bcftools");
 
 	#get parameteres
 	my $samcores = 12;
@@ -289,11 +294,14 @@ sub SNPconsensus_vcf{
 	my $runLocalTmp = $SNPIHR->{runLocal};
 	my $maxSNPcores= $SNPIHR->{maxCores};
 	my $SNPstone = $SNPIHR->{STOconSNP}; my $SNPsuppStone = $SNPIHR->{STOconSNPsupp};
+	my $minDepth = 0;
+	$minDepth =$SNPIHR->{minDepth}  if (exists($SNPIHR->{minDepth} ));
+	my $minCallQual = 20;
 	#my $SNPstone = $ofasConsDir."SNP.cons.stone";
-
 	#my $memReq = "20G";
 	my $memReq = $SNPIHR->{memReq};
 	my $vcfFile = ""; $vcfFile = $SNPIHR->{vcfFile} if (exists ($SNPIHR->{vcfFile}));
+	my $vcfFileS = ""; $vcfFileS = $SNPIHR->{vcfFileSupp} if (exists ($SNPIHR->{vcfFileSupp}));
 	my $cmdFTag = $SNPIHR->{cmdFileTag};
 	my $firstInSample = 0;$firstInSample = $SNPIHR->{firstInSample} if (exists($SNPIHR->{firstInSample}));
 	my $useFB = 1;	$useFB = 0 if (uc($SNPIHR->{SNPcaller}) eq "MPI");
@@ -307,6 +315,7 @@ sub SNPconsensus_vcf{
 	my $ofasCons = $SNPIHR->{ofas};
 	$ofasCons =~ m/(^.*)\/[^\/]+$/;
 	my $ofasConsDir = $1."/";
+	#$ofasCons .= ".gz" unless ($ofasCons =~ m/\.gz$/); #don't change, needed without..
 	my $run2ctg=1; #flag to determine if I run the cram to bam, mpileup, consensus contig steps..
 	system "rm -f $ofasConsDir/*" if ($overwrite);
 	#die "$ofasCons\n";
@@ -361,11 +370,13 @@ sub SNPconsensus_vcf{
 		$rdep = $dep;
 		$xtra = "";
 	}
-	
+	$SNPIHR->{run2ctg} = $run2ctg;
+	$SNPIHR->{rdep} = $rdep;
+
 	#$SNPIHR->{assembly} = $refFA;
 	my $cmdAll = ""; $cmdAll .= $xtra if ($run2ctg);
 	my $tmpOut = "$scrDir/$smplNm.cons.vcf";
-	my ($dAR,$cAR,$pilecmd) =  pileupcall(\@tar,"",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut,$myParL,\@curReg,$run2ctg,$rdep);
+	my ($dAR,$cAR,$pilecmd) =  pileupcall(\@tar,"",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut,$myParL,\@curReg);
 	my @allDeps2 = @{$dAR}; my @checkF = @{$cAR};
 	$cmdAll .= $pilecmd;
 	
@@ -373,17 +384,17 @@ sub SNPconsensus_vcf{
 	
 		#supplementary mappings?
 	my @tarS = ("");
-	if ($SNPsuppStone && exists ($SNPIHR->{MARsupp} ) ){
-		$xtra .= "echo \"Creating c/bams indexes supplemental reads\"\n";
+	my $tmpOut2 = "$scrDir/$smplNm.X.cons.vcf";
+	if ($SNPsuppStone ne "" && exists ($SNPIHR->{MARsupp} ) ){
+		my $xtra2 .= "echo \"Creating c/bams indexes supplemental reads\"\n";
 		$tarS[0] = ${$SNPIHR->{MARsupp}}[0];
 		if ($bamcram eq "cram"){ #create index for bam/cram
-			$xtra .= "if [ ! -e $tarS[0].crai ] || [ ! -s $tarS[0].crai ]; then rm -f $tarS[0].crai; $smtBin index -@ $samcores  $tarS[0]; fi\n";
+			$xtra2 .= "if [ ! -e $tarS[0].crai ] || [ ! -s $tarS[0].crai ]; then rm -f $tarS[0].crai; $smtBin index -@ $samcores  $tarS[0]; fi\n";
 		} else {
-			$xtra .= "if [ ! -e $tarS[0].bai ] || [ ! -s $tarS[0].bai ]; then rm -f $tarS[0].bai; $smtBin index -@ $samcores  $tarS[0]; fi\n";
+			$xtra2 .= "if [ ! -e $tarS[0].bai ] || [ ! -s $tarS[0].bai ]; then rm -f $tarS[0].bai; $smtBin index -@ $samcores  $tarS[0]; fi\n";
 		}
-		my $tmpOut2 = "$scrDir/$smplNm.X.cons.vcf";
-		($dAR,$cAR,$pilecmd) =  pileupcall(\@tarS,"sup-",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut2,$myParL,\@curReg,$run2ctg,$rdep);
-		$cmdAll .= $pilecmd;
+		($dAR,$cAR,$pilecmd) =  pileupcall(\@tarS,"sup-",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut2,$myParL,\@curReg);
+		$cmdAll .= $xtra2.$pilecmd;
 		push(@allDeps2, @{$dAR}); push(@checkF, @{$cAR});
 	}
 
@@ -402,15 +413,33 @@ sub SNPconsensus_vcf{
 		$postcmd .= "mkdir -p $ofasConsDir;\n";
 		$postcmd .= "if ls $qsubDirE/$smplNm.*.bed 1> /dev/null 2>&1 ;then echo \"Bed files still present, probably incorrect run\"; exit 33; else echo \"bed files deleted, looks good\"; fi\n\n";
 		#old way to save file.. too much data for production environment
-		if ($vcfFile ne ""){
-			$postcmd .= "lz4cat `ls $tmpOut.*.lz4 $sortedFileList` >$vcfFile ;\n";
-			$postcmd .= "cat $vcfFile | $vcfcnsScr $ofasCons.depStat |$pigzBin -p $samcores -c >$ofasCons ;\n\n"; #$refFA.fai
-		} else {
-			#$postcmd .= "#DEBUG\ncp $tmpOut.lz4 $ofasConsDir\n\n";
-			$postcmd .= "lz4cat `ls $tmpOut.*.lz4 $sortedFileList`  |   $vcfcnsScr $ofasCons.depStat | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai 
+		my $saveVCF=1;
+		if ($vcfFile eq ""){
+			$saveVCF=0;
+			$vcfFile = "$scrDir/$smplNm.fin.vcf.gz";
+			$vcfFileS = "$scrDir/$smplNm.fin-sup.vcf.gz";
 		}
+		$vcfFile .= ".gz" unless ($vcfFile =~ m/\.gz$/);
+		$postcmd .= "cat `ls $tmpOut.*.gz $sortedFileList` >$vcfFile ;\nrm -f $tmpOut.*.gz;\n";
+		my $vcfSuff="";
+		if ($SNPsuppStone ne "" ){
+			$vcfFileS .= ".gz" unless ($vcfFileS =~ m/\.gz$/);
+			$postcmd .= "cat `ls $tmpOut2.*.gz $sortedFileList` >$vcfFileS ;\nrm -f $tmpOut2.*.gz;\n";
+			$postcmd .= "$bcftBin index $vcfFileS; $bcftBin index $vcfFile;\n";
+			$vcfSuff = ".mrg.gz";
+			$postcmd .= "$bcftBin concat -a --threads $samcores -O z -o $vcfFile$vcfSuff $vcfFile $vcfFileS;\n\n";				
+		}
+		$postcmd .= "zcat $vcfFile$vcfSuff | $vcfcnsScr $ofasCons.depStat $minDepth $minCallQual | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai
+		$postcmd .= "rm -f $vcfFile$vcfSuff $vcfFileS.csi $vcfFile.csi;\n" if ($vcfSuff ne "");
+		$postcmd .= "rm  -f $vcfFileS $vcfFile;\n" if (!$saveVCF );
+		#} else {
+		#	if ($SNPsuppStone ne "" ){die "support reads activated. combined SNP calling only works current with use of the \"-SNPsaveVCF 1\" MG-TK option. Aborting\n";}
+			#$postcmd .= "#DEBUG\ncp $tmpOut.lz4 $ofasConsDir\n\n";
+		#	$postcmd .= "zcat `ls $tmpOut.*.gz $sortedFileList`  |   $vcfcnsScr $ofasCons.depStat $minDepth  $minCallQual | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai 
+		#}
+		
 		$postcmd .= "\necho \"Finished depthStat\"\n\n";
-		$postcmd .= "rm $tmpOut*;\n";
+		$postcmd .= "rm -f $tmpOut*;\n";
 		#$postcmd .= "$pigzBin -p $samcores $ofasCons;\n";
 
 		$cmdAll .= "\n$postcmd\n" if ($run2ctg != 0);

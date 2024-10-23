@@ -667,11 +667,11 @@ sub runSemiBin{
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
 	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
-	my $cmd = "###preparing BAMs..\n$uncramCmd\n\n";
-	$cmd .= "echo \"CRAM->BAM finished\"\n";
+	my $cmd1 = "###preparing BAMs..\n$uncramCmd\n\n";
+	$cmd1 .= "echo \"CRAM->BAM finished\"\n";
 #	my $cmd = "";
 	#my $output = "$outD/$nm.semibin";
-	$cmd .= "\n\n###Running SemiBin...\n";
+	my $cmd .= "\n\n###Running SemiBin...\n";
 	if ($numBams == 1 && $jgO ne ""){
 		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senv $seqType --output $outDir $dflags\n";
 	} else {
@@ -681,7 +681,7 @@ sub runSemiBin{
 	
 	#die $cmd;
 	
-	return $cmd;
+	return $cmd1.$cmd;
 
 }
 
