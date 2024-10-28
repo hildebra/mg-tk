@@ -785,7 +785,8 @@ sub iniCleanSeqSetHR{
 	my $HR = {arp1 => ${$seqSetHR}{pa1},arp2 => ${$seqSetHR}{"pa2"},singAr => ${$seqSetHR}{"pas"}, matAr => [],
 					readTec => ${$seqSetHR}{seqTech}, is3rdGen => ${$seqSetHR}{is3rdGen},
 					arpX1 => ${$seqSetHR}{paX1},arpX2 => ${$seqSetHR}{paX2},singArX => ${$seqSetHR}{paXs}, matArX => [],
-					readTecX => ${$seqSetHR}{seqTechX}, is3rdGenX => ${$seqSetHR}{is3rdGenX}
+					readTecX => ${$seqSetHR}{seqTechX}, is3rdGenX => ${$seqSetHR}{is3rdGenX},
+					mrgHshHR => {}
 				};
 	return $HR;
 }

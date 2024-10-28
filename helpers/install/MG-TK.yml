@@ -39,7 +39,7 @@ dependencies:
   - pigz=2.8
   - pip=24.0
   - rsync=3.2.7
-  - strobealign=0.13
+  - strobealign=0.14
 #  - screen>=4.8
 #  - glpk
 

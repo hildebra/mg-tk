@@ -599,6 +599,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-requireInput [0/1]		in case input reads are not present (e.g. something wrong in map), 0 will continue pipeline, 1 will abort
 	-silent [0/1] 			Controls how much information is printed on console
 	-OKtoRWassGrps [0|1]			1: can delete assemblies, if suspects error in them, powerful, but careful! (Default: 0)
+	-maxUnzpJobs [#]				#how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 
 # Detecting raw input files
 	-inputFQregex1 [‘R1’]			R1 input regex extension (e.g. R1 could be '.*_1\.f[^\.]*q\.gz$' or last resort '(.*_pe_1\.f[^\.]*q\.gz$)|(.*R1_00\d\.f[^\.]*q\.gz$)|(.*[\._]1\.f[^\.]*q\.gz$)|(.*R1\.fq\.gz)' )
@@ -671,6 +672,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-saveReadsNotMap2Assembly [0|1]			1: save reads not mapping to assembly in separate file (Default: 0)
 	-remap2assembly [0|1]			1: redo the mapping to assembly (Default: 0)
 	-JGIdepths [0|1]			1: calculate jgi coverage, only required when using MetaBAT2 binning (Default: automatic)
+	-mapperLargeRef [0|1]			1: reference DB that is mapped against is veryyy large (highly unusual that this is needed) (Default: 0)
 
 # SNPs
 	-getAssemblConsSNP [0|1]		1: SNPs (onto self assembly); calculates consensus SNP of assembly (useful for checking assembly gets consensus and Assmbl_grps)

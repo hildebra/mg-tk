@@ -12,14 +12,14 @@ my $finalCnt=0; #really the number of entries written..
 my $failMask = 1 << 2;
 my $bwt2sam=1; #switch to mini2, if not matching found..
 #die "$failMask\n";
-my $totalCnt=0;
+my $totalCnt=0; my $totalNotMapped=0;
 while (my $line = <STDIN>){
 	if ($line =~ m/^@/){print $line; next;}
 	chomp $line;
 	if ($totalCnt==0 && $line =~ m/^(ERR):/){die "Error in bamfile:\n\"$line\"\n";}
 	my @sam = split/\t/,$line;
 	$totalCnt++;
-	if ($sam[1] & 0x4 ){print "$line\n"; $finalCnt++; next;}
+	if ($sam[1] & 0x4 ){print "$line\n"; $totalNotMapped++; next;} #fail map
 	my $fail=0; #assumme innocence
 	my $xtrField = join("\t",@sam[11..$#sam]);
 	my $refL = length($sam[9]);
@@ -70,7 +70,7 @@ while (my $line = <STDIN>){
 }
 
 
-print STDERR "BamFilter\nInentries: $totalCnt\nTotalRetained: $finalCnt\nTotalRm: $totalFail\nDue to\n  Mapping Qual (<$MAQ): $mapscoreFail\n  Coverage (<$lengthC): $coverFail\n  ID (>$id): $idFail\n";
+print STDERR "BamFilter\nInentries: $totalCnt\nTotalRetained: $finalCnt\nTotalRm: $totalFail\nDue to\n  Mapping Qual (<$MAQ): $mapscoreFail\n  Coverage (<$lengthC): $coverFail\n  ID (>$id): $idFail\n  notMapped: $totalNotMapped\n";
 #print STDERR "BamFilter: $totalCnt\nTotalFilter: $totalFail\nMapping Qual (<$MAQ): $mapscoreFail\nCoverage (<$lengthC): $coverFail\nID (>$id): $idFail\n";
 sleep(1);
 print STDERR "Done\n";

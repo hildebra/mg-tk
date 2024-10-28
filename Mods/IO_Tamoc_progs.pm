@@ -178,6 +178,7 @@ sub loadConfigs{
 			$DBpath = truePath($1); $DBset=1;
 		} elsif (!$SINGset && $l =~ m/^SINGcmd\t([^#]+)/){
 			$SINGcmd = truePath($1); $SINGset=1;
+			#die "SINGcmd no longer supported\nPlease remove from Config\n";
 		} elsif (!$CONDset && $l =~ m/^CONDcmd\t([^#]+)/){
 			$CONDcmd = truePath($1); $CONDset=1;
 		} elsif (!$CONDset2 && $l =~ m/^CONDA\t([^#]+)/){
@@ -218,7 +219,7 @@ sub loadConfigs{
 			
 			#die "$reV  $XVar  $l\n";
 			
-			$reV =~s/\[MFLRDir\]/$TMCpath/ if ($Tset);
+			$reV =~ s/\[MFLRDir\]/$TMCpath/ if ($Tset);
 			$reV =~ s/\[BINDir\]/$BINpath/ if ($Bset);
 			$reV =~ s/\[DBDir\]/$DBpath/ if ($DBset);
 			$reV =~ s/\[SINGcmd\]/$SINGcmd/ if ($SINGset);
@@ -239,6 +240,7 @@ sub loadConfigs{
 	if (!$CONDset){die "Could not find \"CONDcmd\" correctly configured in config file, please check your local config! Aborting..\n";}
 	if (!$DBset){die "Could not find \"DBDir\" correctly configured in config file, please check your local config! Aborting..\n";}
 	if (!$Tset){die "Could not find \"MFLRDir\" correctly configured in config file, please check your local config! Aborting..\n";}
+	if (!$CONDset2){die "Could not find \"CONDA\" correctly configured in config file, please check your local config! Aborting..\n";}
 	$CONFIG_HASH{"activateBase"} = "$CONDA;$CONDcmd activate $CONDAbaseEnv\n";
 	$CONFIG_HASH{"CONDAbaseEnv"} = $CONDAbaseEnv;
 	$CONFIG_HASH{"MFLRDir"} = $TMCpath;

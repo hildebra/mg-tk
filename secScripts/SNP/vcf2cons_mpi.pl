@@ -63,7 +63,7 @@ while (my $line = <STDIN>) {
 			}
 			&v2q_post_process($last_chr, \$seq, \$qual, \@gaps, $indelWin,$lbcnts,$lccnts,\@spos,\@sfreq,\%allF);
 		}
-		($last_chr, $last_pos) = ($t[0], 0);
+		($last_chr, $last_pos) = ($t[0], -1);
 		$seq = $qual = '';@spos=(); @sfreq = (); %allF = ();
 		@gaps = ();$lbcnts=0; $lccnts =0; $addMode=0; $prevDep=0; $prevDidAlt=0;
 		$last_chr =~ m/L=(\d+)=/;  $chromL = $1;
