@@ -296,7 +296,7 @@ sub SNPconsensus_vcf{
 	my $SNPstone = $SNPIHR->{STOconSNP}; my $SNPsuppStone = $SNPIHR->{STOconSNPsupp};
 	my $minDepth = 0;
 	$minDepth =$SNPIHR->{minDepth}  if (exists($SNPIHR->{minDepth} ));
-	my $minCallQual = 20;
+	my $minCallQual = $SNPIHR->{minCallQual};#20;
 	#my $SNPstone = $ofasConsDir."SNP.cons.stone";
 	#my $memReq = "20G";
 	my $memReq = $SNPIHR->{memReq};

@@ -63,9 +63,9 @@ while (my $line = <STDIN>) {
 			}
 			&v2q_post_process($last_chr, \$seq, \$qual, \@gaps, $indelWin,$lbcnts,$lccnts,\@spos,\@sfreq,\%allF);
 		}
-		($last_chr, $last_pos) = ($t[0], -1);
+		($last_chr, $last_pos) = ($t[0], 0);
 		$seq = $qual = '';@spos=(); @sfreq = (); %allF = ();
-		@gaps = ();$lbcnts=0; $lccnts =0; $addMode=0; $prevDep=0; $prevDidAlt=0;
+		@gaps = ();$lbcnts=0; $lccnts =0; $prevDep=0; $prevDidAlt=0;
 		$last_chr =~ m/L=(\d+)=/;  $chromL = $1;
 	}
 	#print STDERR "$last_pos pos \n";
@@ -75,8 +75,9 @@ while (my $line = <STDIN>) {
 		$seq .= 'n' x ($t[1] - $last_pos - 1);
 		#$qual .= '!' x ($t[1] - $last_pos - 1);
     }
-	if ($t[1] == $last_pos ) { #skip for now if conflict..
+	if ($t[1] == ($last_pos) ) { #
 		$addMode=1;
+		die "$line\n$prevLine\n$last_pos $t[1]";
 		#next;
 	}
 	#die("Fatal vcf2cons_mpi.pl::@t"."\nlast_pos == $t[1] $last_pos\n") if ($last_pos == $t[1] );
@@ -170,6 +171,7 @@ while (my $line = <STDIN>) {
 					
 					substr($seq,-1,1,$b) ;
 					$prevB = $b;
+					$prevQual=$q;
 				} else {
 					#print STDERR "$prevLine\n$line\n $prevB  $b \n";
 				}
@@ -180,7 +182,7 @@ while (my $line = <STDIN>) {
 				$depthStat{$prevDep}{altF} -= $prevFreq;
 				$altFreq{int((100*($prevFreq)))} --;
 
-				$prevDidAlt=0;$prevDep=0;
+				$prevDidAlt=0;$prevDep=0; 
 			} else {
 				$depthStat{$prevDep}{norm}--;
 			}
@@ -206,7 +208,10 @@ while (my $line = <STDIN>) {
     }
 	#print "$last_pos\n ";
 	#print STDERR "@t\n" if ($alt ne ".");
-    $last_pos = length($seq);#$t[1];
+    $last_pos = $t[1];#length($seq);#$t[1];
+	if (length($seq) != $t[1]){
+		die "Sequence has been malformed:\n$seq\n $line\n$prevLine\n";
+	}
 	$prevLine = $line;
 
   }
@@ -268,8 +273,10 @@ foreach my $i (sort {$a <=> $b} keys %altFreq){
 close OD;
 
 print STDERR "Finished vcf2cons_mpi.pl.\nElapsed time: " . (time - $startT ) . "s\n";
+print STDERR "Total SNPs detected: $ccnts\n";
 print STDERR "Total bp written: $bpAdded ($bpIsN not resolved) on $entryNum entries\n";
 print STDERR "Conflicting calls: $disagreeCall Resolved with second line: $overridePrevCall\n";
+
 
 
 

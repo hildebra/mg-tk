@@ -304,7 +304,7 @@ sub mapperDBbuilt( $ $){
 	#print "($MapperProg2 == 1 || $MapperProg2 == -1) && !-s $DBbtRef$bwt2IdxFileSuffix.rev.2.bt2\n";
 	if ( 
 		($MapperProg2 ==0 && !-e "$DBbtRef$bwt2IdxFileSuffix.0.sa") 
-		|| ( ($MapperProg2 == 1 || $MapperProg2 == -1) && (!-s "$DBbtRef$bwt2IdxFileSuffix.rev.2.bt2" || !-s "$DBbtRef$bwt2IdxFileSuffix.1.bt2" ) ) #bowtie2
+		|| ( ($MapperProg2 == 1 || $MapperProg2 == -1) && (!-s "$DBbtRef$bwt2IdxFileSuffix.1.bt2l" && !-s "$DBbtRef$bwt2IdxFileSuffix.1.bt2" ) ) #bowtie2
 		||( $MapperProg2 == 2 && !-s "$DBbtRef.pac" ) #bwa
 		||( ($MapperProg2 == 3 || $MapperProg2 == -1 ) && !-s "$DBbtRef$mini2IdxFileSuffix" ) #minimap2
 		||( ($MapperProg2 == 4 ) && !-s "$DBbtRef$kmaIdxFileSuffix.seq.b" )#kma

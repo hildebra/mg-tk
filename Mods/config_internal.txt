@@ -125,7 +125,7 @@ fasta2phylip_scr	perl [MFLRDir]/secScripts/phylo/fasta2phylip.pl
 vcfCons_scr	perl [MFLRDir]/secScripts/SNP/vcf2cons_mpi.pl
 vcfCons_FB_scr	perl [MFLRDir]/secScripts/SNP/vcf2cons.pl
 genRegions_scr	[MFLRDir]/secScripts/SNP/fasta_generate_regions.py
-contig2fast_scr	[PY3] [MFLRDir]/secScripts/SNP/contig2fasta.py
+contig2fast_scr	python [MFLRDir]/secScripts/SNP/contig2fasta.py
 MGS_strain1_scr	perl [MFLRDir]/secScripts/MGS/strain_within.pl
 MGS_strain2_scr	perl [MFLRDir]/secScripts/MGS/strain_within_2.2.pl
 MGSPhyloBetween_scr	perl [MFLRDir]/secScripts/MGS/phylo_MGS_between.pl

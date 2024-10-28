@@ -586,7 +586,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($locStats{totRds}==0 && !defined($locStats{uniqAlign}) && -e $inputRawFile && $eFinMapCovGZ){ #do a deeper look
 		my $line = getFileStr("$inputRawFile",0); #open I,"<$inputRawFile"; my $line = <I>; close I; chomp($line);
 		#my @spl = split /,/,$line; my $inFileSize = -s $spl[0];
-		print "weird empty:  $line \nredoing..\n";
+		print "weird empty: $locStats{totRds} $line \nredoing..\n";
+		die;
 		$locRewrite = 1;$locRedoAssembl = 1;
 	}
 	if ( ($MFconfig{skipWrongPairedSmpls} || $MFconfig{OKtoRWassGrps}) && -e "$logDir/sdmReadCleaner.sh.etxt" && `tail -n 70 $logDir/sdmReadCleaner.sh.etxt | grep 'invalid paired read' ` ne ""){
@@ -1326,6 +1327,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						dependency => $AsGrps{$cAssGrp}{BinDeps},split_jobs => $MFopt{SNPconsJobsPsmpl},
 						overwrite => $MFopt{redoSNPcons},
 						STOconSNP => $STOsnpCons, STOconSNPsupp => "",
+						minCallQual => $MFopt{SNPminCallQual},
 					);
 		$SNPinfo{SeqTechSuppl} = "PB" if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/);
 		if ($calcSuppConsSNP){
@@ -1720,9 +1722,13 @@ sub DiaPostProcess(){
 	foreach my $DB (@DBS){
 		$progStats{$DB}{SearchCompl} =0 unless (exists($progStats{$DB}{SearchCompl}));
 		$progStats{$DB}{SearchIncomplete}=0 unless (exists($progStats{$DB}{SearchIncomplete}));
-		next unless (exists($progStats{$DB}{SearchCompl}));
-		$cmd .= "$mrgDiScr $baseOut $DB\n" if ($progStats{$DB}{SearchCompl}>=1);
-		print "$DB: complete $progStats{$DB}{SearchCompl} >= incomplete $progStats{$DB}{SearchIncomplete}\n"
+		my $countFile = "$baseOut/pseudoGC/FUNCT/$DB.compl";
+		my $refDone = 0; $refDone = int(getFileStr($countFile)) if (-e $countFile);
+		next if (!exists($progStats{$DB}{SearchCompl}) || $progStats{$DB}{SearchCompl} < $refDone );
+		print "$DB :: $progStats{$DB}{SearchCompl} ($refDone previously done)\n";
+		$cmd .= "$mrgDiScr $baseOut $DB\necho $progStats{$DB}{SearchCompl} > $countFile\n" if ($progStats{$DB}{SearchCompl}>= 1 );
+		#`echo $progStats{$DB}{SearchCompl} > $countFile`;
+		#print "$DB: complete $progStats{$DB}{SearchCompl} >= incomplete $progStats{$DB}{SearchIncomplete}\n"
 	}
 	$cmd .= $AsGrps{global}{DiamCln};
 	print "\nMerg diamond:$cmd\n\n";
@@ -4976,7 +4982,8 @@ sub mapReadsToRef{
 		@reg_lcs =  @{$make2ndMapDecoy{region_lcs}};
 		@bwtIdxs = ($bwtIdx);
 	} 
-	$algCmd .= "if [ ! -e $bwtIdxs[0].1.bt2 ] ;then\n	echo \"Could not find assembly bowtie2 index: $bwtIdxs[0].1.bt2\";\n	exit 23;\nfi\n" if ($mapperProgLoc == 1); #needs to exit on error
+	my $bwt2DBsuf = "bt2"; $bwt2DBsuf = "bt2l" if ($MFopt{largeMapperDB}); 
+	$algCmd .= "if [ ! -e $bwtIdxs[0].1.$bwt2DBsuf ] ;then\n	echo \"Could not find assembly bowtie2 index: $bwtIdxs[0].1.$bwt2DBsuf\";\n	exit 23;\nfi\n" if ($mapperProgLoc == 1); #needs to exit on error
 
 	#die "@bwtIdxs\n";
 	
@@ -5688,7 +5695,7 @@ sub bwtLogRd($$$){
 	my @spl = @{$splAr};
 	my %ret = %{$rhr};
 	#DEFAULTS:
-	$ret{uniqAlign}=0;$ret{multAlign}=0;$ret{DisconcAlign}=0;
+	$ret{uniqAlign}=-1;$ret{multAlign}=0;$ret{DisconcAlign}=0;
 	if (@spl < 5){return (\%ret);}
 	if ($spl[$idx+1] =~ m/\(100.00%\) were unpaired; of these:/){#single end read mapping!
 		#die "SE\n";
@@ -5750,6 +5757,11 @@ sub getMapStats{
 		my @matc = $alignStats =~ m/^Inentries: (\d+)/g;		foreach (@matc) {$incoming += int($_);}
 		 @matc =$alignStats =~ m/^TotalRetained: (\d+)/g;	foreach (@matc) {$retained += int($_);}
 		 @matc = $alignStats =~ m/^TotalRm: (\d+)/g;	foreach (@matc) {$removed += int($_);} 
+		 $locStats{totReadPairs} = $incoming;
+		 $locStats{uniqAlign} = $retained;
+	} else {
+		$locStats{totReadPairs} = -1;
+		$locStats{uniqAlign} = -1;
 	}
 	
 	if (!$dobwtStat){
@@ -5772,7 +5784,7 @@ sub getMapStats{
 	} elsif ($dobwtStat == 3){ #strobealign
 		if ($incoming > 0){
 			my $frac2 = ($incoming-$removed)/$incoming;
-			$locStats{totReadPairs} = -1 if (!exists($locStats{totReadPairs}));
+			#$locStats{totReadPairs} = -1 if (!exists($locStats{totReadPairs}));
 			my $frac = 0; $frac = $incoming/$locStats{totReadPairs} if( $locStats{totReadPairs}>0);
 			$locStats{AlignmRate}=$frac;
 			$outStr = "$locStats{totReadPairs}\t$retained\t".  $frac ."\t\t\t\t\t\t";
@@ -5841,6 +5853,81 @@ sub getContamination{
 	#die "$outStr\n$inFi\n";
 	return ($outStr,$outStrDesc);
 }
+
+sub getBinnerStats{
+	my ($tmpassD,$SmplN) = @_;
+	
+## binning stats SemiBin
+	my $SBbinCM2 = "$tmpassD/Binning/SB/$SmplN.cm2";
+	my $addStr = "\t" x 2; my $addDescr="";
+	if (-e $SBbinCM2){
+		my $HQbinCnt = 0; my $MQbinCnt = 0; my $totBins=0;
+		open I,"<$SBbinCM2" or die $!;
+		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
+			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
+			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
+			$totBins ++;
+		}
+		close I;
+		$addStr = "$HQbinCnt\t$MQbinCnt\t";
+		#die "$HQbinCnt $MQbinCnt $SBbinCM2\n";
+	} 
+	$addDescr .= "HQ_bins_SB\tMQ_bins_SB\t";
+	
+
+
+## binning stats MetaBat2
+	$SBbinCM2 = "$tmpassD/Binning/MB2/$SmplN.cm2";
+	$addStr = "\t" x 2;
+	if (-e $SBbinCM2){
+		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
+		open I,"<$SBbinCM2" or die $!;
+		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
+			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
+			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
+			$totBins ++;
+		}
+		close I;
+		$addStr = "$HQbinCnt\t$MQbinCnt\t";
+	} 
+	$addDescr .= "HQ_bins_MB2\tMQ_bins_MB2\t";
+
+## binning stats MetaDecoder
+	$SBbinCM2 = "$tmpassD/Binning/MD/$SmplN.cm2";
+	$addStr = "\t" x 2;
+	if (-e $SBbinCM2){
+		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
+		open I,"<$SBbinCM2" or die $!;
+		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
+			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
+			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
+			$totBins ++;
+		}
+		close I;
+		$addStr = "$HQbinCnt\t$MQbinCnt\t";
+	} 
+	$addDescr .= "HQ_bins_MD\tMQ_bins_MD\t";
+	return ($addStr,$addDescr);
+}
+
+sub getSNPStats{
+	my ($inFi) = @_;
+	#my $outStrDesc = "";  my $outStr = "";
+	my $outStr = "\t" x 4;
+	my $outStrDesc = "SNPbpResolved	SNPfastaEntries	SNPconflicts\tSNPconlResolv2ndL\tNumSNPs\t";
+	my $geneStats = getFileStr("$inFi",0);
+	#Total bp written: 34950480 (0 not resolved) on 26727 entries
+
+	if ($geneStats =~ m/Total bp written: (\d+) \(\d+ not resolved\) on (\d+) entries/){
+		my $bps = $1; my $entrs=$2;
+		$geneStats =~ m/Conflicting calls: (\d+) Resolved with second line: (\d+)/;
+		my $confl=$1; my $resol=$2;
+		$geneStats =~ m/Total SNPs detected: (\d+)/; my $snpNum=$1;
+		$outStr = "$bps\t$entrs\t$confl\t$resol\t$snpNum\t";
+	}
+	return ($outStr, $outStrDesc);
+}
+
 sub getGeneStats{
 	my ($inFi) = @_;
 	#my $outStrDesc = "";  my $outStr = "";
@@ -6013,70 +6100,13 @@ sub smplStats(){
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 
-	
-## binning stats SemiBin
-	my $SBbinCM2 = "$tmpassD/Binning/SB/$SmplN.cm2";
-	my $addStr = "\t" x 2;
-	if (-e $SBbinCM2){
-		my $HQbinCnt = 0; my $MQbinCnt = 0; my $totBins=0;
-		open I,"<$SBbinCM2" or die $!;
-		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
-			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
-			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
-			$totBins ++;
-		}
-		close I;
-		$addStr = "$HQbinCnt\t$MQbinCnt\t";
-		#die "$HQbinCnt $MQbinCnt $SBbinCM2\n";
-	} 
-	if ($do500Stat){
-		$outStr5 .= $addStr;$outStrDesc5 .="HQ_bins_SB\tMQ_bins_SB\t";;
-	}
-	$outStr .= $addStr;
-	$outStrDesc .= "HQ_bins_SB\tMQ_bins_SB\t";
-	
+	($t1,$t2) = getBinnerStats($tmpassD,$SmplN);
+	$outStr .= $t1;	$outStrDesc .= $t2;
+	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 
-
-## binning stats MetaBat2
-	$SBbinCM2 = "$tmpassD/Binning/MB2/$SmplN.cm2";
-	$addStr = "\t" x 2;
-	if (-e $SBbinCM2){
-		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
-		open I,"<$SBbinCM2" or die $!;
-		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
-			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
-			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
-			$totBins ++;
-		}
-		close I;
-		$addStr = "$HQbinCnt\t$MQbinCnt\t";
-	} 
-	if ($do500Stat){
-		$outStr5 .= $addStr;$outStrDesc5 .="HQ_bins_MB2\tMQ_bins_MB2\t";;
-	}
-	$outStr .= $addStr;
-	$outStrDesc .= "HQ_bins_MB2\tMQ_bins_MB2\t";
-
-## binning stats MetaDecoder
-	$SBbinCM2 = "$tmpassD/Binning/MD/$SmplN.cm2";
-	$addStr = "\t" x 2;
-	if (-e $SBbinCM2){
-		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
-		open I,"<$SBbinCM2" or die $!;
-		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
-			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
-			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
-			$totBins ++;
-		}
-		close I;
-		$addStr = "$HQbinCnt\t$MQbinCnt\t";
-	} 
-	if ($do500Stat){
-		$outStr5 .= $addStr;$outStrDesc5 .="HQ_bins_MD\tMQ_bins_MD\t";;
-	}
-	$outStr .= $addStr;
-	$outStrDesc .= "HQ_bins_MD\tMQ_bins_MD\t";
-
+	($t1,$t2) = getSNPStats("$inD/LOGandSUB/SNP/ConsAssem.oSNPc.sh.etxt");
+	$outStr .= $t1;	$outStrDesc .= $t2;
+	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 	
 #clean up strings..	
 	chomp $outStrDesc; chomp $outStr;
@@ -6225,7 +6255,9 @@ sub scndMap2Genos{
 				qsubDir => $dirset{qsubDir}, jdeps => $map2CtgsY.";$bwt2ndMapDep",
 				cmdFileTag => $bwt2ndMapNmds[$i], minDepth => $MFopt{consSNPminDepth},
 				smpl => $bamBaseNameS[$i], maxCores => $MFopt{maxSNPcores}, memReq => $MFopt{memSNPcall},
-				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons} );
+				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons},
+				minCallQual => $MFopt{SNPminCallQual},
+				);
 				
 
 			my $consSNPdep = createConsSNP(\%SNPinfo);
@@ -6703,7 +6735,7 @@ sub megahitAssembly{
 	
 	
 	my $assStatScr = getProgPaths("assStat_scr");#"perl /g/bork3/home/hildebra/dev/Perl/assemblies/assemblathon_stats.pl";
-	$cmd .= "$assStatScr -scaff_size 500 $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
+	$cmd .= "$assStatScr -scaff_size $MFopt{scaffoldMinSize} $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.ini.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta.filt > $nodeTmp/AssemblyStats.txt\n";
 	
@@ -7063,6 +7095,7 @@ sub setDefaultMFconfig{
 	$MFopt{AssemblyKmers} = "27,43,67,87,101,127" ; #"27,33,55,71";
 	$MFopt{kmerPerGene} = 0; #calculate kmer frequencies for each gene instead of per scaffold
 	$MFopt{kmerAssembly} = 0; #calculate kmer frequencies for each scaffold
+	$MFopt{scaffoldMinSize} = 500; #all scaffolds/contigs below this will be dropped
 
 	#mapping related options
 	$MFopt{MapperProg} = -1;#1=bowtie2, 2=bwa, 3=minimap2, 4=kma, 5=strobealign, -1=auto (bowtie2 short, minimap2 long reads)
@@ -7107,6 +7140,7 @@ sub setDefaultMFconfig{
 
 	#SNPs
 	$MFopt{DoConsSNP}=0; $MFopt{DoSuppConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
+	$MFopt{SNPminCallQual} = 20;
 	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
 
@@ -7268,6 +7302,7 @@ sub getCmdLineOptions{
 		"asssemblyHddSpace=i" => \$HDDspace{assembler},
 		"assembleMG=i" => \$MFopt{DoAssembly}, #1=Spades, 2=MegaHIT, 3= flye, 4=metaMDBG, 5=hybrid ill-PB (megahit, metaMDBG)
 		"assemblyLongTime=i" => \$MFopt{SpadesLongtime},
+		"assemblyScaffMinSize=i" => \$MFopt{scaffoldMinSize},
 	#binning
 		"Binner|MetaBat2|binSpeciesMG=i" => \$MFopt{DoMetaBat2}, #0=no, 1=metaBat2, 2=SemiBin, 3: MetaDecoder
 		"BinnerCores=i" => \$MFopt{BinnerCores}, #cores used for Binning process (and checkM)
@@ -7312,6 +7347,7 @@ sub getCmdLineOptions{
 		"redoAssmblConsSNP=i" => \$MFopt{redoSNPcons},
 		"redoGeneExtrSNP=i" => \$MFopt{redoSNPgene},
 		"SNPjobSsplit=i" => \$MFopt{SNPconsJobsPsmpl}, #how many parallel jobs are run on each 
+		"SNPminCallQual=i" => \$MFopt{SNPminCallQual},
 		"SNPsaveVCF=i" => \$MFopt{saveVCF},
 		"SNPcaller=s" => \$MFopt{SNPcallerFlag},
 		"SNPcores=i" => \$MFopt{maxSNPcores},
