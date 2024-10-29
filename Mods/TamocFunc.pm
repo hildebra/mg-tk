@@ -11,7 +11,7 @@ our @EXPORT_OK = qw( sortgzblast uniq  readTabbed readTabbed2 bam2cram cram2bsam
 					readTabbed3 readTable getSpecificDBpaths  getFileStr displayPOTUS 
 					checkMFFInstall
 					);
-use Mods::GenoMetaAss qw(systemW readFasta renameFastHD gzipwrite gzipopen);
+use Mods::GenoMetaAss qw(systemW readFasta renameFastHD gzipwrite gzipopen filsizeMB);
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Mods::Subm qw ( qsubSystem   );
 
@@ -263,6 +263,12 @@ sub getFileStr{
 			$str = `tail -n $tailN $inF`; chomp $str;
 			return $str;
 		}
+	}
+	my $fsMB = filsizeMB($inF);
+	if ($fsMB > 5){
+		print "getFileStr:: Very large file: ${fsMB}Mb $inF .. reading header only\n";
+		$str = `head -n 2000 $inF`; chomp $str;
+		return $str;
 	}
 	my ($I,$OK) = gzipopen($inF,"",$req,$req) ;
 	die "getFileStr: Can't open $inF\n" if (!$OK && $req);

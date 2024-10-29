@@ -295,7 +295,7 @@ if ($MFopt{useSDM} ==2 ){$baseSDMopt = getProgPaths("baseSDMopt");}#"/g/bork3/ho
 my $baseSDMoptMiSeq = getProgPaths("baseSDMoptMiSeq_rel");#"/g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/data/sdm_opt_miSeq.txt";	
 if ($MFopt{useSDM} ==2 ){$baseSDMoptMiSeq = getProgPaths("baseSDMoptMiSeq");}#"/g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/data/sdm_opt_miSeq_relaxed.txt";	}
 
-my @unzipjobs; my $curUnzipDep = ""; 
+my @unzipjobs; 
 my $sdmjNamesAll = "";
 my $waitTime = 0;
 my @grandDeps; #used for loop2completion , collects dependencies 
@@ -514,6 +514,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			$statStr5.="SMPLID\tDIR\t".$statsHD5."\n".$curSmpl."\t$dir2rd\t".$curStats5."\n";
 		} else {$statStr.=$curSmpl."\t$dir2rd\t".$curStats."\n"; $statStr5.=$curSmpl."\t$dir2rd\t".$curStats5."\n";}
 	}
+	#die;
 	
 	#detect what already exists..
 	my $efinAssLoc = 0; $efinAssLoc = 1  if (-s $finAssLoc && -e "$finalCommAssDir/$STOassmbleDone");
@@ -556,6 +557,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	my $locRedoSNPcalling =0; 
 	my $locRedoAssMapping = $MFopt{redoAssMapping};
+
 	#check if current assembly group is the same as before!
 	my $locRewrite = 0; my $locRedoAssembl = 0;
 	if ($efinAssLoc && -e "$finalCommAssDir/smpls_used.txt"){
@@ -599,7 +601,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		}
 	}
 	
-	#die;
 	
 	#--------------------------  DELETION SECTION  -----------------------------------
 	#DELETION SECTION
@@ -611,15 +612,10 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system("rm -f -r $curOutDir $smplTmpDir $collectFinished ");
 		#next; #too deep, needs a complete new round over dir..
 		#$efinAssLoc = 0;	$eFinMapCovGZ = 0;	$emetaGassembly =  0;
-		$efinAssLoc =0 ;$eCovAsssembly = 0; $eSuppCovAsssembly=0; $eFinSupMapCovGZ=0; $emetaGassembly = 0; $eFinMapCovGZ = 0;$dfinalCommAssDir =0;$eFinalMapDir = 0;$locRewrite = 0; $locRedoAssembl = 0;$eSuppCovAsssembly=0;
+		$efinAssLoc =0 ;$emetaGassembly = 0;  $dfinalCommAssDir =0;
+		$eCovAsssembly = 0; $eSuppCovAsssembly=0; $eFinSupMapCovGZ=0; $eFinMapCovGZ = 0;$eFinalMapDir = 0;$locRewrite = 0; $locRedoAssembl = 0;$eSuppCovAsssembly=0;
 	} 
 	
-	#unzip and change ifastap & cfp1/cfp2
-	if ($MFconfig{maxUnzpJobs} >0 && @unzipjobs > $MFconfig{maxUnzpJobs}){#only run 8 jobs in parallel, lest the cluster breaks down..
-		#my @last_n = @unzipjobs[-8..-1]; 
-		$curUnzipDep = $unzipjobs[-($MFconfig{maxUnzpJobs})];#join(";",@last_n);
-		$waitTime=0;
-	}
 	#automatically delete mapping, if assembly no longer exists..
 	#print "locRedoAssMapping : $locRedoAssMapping\n";
 	if ($MFopt{map2Assembly} ){
@@ -650,6 +646,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#die "$finAssLoc && !-e $metaGassembly\n";
 		system "rm -fr $finalMapDir $mapOut $ContigStatsDir/Coverage.* $ContigStatsDir/Cov.sup.*";
 		$eFinMapCovGZ = 0;	$emetaGassembly =  0;
+		$eCovAsssembly = 0; $eSuppCovAsssembly=0; $eFinSupMapCovGZ=0; $eFinalMapDir = 0;
 		#are there SNPs called? remove as well..
 		$locRedoSNPcalling=1; 
 	}
@@ -949,11 +946,18 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 #	my ($jdep,$cfp1ar,$cfp2ar,$cfpsar,$WT,$rawFiles, $mmpuNum, $libInfoRef, $inputRawSize) = 
 	#my %seqSet = (pa1 => \@pa1, pa2 => \@pa2, pas => \@pas, paX1 => \@paX1, paX2 => \@paX2, paXs => \@paXs, libInfo => \@libInfo, libInfoX => \@libInfoX,
 	#		totalInputSizeMB => $totalInputSizeMB,rawReads => $rawReads,mmpu => $mmpu, WT => $WT);
+	#unzip and change ifastap & cfp1/cfp2
+	my $curUnzipDep = ""; 
+	if ($MFconfig{maxUnzpJobs} >0 && @unzipjobs > $MFconfig{maxUnzpJobs}){#only run X jobs in parallel, lest the cluster IO breaks down..
+		$curUnzipDep = $unzipjobs[-($MFconfig{maxUnzpJobs})];#join(";",@last_n);
+		$waitTime=0;
+	}
 	my ($jdep,$hrefSeqSet) = 
 			seedUnzip2tmp($curDir,$curSmpl,$curUnzipDep,$nodeSpTmpD,
 			$smplTmpDir,$waitTime,$MFconfig{importMocat},$AsGrps{$cMapGrp}{CntMap},$calcUnzip,$finalMapDir,
 			$porechopFlag,$inputRawFile);
 	my %seqSet = %{$hrefSeqSet};
+	push (@unzipjobs,$jdep) unless ($jdep eq "");
 	$seqSet{samplReadLength} = $samplReadLength; $seqSet{samplReadLengthX} = $samplReadLengthX;
 	#die "@{$seqSet{pa1}}\n@{$seqSet{pas}}\n";
 
@@ -971,7 +975,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#$mmpuOutTab .= $dir2rd."\t".$seqSet{"mmpu"}."\n";
 	$waitTime = $seqSet{"WT"};
-	push (@unzipjobs,$jdep) unless ($jdep eq "");
 	$AsGrps{$cMapGrp}{SeqUnZDeps} .= $jdep.";";$AsGrps{$cAssGrp}{UnzpDeps} .= $jdep.";";$AsGrps{$cAssGrp}{readDeps} = $AsGrps{$cAssGrp}{UnzpDeps};
 	my $UZdep = $jdep;
 	#my @cfp1 = @{$seqSet{"pa1"}}; my @cfp2 = @{$seqSet{"pa2"}}; #stores the read files used plus which library they come from
@@ -5302,12 +5305,13 @@ sub bamDepth{
 	my $nodeCln = "\nrm -rf $nodeTmp;\necho \"DONE map2\"\n";
 	#die "$cmd\n$covCmd\n$CRAMcmd\n";
 	if ( ($doCram && !-e $cramSTO) || ( !-s "$nxtBAM.coverage.gz") ){#|| $bamFresh){
+		my $baseMem = 1; $baseMem=20 if ($MFopt{largeMapperDB});
 		my $preHDDspace=$QSBoptHR->{tmpSpace};		my $baseMapHDD = $HDDspace{mapping} ;  $baseMapHDD =~ s/G$//;
 		$QSBoptHR->{tmpSpace} = int($inputFileSizeMB{$curSmpl}*$baseMapHDD/1024)+15  ."G";		if (${$dirsHr}{submit}){
 			
 		($jobN2,$retCmds) = qsubSystem($qdir.$bashN."map2$supTag.sh",
 				$cmd."\n".$covCmd."\n".$CRAMcmd."\n$nodeCln\n"#.$covCmd2
-				,$numCore,int( 1 + $MFopt{mapSortMemGb}/$numCore)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
+				,$numCore,  int($baseMem +$MFopt{mapSortMemGb}/$numCore)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
 		$QSBoptHR->{tmpSpace}=$preHDDspace;
 		} else {
 			$cmd =~ s/sleep \d+//;
