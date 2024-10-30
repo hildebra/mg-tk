@@ -10,7 +10,7 @@ use List::Util qw/shuffle/;
 
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(SNPconsensus_vcf SNPconsensus_fasta SNPconsensus_vcf2);
+our @EXPORT_OK = qw(SNPconsensus_vcf SNPconsensus_fasta );
 
 sub regionsFromFAI($){
 	my ($inF ) =@_;
@@ -306,9 +306,9 @@ sub SNPconsensus_vcf{
 	my $firstInSample = 0;$firstInSample = $SNPIHR->{firstInSample} if (exists($SNPIHR->{firstInSample}));
 	my $useFB = 1;	$useFB = 0 if (uc($SNPIHR->{SNPcaller}) eq "MPI");
 	$vcfcnsScr = getProgPaths("vcfCons_FB_scr") if ($useFB);
+	my $actualCores  = $maxSNPcores;
 	if ($runLocalTmp){
 		$scrDir = $tmpdir;
-		$samcores = $maxSNPcores;#$SNPIHR->{split_jobs};
 	}
 
 
@@ -342,8 +342,10 @@ sub SNPconsensus_vcf{
 		#open O,">$refFA.reg" or die "can't open region file $refFA.reg\n";		print O join("\n",@regOrd);		close O;
 		#die "$refFA.reg\n@curReg\n";
 	}
-	
-
+	if ($runLocalTmp){
+		$actualCores = scalar(@curReg);
+		$samcores = $actualCores;#$SNPIHR->{split_jobs};
+	}
 	
 	my $rdep="";
 	#prepare files..
@@ -465,7 +467,7 @@ sub SNPconsensus_vcf{
 		#this is the new way of doing this
 		my $tmpS = $QSBoptHR->{tmpMinG};
 		$QSBoptHR->{tmpMinG} = 70; #in GB
-		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,1,"5G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,$actualCores,"5G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
 		$rdep =$dep;
 		$QSBoptHR->{tmpMinG} = $tmpS;
 	}

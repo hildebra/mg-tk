@@ -23,7 +23,7 @@ use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp lcp readFastHD prefixFAhd p
 			getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp);
 use Mods::IO_Tamoc_progs qw(getProgPaths setConfigFile jgi_depth_cmd inputFmtSpades inputFmtMegahit createGapFillopt  
 			buildMapperIdx mapperDBbuilt decideMapper  checkMapsDoneSH greaterComputeSpace);
-use Mods::SNP qw(SNPconsensus_vcf SNPconsensus_vcf2 );
+use Mods::SNP qw(SNPconsensus_vcf );
 use Mods::TamocFunc qw (cram2bsam getSpecificDBpaths getFileStr displayPOTUS bam2cram checkMF checkMFFInstall);
 use Mods::phyloTools qw(fixHDs4Phylo);
 #use Mods::Binning qw (runMetaBat runCheckM runSemiBin runMetaDecoder );
@@ -5147,7 +5147,7 @@ sub mapReadsToRef{
 		#die "$unzipcmd.$algCmd.$nodeCln";
 		my $baseMapHDD = $HDDspace{mapping} ;  $baseMapHDD =~ s/G$//;
 		my $preHDDspace=$QSBoptHR->{tmpSpace};
-		$QSBoptHR->{tmpSpace} = int($inputFileSizeMB{$outName}*$baseMapHDD/1024)+15  ."G";
+		$QSBoptHR->{tmpSpace} = int((200+$inputFileSizeMB{$outName})*$baseMapHDD/1024)+15  ."G";
 		#print "$QSBoptHR->{tmpSpace}\n";
 		$jobN = "_MAP$JNUM$supTag.$outNms[0]"; $bamFresh = 1; 
 		($jobN,$tmpCmd) = qsubSystem($qdir.$bashN."map$supTag.sh",
@@ -7415,8 +7415,8 @@ sub getCmdLineOptions{
 	die "\"-BinnerMem\" argument contains characters: $MFopt{BinnerMem}" if ($MFopt{BinnerMem}  !~ m/[\d-]+/);
 	die "\"-SNPmem\" argument contains characters: $MFopt{memSNPcall}" if ($MFopt{memSNPcall} !~ m/[\d-]+/);
 	if ($MFopt{MapperMemory} == -1 ){
-		if($MFopt{MapperProg} >2){$MFopt{MapperMemory} = 30 ;
-		} else {$MFopt{MapperMemory} = 15 ;}	
+		if($MFopt{MapperProg} >2){$MFopt{MapperMemory} = 35 ;
+		} else {$MFopt{MapperMemory} = 20 ;}	
 	}
 
 	if ($MFopt{DoDiamond} && $MFopt{reqDiaDB} eq ""){die "Functional profiling was requested (-profileFunct 1), but no DB to map against was defined (-diamondDBs)\n";}
