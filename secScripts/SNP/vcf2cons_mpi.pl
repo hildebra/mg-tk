@@ -30,7 +30,7 @@ my $lbcnts=0; my $lccnts =0;
 my $lcnt=0;
 my $chromL=0;
 my $disagreeCall=0;my $overridePrevCall=0; my $disagreeCallLocal=0; #stats
-my $bpAdded =0; my $bpIsN =0; my $entryNum=0; #stats
+my $bpAdded =0; my $bpIsN =0;my $lbpIsN =0; my $entryNum=0; #stats
 my $prevLine="";
 #my $minDepthPar = 0; 
 
@@ -60,12 +60,19 @@ while (my $line = <STDIN>) {
 			if ($last_pos > length ($seq)){
 				my $ext = $last_pos - length($seq) - 1;
 				$seq .= 'n' x ($ext);
+				$lbpIsN += $ext; 
+
 			}
-			&v2q_post_process($last_chr, \$seq, \$qual, \@gaps, $indelWin,$lbcnts,$lccnts,\@spos,\@sfreq,\%allF);
+			&v2q_post_process($last_chr);
 		}
 		($last_chr, $last_pos) = ($t[0], 0);
 		$seq = $qual = '';@spos=(); @sfreq = (); %allF = ();
-		@gaps = ();$lbcnts=0; $lccnts =0; $prevDep=0; $prevDidAlt=0;
+		@gaps = ();
+		
+		$bcnts+=$lbcnts; $lbcnts=0; 
+		$ccnts+=$lccnts;$lccnts =0; 
+		$bpIsN += $lbpIsN; $lbpIsN =0;
+		$prevDep=0; $prevDidAlt=0;
 		$last_chr =~ m/L=(\d+)=/;  $chromL = $1;
 	}
 	#print STDERR "$last_pos pos \n";
@@ -73,6 +80,7 @@ while (my $line = <STDIN>) {
 		#die @t;
 		#print STDERR "add $t[1] - $last_pos\n";
 		$seq .= 'n' x ($t[1] - $last_pos - 1);
+		$lbpIsN += ($t[1] - $last_pos - 1); 
 		#$qual .= '!' x ($t[1] - $last_pos - 1);
     }
 	if ($t[1] == ($last_pos) ) { #
@@ -108,7 +116,7 @@ while (my $line = <STDIN>) {
 		#print "$dep\n";
 		#if ($t[7] =~ /DP=(\d+)/){$dep= $1;}
 		  
-		if ($dep < $minDepthPar){$b = 'N';$bpIsN++}
+		if ($dep < $minDepthPar){$b = 'N';$lbpIsN++}
 		my @altV = ();
 		if ($alt =~ m/,/ || length($alt)>1){
 			@altV = split /,/,$alt;
@@ -134,7 +142,7 @@ while (my $line = <STDIN>) {
 			  #print STDERR ("@t\n$q : $freq\n") if ($freq > 0.5 && $freq < 1);
 			if ($dep>=$minDepthPar && $freq  > 0.501 && $alt ne '.' && $q>= $minCallQual ){
 				#this is an alternate allele
-				$b = $alt;$ccnts++; $lccnts++;
+				$b = $alt; $lccnts++;
 				push(@spos,$t[1]);push(@sfreq,$freq);
 				$depthStat{$dep}{alt}++;
 				$depthStat{$dep}{altF} += $freq;
@@ -191,7 +199,7 @@ while (my $line = <STDIN>) {
 			$prevB = $b;
 		}
 		$prevDep = $dep;#in case more than two lines here..
-		$bpAdded++; #$bpIsN++ if ($b eq 'N' || $b eq 'n');
+		#$bpAdded++; #$bpIsN++ if ($b eq 'N' || $b eq 'n');
 		
 		#print STDERR "$seq\n";
 		#print STDERR "$b\n";
@@ -201,7 +209,7 @@ while (my $line = <STDIN>) {
 		#$q = int($q + 33 + .499);
 		#$q = chr($q <= 126? $q : 126);
 		#$qual .= $q;
-		$bcnts++;$lbcnts++; 
+		$lbcnts++; 
     } elsif ($t[4] ne '.') { # an INDEL
 		die "Fatal vcf2cons_mpi.pl:: @t\nne .\n";
 		push(@gaps, [$t[1], length($t[3])]);
@@ -223,7 +231,8 @@ if ($last_pos > length ($seq)){
 	$seq .= 'n' x ($ext);
 }
 
-&v2q_post_process($last_chr, \$seq, \$qual, \@gaps, $indelWin,$lbcnts,$lccnts,\@spos,\@sfreq,\%allF) if ($lcnt>0);
+$bcnts+=$lbcnts; $ccnts+=$lccnts;$bpIsN += $lbpIsN; 
+&v2q_post_process($last_chr) if ($lcnt>0);
 
 
 #print STDERR "$bcnts $ccnts\n";
@@ -274,7 +283,7 @@ close OD;
 
 print STDERR "Finished vcf2cons_mpi.pl.\nElapsed time: " . (time - $startT ) . "s\n";
 print STDERR "Total SNPs detected: $ccnts\n";
-print STDERR "Total bp written: $bpAdded ($bpIsN not resolved) on $entryNum entries\n";
+print STDERR "Total bp written: $bcnts ($bpIsN not resolved) on $entryNum entries\n";
 print STDERR "Conflicting calls: $disagreeCall Resolved with second line: $overridePrevCall\n";
 
 
@@ -291,9 +300,9 @@ sub sumCL($){#sums comma sep list
 }
   
 sub v2q_post_process {
-  my ($chr, $seq, $qual, $gaps, $l,$reports,$replaces, $ARpos,$ARfreq,$hrF) = @_;
- # print $chr." ".length($$seq)." ".@gaps."\n";
-  my %allF = %{$hrF};
+  my ($chr) = @_;
+ # print $chr." ".length($seq)." ".@gaps."\n";
+  #my %allF = %{$hrF};
   
   my $aFs = "";
   foreach my $k (0 .. 100){
@@ -305,17 +314,16 @@ sub v2q_post_process {
 		$aFs .= ",";
 	}
   }
-  my @pos = @{$ARpos};
-  my @feq = @{$ARfreq};
-  for my $g (@$gaps) {
-	#print "@{$g} ".length($$seq)."\n";
-    my $beg = $g->[0] > $l? $g->[0] - $l : 0;
-    my $end = $g->[0] + $g->[1] + $l;
-    $end = length($$seq) if ($end > length($$seq));
-    substr($$seq, $beg, $end - $beg) = lc(substr($$seq, $beg, $end - $beg));
+  my $lengthS = length($seq);
+  foreach my $g (@gaps) {
+	#print "@{$g} ".length($seq)."\n";
+    my $beg = $g->[0] > $lengthS ? $g->[0] - $lengthS : 0;
+    my $end = $g->[0] + $g->[1] + $lengthS;
+    $end = length($seq) if ($end > length($seq));
+    substr($seq, $beg, $end - $beg) = lc(substr($seq, $beg, $end - $beg));
   }
-  
-  print ">$chr COV=$reports REPL=$replaces POS=".join(",",@pos)." FR=".join(",",@feq)." FREQT=$aFs CONFL=$disagreeCallLocal\n$$seq\n"; 
+  #" . join(",",@gaps) . "
+  print ">$chr COV=$lbcnts REPL=$lccnts POS=".join(",",@spos)." FR=".join(",",@sfreq)." FREQT=$aFs CONFL=$disagreeCallLocal\n$seq\n"; 
   $entryNum++;
   $disagreeCallLocal=0;
   #&v2q_print_str($seq);

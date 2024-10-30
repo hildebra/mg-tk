@@ -467,7 +467,7 @@ sub SNPconsensus_vcf{
 		#this is the new way of doing this
 		my $tmpS = $QSBoptHR->{tmpMinG};
 		$QSBoptHR->{tmpMinG} = 70; #in GB
-		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,$actualCores,"5G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,int($actualCores*1.1),"5G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
 		$rdep =$dep;
 		$QSBoptHR->{tmpMinG} = $tmpS;
 	}

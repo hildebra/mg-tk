@@ -80,7 +80,6 @@ while ($line = <STDIN>){
 	print "$line\n";
 	$finalCnt++;
 	$prevLine=$line;
-	
 }
 
 
