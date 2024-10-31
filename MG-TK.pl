@@ -3102,8 +3102,8 @@ sub scaffoldCtgs{
 		my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 		$cmd .= "mv $outD/BESST_output/pass1/Scaffolds_pass1.fa $spadFakeDir/scaffolds.fasta\n";
 		$cmd .= "$renameCtgScr $spadFakeDir/scaffolds.fasta $smplName\n";
-		$cmd .= "$sizFiltScr $spadFakeDir/scaffolds.fasta 400 200\n";
-		$cmd .= "$assStatScr -scaff_size 500 $spadFakeDir/scaffolds.fasta > $spadFakeDir/AssemblyStats.500.txt\n";
+		$cmd .= "$sizFiltScr $spadFakeDir/scaffolds.fasta $MFopt{scaffoldMinSize} 200\n";
+		$cmd .= "$assStatScr -scaff_size $MFopt{scaffoldMinSize} $spadFakeDir/scaffolds.fasta > $spadFakeDir/AssemblyStats.500.txt\n";
 		$cmd .= "$assStatScr $spadFakeDir/scaffolds.fasta > $spadFakeDir/AssemblyStats.ini.txt\n";
 		$cmd .= "$assStatScr $spadFakeDir/scaffolds.fasta.filt > $spadFakeDir/AssemblyStats.txt\n\n";
 		my ($cmdX,$bwtIdxX,$chkFileX) = buildMapperIdx("$spadFakeDir/scaffolds.fasta.filt",$Ncore,0,$MFopt{MapperProg});
@@ -6359,7 +6359,7 @@ sub buildAssemblyMapIdx{
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	my $cmd = "";
 	$cmd .= "mkdir -p $psDir $Fdir\n";
-	$cmd .= "$sizFiltScr ".join(",",@allRds)." 400 -1 $pseudoAssFile\n";
+	$cmd .= "$sizFiltScr ".join(",",@allRds)." $MFopt{scaffoldMinSize} -1 $pseudoAssFile\n";
 	$cmd .= "$renameCtgScr $psFile $smplName\n";
 	$cmd .= "touch $pseudoAssFileFlag\n";
 	#die $cmd;
@@ -6436,7 +6436,7 @@ sub spadesAssembly{
 	my $renameCtgScr = getProgPaths("renameCtg_scr");#"perl renameCtgs.pl";
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	$cmd .= "$renameCtgScr $nodeTmp/scaffolds.fasta $smplName\n";
-	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta 400 200\n";
+	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta $MFopt{scaffoldMinSize} 200\n";
 	
 	if ($JNUM > 1 && $helpAssembl ne ""){
 		#cluster short reads using CD-HIT, replaces scaffolds.fasta.filt2 file
@@ -6449,7 +6449,7 @@ sub spadesAssembly{
 	}
 	#die "$cmd\n\n";
 	my $assStatScr = getProgPaths("assStat_scr");#"perl /g/bork3/home/hildebra/dev/Perl/assemblies/assemblathon_stats.pl";
-	$cmd .= "$assStatScr -scaff_size 500 $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
+	$cmd .= "$assStatScr -scaff_size $MFopt{scaffoldMinSize} $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.ini.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta.filt > $nodeTmp/AssemblyStats.txt\n";
 
@@ -6605,10 +6605,10 @@ sub longRdAssembly{
 	my $renameCtgScr = getProgPaths("renameCtg_scr");#"perl renameCtgs.pl";
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	$cmd .= "$renameCtgScr $nodeTmp/scaffolds.fasta $smplName\n";
-	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta 400 200\n";
+	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta $MFopt{scaffoldMinSize} 200\n";
 	
 	my $assStatScr = getProgPaths("assStat_scr");#"perl /g/bork3/home/hildebra/dev/Perl/assemblies/assemblathon_stats.pl";
-	$cmd .= "$assStatScr -scaff_size 500 $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
+	$cmd .= "$assStatScr -scaff_size $MFopt{scaffoldMinSize} $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.500.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta > $nodeTmp/AssemblyStats.ini.txt\n";
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta.filt > $nodeTmp/AssemblyStats.txt\n";
 	
@@ -6724,7 +6724,7 @@ sub megahitAssembly{
 	my $renameCtgScr = getProgPaths("renameCtg_scr");#"perl renameCtgs.pl";
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	$cmd .= "$renameCtgScr $nodeTmp/scaffolds.fasta $smplName\n";
-	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta 400 200\n";
+	$cmd .= "$sizFiltScr $nodeTmp/scaffolds.fasta $MFopt{scaffoldMinSize} 200\n";
 	
 	if ($JNUM > 1 && $helpAssembl ne ""){
 		die("helper assemblies not supported with megahit: $helpAssembl\n");
