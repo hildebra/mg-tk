@@ -1727,7 +1727,7 @@ sub DiaPostProcess(){
 		$progStats{$DB}{SearchIncomplete}=0 unless (exists($progStats{$DB}{SearchIncomplete}));
 		my $countFile = "$baseOut/pseudoGC/FUNCT/$DB.compl";
 		my $refDone = 0; $refDone = int(getFileStr($countFile)) if (-e $countFile);
-		next if (!exists($progStats{$DB}{SearchCompl}) || $progStats{$DB}{SearchCompl} < $refDone );
+		next if (!exists($progStats{$DB}{SearchCompl}) || $progStats{$DB}{SearchCompl} <= $refDone );
 		print "$DB :: $progStats{$DB}{SearchCompl} ($refDone previously done)\n";
 		$cmd .= "$mrgDiScr $baseOut $DB\necho $progStats{$DB}{SearchCompl} > $countFile\n" if ($progStats{$DB}{SearchCompl}>= 1 );
 		#`echo $progStats{$DB}{SearchCompl} > $countFile`;
@@ -2472,7 +2472,7 @@ sub map2ndPrep{
 			my ($cmd,$DBbtRef, $chkFile) = buildMapperIdx($map2ndTogRefDB{DB},$bwtDBcore,$MFopt{largeMapperDB},$MFopt{MapperProg}) ;
 			if (!-e $chkFile ){
 				my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
-				($bwt2ndMapDep,$cmd) = qsubSystem("$baseOut/GlbMap/LOGandSUB/builBwtIdx_comp.sh",$cmd,$bwtDBcore,(int(20/$bwtDBcore)+1) ."G","BWI_compe","","",1,[],$QSBoptHR) ;
+				($bwt2ndMapDep,$cmd) = qsubSystem("$baseOut/GlbMap/LOGandSUB/builBwtIdx_comp.sh",$cmd,$bwtDBcore,(int(25/$bwtDBcore)+1) ."G","BWI_compe","","",1,[],$QSBoptHR) ;
 				$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			}
 		}
@@ -2556,7 +2556,8 @@ sub map2ndPrep{
 	#die "$cmdBIG\n\n";
 	if ($DBsubmCnt>0){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
-		my ($bwt2ndMapDep2,$cmd2) = qsubSystem($bwt2outDl."/builBwtIdxBIG.sh",$cmdBIG,$bwtDBcore,(int(20/$bwtDBcore)+1) ."G","BWIbig","","",1,[],$QSBoptHR) ;
+		my $mapperMemDB= 20; $mapperMemDB = 40 if ($MFopt{largeMapperDB});
+		my ($bwt2ndMapDep2,$cmd2) = qsubSystem($bwt2outDl."/builBwtIdxBIG.sh",$cmdBIG,$bwtDBcore,(int($mapperMemDB/$bwtDBcore)+1) ."G","BWIbig","","",1,[],$QSBoptHR) ;
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$bwt2ndMapDep .= ";$bwt2ndMapDep2";
 	}
@@ -6324,12 +6325,12 @@ sub buildAssemblyMapIdx{
 		my ($par1,$par2,$parS,$liar,$rear) = getRawSeqsAssmGrp(\%AsGrps,$cAssGrp,$suppRds,$smpl);
 		my $MapperProgLoc = decideMapper($MFopt{MapperProg},${$liar}[0]);
 		my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx($finAssLoc,$MFopt{MapperCores},$MFopt{largeMapperDB},$MapperProgLoc);#$nCores);
-		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdxSupp.sh",$cmdDB,(int($MFopt{MapperCores})),int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores})."G","DBidx$JNUM","","",1,[],$QSBoptHR) ;
+		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdxSupp.sh",$cmdDB,(int($MFopt{MapperCores})),(int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores})+1)."G","DBidx$JNUM","","",1,[],$QSBoptHR) ;
 		$AsGrps{$cAssGrp}{AssemblJobName} .= ";$jname";
 	}
 	if ($mainRds){
 		my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx($finAssLoc,$MFopt{MapperCores},$MFopt{largeMapperDB},$MFopt{MapperProg});#$nCores);
-		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdx.sh",$cmdDB,(int($MFopt{MapperCores})),int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores})."G","bwtIdx$JNUM","","",1,[],$QSBoptHR) ;
+		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdx.sh",$cmdDB,(int($MFopt{MapperCores})),1+(int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores}))."G","bwtIdx$JNUM","","",1,[],$QSBoptHR) ;
 		$AsGrps{$cAssGrp}{AssemblJobName} .= ";$jname";
 	}
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
