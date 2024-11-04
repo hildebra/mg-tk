@@ -279,6 +279,12 @@ checkm2	checkm2	env:MGTKcheckm2
 #lambdaIdx	[MFLRDir]/bin/lambda_indexer
 lambda	lambda3
 
+### MG-STK ###
+treeSubGrpsR	[Rscript] [MGSTKDir]/strainStats.R	env:MGSTK
+pogenStats	[Rscript] [MGSTKDir]/popGenStats.R	env:MGSTK
+vizPhylosSign_R	[Rscript] [MGSTKDir]/plotPhylos.R	env:MGSTK
+treewasRun_R	[Rscript] [MGSTKDir]/runTreewas.R	env:MGSTK
+processTreewas_R	[Rscript] [MGSTKDir]/processTreewasResults.R	env:MGSTK
 
 #debugging
 noneeneoneono	noneeneoneono

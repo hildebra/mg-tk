@@ -16,7 +16,7 @@ use Mods::TamocFunc qw ( getFileStr );
 sub sumSummaries;
 my $strainStatsR = getProgPaths("treeSubGrpsR");
 my $RpogenS = getProgPaths("pogenStats");
-my $MFdir = getProgPaths("MFLRDir");
+my $MFdir = getProgPaths("MGSTKDir");
 my $vizPhylos = getProgPaths("vizPhylosSign_R");
 my $treewasRun_R = getProgPaths("treewasRun_R");
 my $processTreewas_R = getProgPaths("processTreewas_R");

@@ -159,7 +159,7 @@ sub loadConfigs{
 	my $TMCpath = "";my $Tset=0; my $BINpath = "";my $Bset=0; my $Rpath=""; my $RpathSet=0;
 	my $DBpath = "";my $DBset=0; my $SINGcmd = ""; my $SINGset=0; 
 	my $CONDset = 0; my $CONDcmd="";my $CONDset2 = 0; my $CONDA="";my $CONDset3 = 0; my $CONDAbaseEnv="MFF";
-	my $PY3cmd = ""; my $PY3set=0; my $Rscriptcmd = ""; my $Rscriptset=0;
+	my $PY3cmd = ""; my $PY3set=0; my $Rscriptcmd = ""; my $Rscriptset=0; my $MGSTKDir = ""; my $MGSTKDirset=0;
 	foreach my $l (@CONFIG_TEXT){
 		next if ($l =~ m/^#/ || length($l) == 0);
 		if (!$Tset && $l =~ m/^MFLRDir\t([^#]+)/){
@@ -176,6 +176,8 @@ sub loadConfigs{
 			#die "\n\n$prePath\n$Rpath\n";
 		} elsif (!$DBset && $l =~ m/^DBDir\t([^#]+)/){
 			$DBpath = truePath($1); $DBset=1;
+		} elsif (!$MGSTKDirset && $l =~ m/^MGSTKDir\t([^#]+)/){
+			$MGSTKDir = truePath($1); $MGSTKDirset=1;
 		} elsif (!$SINGset && $l =~ m/^SINGcmd\t([^#]+)/){
 			$SINGcmd = truePath($1); $SINGset=1;
 			#die "SINGcmd no longer supported\nPlease remove from Config\n";
@@ -220,6 +222,9 @@ sub loadConfigs{
 			#die "$reV  $XVar  $l\n";
 			
 			$reV =~ s/\[MFLRDir\]/$TMCpath/ if ($Tset);
+			if ($MGSTKDirset){
+				$reV =~ s/\[MGSTKDir\]/$MGSTKDir/ ;
+			}
 			$reV =~ s/\[BINDir\]/$BINpath/ if ($Bset);
 			$reV =~ s/\[DBDir\]/$DBpath/ if ($DBset);
 			$reV =~ s/\[SINGcmd\]/$SINGcmd/ if ($SINGset);
@@ -248,6 +253,7 @@ sub loadConfigs{
 	$CONFIG_HASH{"DBDir"} = $DBpath;
 	$CONFIG_HASH{"Rscript"} = $Rscriptcmd;
 	$CONFIG_HASH{"Rpath"} = $Rpath;
+	$CONFIG_HASH{"MGSTKDir"} = $MGSTKDir;
 	print "  Done. ";
 }
 
