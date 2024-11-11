@@ -106,6 +106,7 @@ baseSDMoptMiSeq_rel	[MFLRDir]/data/sdm_opt_miSeq_relaxed.txt
 baseSDMoptProto	[MFLRDir]/data/sdm_opt_proto.txt
 baseSDMopt454	[MFLRDir]/data/sdm_454.txt
 baseSDMoptPacBio	[MFLRDir]/data/sdm_PacBio.txt
+baseSDMoptONT	[MFLRDir]/data/sdm_ONT.txt
 
 #genecat
 mmS2clstr	perl [MFLRDir]/secScripts/GC/mmS2clstr.pl

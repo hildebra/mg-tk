@@ -3368,6 +3368,7 @@ sub sdmOptSet{
 	} elsif ($curReadTec eq "miSeq"){ $curSDMopt = $baseSDMoptMiSeq; 
 	} elsif ($curReadTec eq "proto"){ $curSDMopt = getProgPaths("baseSDMoptProto"); 
 	} elsif ($curReadTec eq "PB"){ $curSDMopt = getProgPaths("baseSDMoptPacBio"); 
+	} elsif ($curReadTec eq "ONT"){ $curSDMopt = getProgPaths("baseSDMoptONT"); 
 	}
 	
 	if (!exists($sampleSDMs{$curReadTec}{$samplReadLength})){
@@ -3383,6 +3384,7 @@ sub sdmOptSet{
 	} elsif ($curSTech eq "miSeq"){ $curSDMoptSingl = $baseSDMoptMiSeq; 
 	} elsif ($curSTech eq "proto"){ $curSDMoptSingl = getProgPaths("baseSDMoptProto"); 
 	} elsif ($curSTech eq "PB"){ $curSDMoptSingl = getProgPaths("baseSDMoptPacBio"); 
+	} elsif ($curReadTec eq "ONT"){ $curSDMopt = getProgPaths("baseSDMoptONT"); 
 	}
 	
 	if ($curSTech eq "PB" && $samplReadLength < 1000){
@@ -6582,8 +6584,10 @@ sub longRdAssembly{
 		$contigRecovery .= "\nrm -fr $nodeTmp/00-assembly/ $nodeTmp/10-consensus/ $nodeTmp/20-repeat/ $nodeTmp/30-contigger/ $nodeTmp/40-polishing/ $nodeTmp/assembly_graph.gv\n";
 		$contigRecovery .= "\nmv $nodeTmp/assembly.fasta $nodeTmp/scaffolds.fasta\n\n";
 	} elsif($MFopt{DoAssembly}==4 || $MFopt{DoAssembly}==5){ #metaMDBG
+		my $inFileFlag = "--in-hifi";
+		$inFileFlag = "--in-ont" if (${$cReadTecAr}[0] eq "ONT");
 		my $mMDBG = getProgPaths("metaMDBG");
-		$cmd .= "$mMDBG asm --threads $nCores --out-dir $nodeTmp --in-hifi " . join(" ",@inRds) . "\n";
+		$cmd .= "$mMDBG asm --threads $nCores --out-dir $nodeTmp $inFileFlag " . join(" ",@inRds) . "\n";
 		$cmd .= "rm -rf $nodeTmp/tmp/;\n";
 		$contigRecovery .= "zcat $nodeTmp/contigs.fasta.gz > $nodeTmp/scaffolds.fasta; rm $nodeTmp/contigs.fasta.gz\n\n";
 		
