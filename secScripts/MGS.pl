@@ -25,6 +25,7 @@ use Getopt::Long qw( GetOptions );
 #.24: no-canopy fix
 #.25: 9.12.23: added extraction of representative MGS genome in contigs (highest qual MAG)
 #.26: 13.8.24: added -genomesPerFamily flag & function
+#.27: 12.11.24: removed necessity for -canopies flag
 my $MGSpipelineVersion = 0.26;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths jgi_depth_cmd);
@@ -214,7 +215,7 @@ my @DoosD = sort keys %DOs; #dirs of assembly groups
 
 my $numSamples = @DoosD;
 my $useCanopies=1;
-if ($numSamples<10){$useCanopies=0;}
+if ($numSamples<10 || $canopyF eq ""){$useCanopies=0;}
 
 if (-e "$inD/LOGandSUB/GCmaps.inf"){
 	$inD = $map{outDir} if (exists($map{outDir} ));
@@ -254,7 +255,7 @@ if ($FMGsubs < 20){die "$GCd/$COGdir/*.LCA suspiciously small (N=$FMGsubs)\n/ Pl
 my $CanoDir = $canopyF;$CanoDir=~s/\/[^\/]+$/\//; $CanoDir .= "Bins/";
 #die "$CanoDir";
 CanopyPrep($canopyF,$CanoDir);
-$canopyF = $canopyF.".filt";
+$canopyF = $canopyF.".filt" if ($canopyF ne "");
 
 #run metabat on each assembly group
 my $cnt=0; my @jobs;
@@ -1220,6 +1221,7 @@ sub Rhclusts{
 
 sub CanopyPrep{
 	my ($inFc,$binCanDir) = @_;
+	if ($canopyF eq ""){print"Canopy not requested, will skip step\n";return ;}
 	#read genes in canopies..
 	my $ChkMevalF = "$inFc.filt$cmSuffix";
 	return if (-s $ChkMevalF);

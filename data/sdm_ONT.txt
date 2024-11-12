@@ -3,9 +3,9 @@ maxSeqLength	100000000
 minAvgQuality	16
 maxAccumulatedError	-1
 maxAmbiguousNT	-1
-maxHomonucleotide	18
-QualWindowWidth	150
-QualWindowThreshhold	15
+maxHomonucleotide	24
+QualWindowWidth	500
+QualWindowThreshhold	12
 TrimWindowWidth	15
 TrimWindowThreshhold	-1
 maxBarcodeErrs	0
