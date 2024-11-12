@@ -1,5 +1,5 @@
-minSeqLength	0.2
-maxSeqLength	-1
+minSeqLength	400
+maxSeqLength	100000000
 minAvgQuality	16
 maxAccumulatedError	-1
 maxAmbiguousNT	-1
@@ -16,13 +16,13 @@ fastqVersion	auto
 TechnicalAdapter	
 TrimStartNTs	0
 PEheaderPairFmt	1
-BinErrorModelMaxExpError	-1
+BinErrorModelMaxExpError	0
 BinErrorModelAlpha	-1
 
-illuminaFwd	TACACTCTTTCCCTACACGACGCTCTTCCGATCT
-illuminaRev	GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT
-illuminaSngIdx	AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC
-illuminaSngUni	AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTA
+illuminaFwd	TTTCTGTTGGTGCTGATATTGC
+illuminaRev	ACTTGCCTGTCGCTCTATCTTC
+illuminaSngIdx	
+illuminaSngUni	
 RejectSeqWithoutRevPrim	F
 RejectSeqWithoutFwdPrim	F
 AmpliconShortPE	F
