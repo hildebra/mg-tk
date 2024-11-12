@@ -134,12 +134,14 @@ sub truePath{
 sub loadConfigs{
 	#loads once in every program run the entire config file(s) into hash %CONFIG_HASH
 	if (scalar @CONFIG_TEXT == 0){
-		print "READING config files..";
 		setConfigFile() if ($CONFIG_FILE eq "");
+		print "READING config files \"$CONFIG_FILE\" .. ";
+		if ($CONFIG_FILE eq "" ){die "IO_Tamoc_progs.pm::loadConfigs: CONFIG_FILE not set!\n";}
 		open I,"<$CONFIG_FILE" or die "Can't open $CONFIG_FILE\n";
 		chomp(@CONFIG_TEXT = <I>);
 		close I;
 		setConfigFile("internal") ;
+		if ($CONFIG_FILE eq "" ){die "IO_Tamoc_progs.pm::loadConfigs: CONFIG_FILE internal not set!\n";}
 		open I,"<$CONFIG_FILE" or die "Can't open internal $CONFIG_FILE\n";
 		my @INTtmp;
 		chomp(@INTtmp = <I>);
@@ -147,6 +149,7 @@ sub loadConfigs{
 		push(@CONFIG_TEXT,@INTtmp);
 		#DB config read..
 		setConfigFile("DBconfig") ;
+		if ($CONFIG_FILE eq "" ){die "IO_Tamoc_progs.pm::loadConfigs: CONFIG_FILE DB not set!\n";}
 		open I,"<$CONFIG_FILE" or die "Can't open DBconfig $CONFIG_FILE\n";
 		@INTtmp=();
 		chomp(@INTtmp = <I>);
@@ -216,11 +219,11 @@ sub loadConfigs{
 			$XVar = $spl[0];
 			if (@spl == 1) {$CONFIG_HASH{$XVar} = "";next;}
 			
-			$l =~ m/^$XVar\t([^#^\t]+)/;
+			if ($l !~ m/^$XVar\t([^#^\t]+)/){next;}
 			my $reV = $1;
 			
 			#die "$reV  $XVar  $l\n";
-			
+			die "$reV\n" if (!defined($reV));
 			$reV =~ s/\[MFLRDir\]/$TMCpath/ if ($Tset);
 			if ($MGSTKDirset){
 				$reV =~ s/\[MGSTKDir\]/$MGSTKDir/ ;
