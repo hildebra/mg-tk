@@ -4,7 +4,7 @@ minAvgQuality	16
 maxAccumulatedError	-1
 maxAmbiguousNT	-1
 maxHomonucleotide	40
-QualWindowWidth	100
+QualWindowWidth	300
 QualWindowThreshhold	5
 TrimWindowWidth	15
 TrimWindowThreshhold	-1
