@@ -213,7 +213,7 @@ my @DoosD = sort keys %DOs; #dirs of assembly groups
 
 
 
-my $numSamples = @DoosD;
+my $numSamples = scalar(  @{$map{opt}{smpl_order}}  );#@DoosD;
 my $useCanopies=1;
 if ($numSamples<10 || $canopyF eq ""){$useCanopies=0;}
 

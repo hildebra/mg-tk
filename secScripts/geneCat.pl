@@ -63,7 +63,8 @@ sub clusterSingleStep;sub clusterMultiStep;
 #.46: 23.5.24: added foldseek first trial implementation
 #.47: small debugs to fix foldseek integration
 #.48: 28.7.24: bugfix for resuming checkpointed GC
-my $version = 0.48;
+#.49: 13.11.24: auto remove canopies if <10 samples
+my $version = 0.49;
 $| = 1;
 
 my $justCDhit = 1; #always set default to 0, to dangerous otherwise..
@@ -89,7 +90,10 @@ my $smplSep = "__"; #separator of samples and gene id in all MF fastas.. pretty 
 my $selfScript=Cwd::abs_path($PROGRAM_NAME);#dirname($0)."/".basename($0);
 my $rtkFunDelims = "-funcHieraSep \";\" -funcHAnnoAND \",\" -funcAnnoOR \"|\" "; #used to define for rtk how tax annotation strings treat hierachies, and annotations that should be summed (AND) or should be treated as equally likely (OR)
 
+#check all correct
+checkMF();
 
+#
 #--------------------------------------------------------------program Paths--------------------------------------------------------------
 my $magPi = getProgPaths("MAGpipe");
 my $mmseqs2Bin = getProgPaths("mmseqs2");
@@ -326,7 +330,7 @@ if ($mapF =~ m/^\??$/){
 	}
 }
 
-my %map; my %AsGrps; my @samples;
+my %map; my %AsGrps; my @samples; my $numSmpls=0;
 if (-e $mapF || $mapF =~ m/,/){ #read mapping file(s)
 	print "MAP=".$mapF."\n";
 	if (!-e $mapF && $mapF !~ m/,/){die"Could not find map file (first arg): $mapF\n";}
@@ -337,6 +341,7 @@ if (-e $mapF || $mapF =~ m/,/){ #read mapping file(s)
 	$GCdir = $map{opt}{outDir} if ($GCdir eq "" && exists($map{opt}{outDir} ));
 	@samples = @{$map{opt}{smpl_order}};
 	%AsGrps = %{$hr2};
+	$numSmpls=scalar(@samples);
 	#die "@samples\n";
 	#die $map{outDir}."XX\n";
 }
@@ -1001,7 +1006,7 @@ sub geneCatFlow($ $ $ $ ){
 	#die;
 	#and get specI's.. the road to SNP genes then
 	#some dependencies..
-	my $SIdep=""; my $CANdep="";
+	my $SIdep=""; 
 	#deactivated for now, this part is no longer needed..
 	if (0 && !-e $SIstone){
 		my $siScr = getProgPaths("specIGC_scr");
@@ -1089,8 +1094,9 @@ sub geneCatFlow($ $ $ $ ){
 	$cmd .= "#" unless ($doMags);
 	$cmd .= "$GCscr -mode CANOPY -o $OutD -c $numCor -tmp $tmpDir/MGS\n";
 	$cmd .= "touch $canopyStone\n";
-	if (-e $canopyStone){$cmd="";}
-	if ($submitLocal && $cmd ne ""){
+	if (-e $canopyStone || $numSmpls < 10){$cmd="";}
+	my $CANdep="";
+	if ($submitLocal && $cmd ne "" ){
 		print "submitting canopy clustering..\n";
 		$CANdep = canopyCluster($GCdir,"$tmpDir/cano/",$numCor,$canopyStone);
 		$cmd="";
@@ -1127,8 +1133,10 @@ sub geneCatFlow($ $ $ $ ){
 			$MGSoutD = $1;
 		}
 	}
+	my $canoStr = "-canopies $canopyExpectedDir/clusters.txt ";
+	$canoStr = "" if ($numSmpls < 10);
 	#$cmd .= "#wait for eggnogmapper to finish\nuntil [ -f $emapStone ];do sleep 5; done\n" unless (-e $emapStone);
-	$cmd .= "$magPi -mem 150 -GCd $OutD -tmp $tmpDir/MAGs/ -bottleneckCores $numCor -canopies $canopyExpectedDir/clusters.txt -strains $doStrains -useCheckM2 $useCheckM2 -useCheckM1 $useCheckM1 -wait4stone $emapStone -binSpeciesMG $binSpeciesMG -ignoreIncompleteMAGs $ignoreIncompleteMAGs -MGset $useGTDBmg -outD $MGSoutD \n";
+	$cmd .= "$magPi -mem 150 -GCd $OutD -tmp $tmpDir/MAGs/ -bottleneckCores $numCor $canoStr -strains $doStrains -useCheckM2 $useCheckM2 -useCheckM1 $useCheckM1 -wait4stone $emapStone -binSpeciesMG $binSpeciesMG -ignoreIncompleteMAGs $ignoreIncompleteMAGs -MGset $useGTDBmg -outD $MGSoutD \n";
 
 	print $cmd."\n\n";
 	
