@@ -623,7 +623,7 @@ my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
 #my $prunTree = "$outD/between_phylo/prunned.nwk";
 #
 #my $ph2Cmd = "$strain1scr $GCd $finalClustersFilt.mgs $canCore $iniTree 0 1\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
-my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore -presortGenes 1500 -maxGenes 300 -MGSphylo $iniTree -onlySubmit 1 -submit 1 -reSubmit 0 -redoSubmissionData 0 \n";#$outD/between_phylo/phylo/IQtree.treefile\n";
+my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -onlySubmit 1 -submit 1 -reSubmit 0 -redoSubmissionData 0 \n#consider adapting options: -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
 printL $ph2Cmd;
 #systemW $ph2Cmd;
 my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "0"; 

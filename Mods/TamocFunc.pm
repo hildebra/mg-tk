@@ -294,13 +294,15 @@ sub displayPOTUS(){
 sub readTabbed($){
 	my ($inF) = @_;
 	my %ret;
-	open It,"<$inF" or die "Cant open tabbed infile $inF\n";
-	while (<It>){
+	#open It,"<$inF" or die "Cant open tabbed infile $inF\n";
+	my ($It,$OK) = gzipopen($inF,"Table file",1);
+
+	while (<$It>){
 		chomp;
 		my @spl = split /\t/;
 		$ret{$spl[0]} = $spl[1];
 	}
-	close It;
+	close $It;
 	return \%ret;
 }
 

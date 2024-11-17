@@ -271,6 +271,13 @@ sub readGene2tax{
 	}
 	close I;
 	print "Found ". scalar(keys %totalTax) ." groups with $inclGenes/$totalGenes included genes\n";
+	
+	#double check on low represented MGS
+	my @keys = sort { $totalTax{$a} <=> $totalTax{$b} } keys(%totalTax);
+	my $lcnt=0;
+	print "5 lowest MGS are: \n" ; 
+	foreach my $k (@keys){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5){print "\n";last;}}
+	
 	return (\%SIgenes,\%Gene2COG,\%Gene2MGS,\%cogPrio);
 }
 

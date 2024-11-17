@@ -77,9 +77,9 @@ sub medianArray
 
 sub quantileArray
 {
-	my $fac = shift;
+	my $frac = shift;
 	return 1 if (scalar(@_) == 0);
     my @vals = sort {$a <=> $b} @_;
     my $len = @vals;
-    return $vals[int($len*$fac)];
+    return $vals[int($len*$frac)];
 }
