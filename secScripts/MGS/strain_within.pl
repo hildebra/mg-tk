@@ -116,11 +116,13 @@ $outD .= "/intra_phylo/";
 print "\n!! WARNING !!: RESUBMISSION mode selected (will resubmit MSA + phylos even for already completed MGS) !!\n\n" if ($reSubmit);
 print "\n!! WARNING !!: REDOSUBMISSIONDATA mode selected (will redo and resubmit MSA + phylos even for already completed MGS) !!\n\n" if ($redoSubmissionData);
 
+my $mapF = `cat $GCd/LOGandSUB/GCmaps.inf`;chomp $mapF;
 
 
 print "============= Strains from MGS v$version =============\n";
 print "Creating within species strains for ${mode}s in $GCd\n";
 print "GC dir: $GCd\nIn Cluster: $MGSfile\n# cores: $numCores\n";
+print "MAP: $mapF\n";
 #print "Ref tree: $treeFile\n";
 print "Using tree $treeFile to create automatically outgroups\n" if ($treeFile ne "");
 print "Outdir: $outD\n";
@@ -171,7 +173,6 @@ $MGSfile .= ".srt";
 print "\nnew MGS file: $MGSfile\n\n";
 #die; 
 
-my $mapF = `cat $GCd/LOGandSUB/GCmaps.inf`;chomp $mapF;
 #$mapF = $GCd."LOGandSUB/inmap.txt" if ($mapF eq "");
 my ($hr1,$hr2) = readMapS($mapF,-1);
 my $hr3; my $hr4;
@@ -397,7 +398,7 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0){
 	}
 	my $conlog = "$bindir/LOGandSUB/ConspecificMGS.log";
 	open I,"<$conlog" or die "Can't open conspecific $conlog\n";
-	while (<I>){split /\t/;$ConspecificMGS{$_[0]} = 1;}
+	while (my $l = <I>){my @spl = split /\t/,$l;$ConspecificMGS{$spl[0]} = [$spl[0]];}
 	close I;
 	
 }
@@ -441,7 +442,7 @@ die "Tree for outgroup specified, but file not found:$treeFile\nAborting..\n" if
 $cnt=0; my $lcnt=0; my @jobs;
 foreach my $SI (@specis){ #loop creates per specI file structure to run buildTreeScript on..
 	next if (!$reSubmit && !$redoSubmissionData);
-	if (exists($ConspecificMGS{$SI})){print "Skipping $SI due to inclusion in conspecific MGS list.\n";next;}
+	if (exists($ConspecificMGS{$SI}) && $ConspecificMGS{$SI}->[0] =~ m/multicopy/){print "Skipping $SI due to inclusion in conspecific MGS list.\n";next;}
 	qsubSystemWaitMaxJobs($checkMaxNumJobs);
 	#print "$SI  XX ";
 	$lcnt++;

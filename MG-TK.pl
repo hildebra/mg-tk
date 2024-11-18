@@ -5866,7 +5866,7 @@ sub getBinnerStats{
 	
 ## binning stats SemiBin
 	my $SBbinCM2 = "$tmpassD/Binning/SB/$SmplN.cm2";
-	my $addStr = "\t" x 2; my $addDescr="";
+	my $addStr = ""; my $addDescr="";
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0; my $totBins=0;
 		open I,"<$SBbinCM2" or die $!;
@@ -5878,14 +5878,15 @@ sub getBinnerStats{
 		close I;
 		$addStr = "$HQbinCnt\t$MQbinCnt\t";
 		#die "$HQbinCnt $MQbinCnt $SBbinCM2\n";
-	} 
+	} else {
+		$addStr .= "\t" x 2
+	}
 	$addDescr .= "HQ_bins_SB\tMQ_bins_SB\t";
 	
 
 
 ## binning stats MetaBat2
 	$SBbinCM2 = "$tmpassD/Binning/MB2/$SmplN.cm2";
-	$addStr = "\t" x 2;
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
 		open I,"<$SBbinCM2" or die $!;
@@ -5896,12 +5897,13 @@ sub getBinnerStats{
 		}
 		close I;
 		$addStr = "$HQbinCnt\t$MQbinCnt\t";
-	} 
+	} else {
+		$addStr .= "\t" x 2
+	}
 	$addDescr .= "HQ_bins_MB2\tMQ_bins_MB2\t";
 
 ## binning stats MetaDecoder
 	$SBbinCM2 = "$tmpassD/Binning/MD/$SmplN.cm2";
-	$addStr = "\t" x 2;
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
 		open I,"<$SBbinCM2" or die $!;
@@ -5912,7 +5914,9 @@ sub getBinnerStats{
 		}
 		close I;
 		$addStr = "$HQbinCnt\t$MQbinCnt\t";
-	} 
+	} else {
+		$addStr .= "\t" x 2
+	}
 	$addDescr .= "HQ_bins_MD\tMQ_bins_MD\t";
 	return ($addStr,$addDescr);
 }
@@ -6107,6 +6111,7 @@ sub smplStats(){
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 
+	#MB2, SemiBin etc hq & mq MAGs
 	($t1,$t2) = getBinnerStats($tmpassD,$SmplN);
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
