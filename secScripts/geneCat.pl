@@ -64,7 +64,8 @@ sub clusterSingleStep;sub clusterMultiStep;
 #.47: small debugs to fix foldseek integration
 #.48: 28.7.24: bugfix for resuming checkpointed GC
 #.49: 13.11.24: auto remove canopies if <10 samples
-my $version = 0.49;
+#.50: 21.11.24: small fix to intial gene capturing step (subprepSmpls)
+my $version = 0.50;
 $| = 1;
 
 my $justCDhit = 1; #always set default to 0, to dangerous otherwise..
