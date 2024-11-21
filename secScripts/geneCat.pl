@@ -1228,6 +1228,7 @@ sub addingSmpls{
 	my $OFcomplF = "$bdir/compl.fna.gz";my $OFincomplF = "$bdir/incompl.fna.gz";my $OF5inF = "$bdir/5Pcompl.fna.gz";my $OF3inF = "$bdir/3Pcompl.fna.gz";
 	#prep system
 	system "mkdir -p $tmpDir" unless (-d $tmpDir);
+	system "mkdir -p $bdir" unless (-d $bdir);
 	my $OC; my $O5; my $O3; my $OI;
 	#die "shouldn't \n";
 	open $OC,"| gzip -f -3 -c  >$OFcompl.$batch" or die "Can't open $OFcompl.$batch\n"; #close $OC;
@@ -1455,12 +1456,16 @@ sub addingSmpls{
 		my $curTransfer = $transferFiles[$i];
 		my $dest = $destFiles[$i];
 		my $lockFile = $curTransfer.".lock";
-		while (-e $lockFile){sleep(10);}
-		if (!-e $lockFile){systemW "touch $lockFile;" ;
-		sleep(2);
-		systemW "cat $curTransfer.$batch >> $dest;";
-		systemW "rm -f  $lockFile $curTransfer.$batch;";
-		sleep(2);
+		while (-e $lockFile){sleep(10);print "W";}
+		if (!-e $lockFile){
+			print "\n";
+			systemW "touch $lockFile;" ;
+			sleep(2);
+			my $cmd11 = "cat $curTransfer.$batch >> $dest;\n";
+			print $cmd11;
+			systemW "$cmd11";
+			systemW "rm -f  $lockFile $curTransfer.$batch;";
+			sleep(2);
 		} else {die "lock already existed while attempting to write!!\n\n";}
 	}
 }
