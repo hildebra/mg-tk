@@ -140,26 +140,11 @@ if ($onlySubmit){print "Only submission mode\n";
 	print "Creation of strain genes, old data might be deleted!\nDo you want to continue? (10s wait, use Ctrl-c to abort)\n"; #sleep 10;
 }
 #die;
-
-
-#STONES
-system "mkdir -p $outD/stones/" unless (-d "$outD/stones/");
-my $inputChk = "$outD/stones/0.fileChk.sto";
-
-#set up some base paths specific to pipeline..
-my $FNAstdof = "allFNAs.fna"; my $FAAstdof = "allFAAs.faa";
-my $LINKstdof = "link2GC.txt"; my $CATstdof = "all.cat";
-my $fnaSNPf = "/SNP/genes.shrtHD.SNPc.MPI.fna.gz";
-my $aaSNPf = "/SNP/proteins.shrtHD.SNPc.MPI.faa.gz";
-my $abundF="/assemblies/metag/ContigStats/Coverage.pergene.gz";
-
-my $xtraGuids = 
-
 my $QSBoptHR = emptyQsubOpt($doSubmit,"",$subMode);
 my %QSBopt = %{$QSBoptHR};
 
-system "mkdir -p $outD" unless (-d $outD);
 
+#prep sorted MGS gene file
 if (!-e $MGSfile.".srt"){
 	print "base files missing.. preparing complete resubmission and recalc of data\n";
 	system "rm -fr $outD";
@@ -172,8 +157,24 @@ if (!-e $MGSfile.".srt"){
 	print "Continuing on preped .srt files\n";
 }
 $MGSfile .= ".srt";
-
 print "\nnew MGS file: $MGSfile\n\n";
+
+system "mkdir -p $outD" unless (-d $outD);
+#STONES
+system "mkdir -p $outD/stones/" unless (-d "$outD/stones/");
+my $inputChk = "$outD/stones/0.fileChk.sto";
+
+#set up some base paths specific to pipeline..
+my $FNAstdof = "allFNAs.fna"; my $FAAstdof = "allFAAs.faa";
+my $LINKstdof = "link2GC.txt"; my $CATstdof = "all.cat";
+my $fnaSNPf = "/SNP/genes.shrtHD.SNPc.MPI.fna.gz";
+my $aaSNPf = "/SNP/proteins.shrtHD.SNPc.MPI.faa.gz";
+my $abundF="/assemblies/metag/ContigStats/Coverage.pergene.gz";
+
+#my $xtraGuids = 
+
+
+
 #die; 
 
 #$mapF = $GCd."LOGandSUB/inmap.txt" if ($mapF eq "");
