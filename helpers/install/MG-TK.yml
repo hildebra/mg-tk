@@ -83,20 +83,20 @@ dependencies:
   - bowtie2=2.5.4
   - bwa=0.7.18
   - vsearch=2.28.1
-  - foldseek=9.427df8a
-  - mmseqs2=15.6f452
+  - foldseek=5.53465f0
+  - mmseqs2=16.747c6
 #  - motus>=3
   - mreps=2.6.01
-  - muscle=5.1
+  - muscle=5.3
   - clustalo=1.2
 
   - pprodigal=1.0.1
-  - metaeuk=6.a5d39d9
+#  - metaeuk=6.a5d39d9
 #  - racon>=1.5.0
-  - samtools=1.20
+  - samtools=1.21
   - sortmerna=4.3.7
 #  - semibin=1.5.1
-  - trimmomatic
+  - trimmomatic=0.39
 #  - unicycler>=0.5.0
 #  - vsearch=2.22
   - eggnog-mapper=2.1.12

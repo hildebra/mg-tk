@@ -124,7 +124,7 @@ my $mapF = `cat $GCd/LOGandSUB/GCmaps.inf`;chomp $mapF;
 
 print "============= Strains from MGS v$version =============\n";
 print "Creating within species strains for ${mode}s in $GCd\n";
-print "GC dir: $GCd\nIn Cluster: $MGSfile\n# cores: $numCores\n";
+print "GC dir: $GCd\nIn Cluster: $MGSfile\n# cores: $numCores (max: ${maxCores})\n";
 print "MAP: $mapF\n";
 #print "Ref tree: $treeFile\n";
 print "Using tree $treeFile to create automatically outgroups\n" if ($treeFile ne "");
@@ -264,7 +264,7 @@ my @specis = sort(keys(%SIgenes));
 #sort specis by numbers
 my %sis; foreach (@specis){m/(\d+)$/; $sis{$_}=$1;}
 @specis = sort {$sis{$a} <=> $sis{$b} } keys %sis;
-#die "@specis\n";
+#die "specis::\n@specis\n";
 my $cnt=0; my $SaSe = "|"; my $dirsArePrepped = 1; my $allCatFileE = 1;
 
 foreach my $SI (@specis){ #loop creates per specI file structure to run buildTreeScript on..
@@ -436,7 +436,7 @@ if (1 && (!$allCatFileE || $deepRepair || !$dirsArePrepped || $onlySubmit == 0 |
 
 
 
-print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogeny\n----------------------------------------------------\n\n";
+print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogenies for " . scalar(@specis) . " MGS\n----------------------------------------------------\n\n";
 
 
 die "Tree for outgroup specified, but file not found:$treeFile\nAborting..\n" if  ($treeFile ne "" && !-e $treeFile);
@@ -467,7 +467,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	print "${SI}::"; 
 	if (!exists($genesWrite{$SI}) ) { print "$SI does not exist in genesWrite object\n";
 	}elsif ($genesWrite{$SI} <10){print "WARNING: $SI has too few genes that could be found! Skipping..\n";next;}
-	if (-e $treeStone && -e $IQtreef ){print "Skipping (tree wrong?)..\n";next;}
+	if (-e $treeStone && -e $IQtreef ){print "Skipping (tree exists?)..\n";next;}
 	
 	my $outgS = "";my $OG = "";
 	if (-e "$outD2/data.log"){$OG = `cat $outD2/data.log`; chomp $OG; $OG=~s/^OG://;}

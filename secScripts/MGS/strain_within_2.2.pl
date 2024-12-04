@@ -35,7 +35,7 @@ my $DiscTests =""; my $ContTests = "";
 my $familyVar = ""; my $groupStabilityVars = "";
 my $GCd = "";#$ARGV[0];
 my $nCore = 4;#$ARGV[4];
-my $nCoreHeavy = 32;
+my $nCoreHeavy = 12;
 my $refMap = "";#$ARGV[3];#"/g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/maps/drama4.map";
 #my $FMGpD = "$GCd/MGS/phylo";
 my $FMGpD = "";#$ARGV[1];# if (@ARGV > 1);
@@ -280,15 +280,18 @@ my $funCmd = "";
 my $treewasOut = "$FMGpD/GeneEnrich/";
 my $treewasOutfile = "$treewasOut/treeWAS_results.csv";
 my $summaryOutfile = "$treewasOut/treeWAS_results_functions.csv";
+my $treeWasStone = "$FMGpD/GeneEnrich/treeWAS.sto";
 my $MGSd = $FMGpD; $MGSd =~ s/\/[^\/]+[\/]+$/\//;
 $funCmd .= "mkdir -p $treewasOut\n";
 $funCmd .= "#1st command: run treewas job\n";
 $funCmd .= "$treewasRun_R --gene_cat_dir \"$GCd\" --n_threads $nCoreHeavy --metadata_vars \"$groupStabilityVars\" -o \"$treewasOut\" --mgs_dir \"$MGSd\" --metadata_file \"$refMap\" -r \"$MFdir\" -i \"$individualVar\" \n";
 $funCmd .= "#2nd command: process results\n";
 $funCmd .= "$processTreewas_R -i \"$treewasOutfile\" --gene_cat_dir \"$GCd\" --annot_files \"NOG,CZy,KGM\", --out_file \"$summaryOutfile\" --n_threads $nCoreHeavy -r \"$MFdir\" \n";
+$funCmd .= "\ntouch $treeWasStone\n";
 
-
-my ($dep,$qcmd) = qsubSystem($treewasOut."treeWAS.sh",$funCmd,$nCoreHeavy,"6G","treewas","","",1,[],$QSBoptHR);
+if (!-e $treeWasStone){
+	my ($dep,$qcmd) = qsubSystem($treewasOut."treeWAS.sh",$funCmd,$nCoreHeavy,"6G","treewas","","",1,[],$QSBoptHR);
+}
 
 
 #"$strainStatsR $destD ../phylo/$defTreeFile $d $OG $refMap $MGstats $abMatrix $nCore 1 $MFdir $wrHead $DiscTests $ContTests > $destD/$d.Ranalysis.log\n";

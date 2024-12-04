@@ -798,7 +798,7 @@ sub geneCatFlow($ $ $ $ ){
 	if ($submitLocal && !-e $moveStone){systemW $cmd;$cmd="";}
 	
 	#cluster FMGs
-	my %FMGFL2 ; my $dirflag=0; my $cpFromP = 0;
+	my %FMGFL2 ; my $dirflag=0; my $cpFromP = -1;
 	my @COGlst = keys %FMGfileList;
 	#die "@COGlst\n";
 	$cmd .= "mkdir -p $bdir/$COGdir/\n" ;
@@ -815,8 +815,9 @@ sub geneCatFlow($ $ $ $ ){
 			#$cmd .= $cdhitBin."-est -i $FMGfileList{$cog} -o $tmpDir/COG/$cog.$cdhID.fna -n 9 -G 1 -aS 0.95 -aL 0.6 -d 0 -c ". $FMGcutoffs{$cog}/100 ." -g 0 -T $numCor\n";
 			# $clustMMseq = 0; #use mmseq, and use it's slow mode instead..  
 			$cmd .= clusterFNA($FMGfileList{$cog},$FMGFL2{$cog},0.9,0.0,($FMGcutoffs{$cog}/100)-$relaxFMG,$numCor3,1,"$NodeTmpDir/$cog/",$useMMSEQs4COG,$totMemL);
+			$cpFromP=0;
 		} else {
-			$cpFromP = 1;
+			$cpFromP = 1 if ($cpFromP == -1);
 			#$cmd .= "cp $bdir/COG/$cog.$cdhID.fna* $tmpDir/COG/;"; 
 		}
 	}
@@ -833,6 +834,7 @@ sub geneCatFlow($ $ $ $ ){
 #		$cmd .=  "cp $tmpDir/COG/COG*.$cdhID.fna* $bdir/COG\n";
 	$cmd .= "\n";
 	my $COGdep="";
+	#die $cpFromP;
 	if ($submitLocal ){ #this loop submits marker gene clusterings
 		if (-e $FMGstone){
 			$cmd = "";
@@ -940,7 +942,8 @@ sub geneCatFlow($ $ $ $ ){
 
 	qsubSystemJobAlive( \@matDeps,$QSBoptHR ); 
 	die "Matrix were not created, $matrixSton\n" if ($submitLocal && !-e $matrixSton);
-
+	#check matrix..
+	
 
 
 
@@ -1831,9 +1834,9 @@ sub cleanUpGC(){#not used any longer
 
 #simply rewrites original fasta names to counts used in my genecats
 sub rewriteFastaHdIdx{ # #replaces ">MM2__C122;_23" with number from gene catalog
-	my ($inf,$gene2num) = @_;
-	my $sep="";
-	$sep = $_[2] if (@_ >2);
+	my ($inf,$gene2num,$sep) = @_;
+	#my $sep="";
+	#$sep = $_[2] if (@_ >2);
 	#my %gene2num = %{$hr};
 	#print $gene2num{"A6M74__C100239_L=3213=_3"}."\n";
 	my $numHd =0;my $cnts=0;
@@ -1865,7 +1868,7 @@ sub rewriteFastaHdIdx{ # #replaces ">MM2__C122;_23" with number from gene catalo
 			} elsif (@spl < 2) {
 				die "Separator \'$sep\' not found in gene ID \'$name\', rewritign nt fna names $inf\nAborting..\n";
 			} else {
-				unless(exists($gene2num->{$spl[0]}{$spl[1]})){die "can not identify \'$name\' gene in index file while rewritign nt fna names $inf\n";}
+				unless(exists($gene2num->{$spl[0]}{$spl[1]})){die "can not identify \'$name\' gene in index file while rewritign nt fna names $inf\nparts: \"$spl[0]\"  \"$spl[1]\"";}
 				#print O ">".$gene2num->{$name}."\n";
 				foreach my $pr (@{$gene2num->{$spl[0]}{$spl[1]}}){
 					print O ">".$pr."\n";#;.$seq."\n";

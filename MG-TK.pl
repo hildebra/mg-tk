@@ -5122,7 +5122,7 @@ sub mapReadsToRef{
 			$tarBam = $tmpOut22[$k] if ($decoyModeActive || $map2ndTogether>0);
 			next if ($subBams[$k] eq "");#case that decoy map has already created parts of the mappings..
 			if (1){   #always active #($numLib > 1){
-				$algCmd .= "\n$smtBin cat -@ $NcoreL ".$subBams[$k]." $filterStep > $tarBam\n"; #$k here, because this refers to @regs
+				$algCmd .= "\n$smtBin cat ".$subBams[$k]." $filterStep > $tarBam\n"; #$k here, because this refers to @regs
 				$algCmd .= "\nrm -f ".$subBams[$k]."\n";
 			} else { #nothing else, compression is now in the bowtie2 phase
 				#$algCmd .= "\n$smtBin view -bS -F 4 -@ $Ncore $subBams[0] > $tmpOut22\n";
