@@ -7,7 +7,10 @@ use Mods::IO_Tamoc_progs qw(getProgPaths);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFastqCnts readNCBItax   lcp prefix_find
-		readMap readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
+		
+		readMap 
+		
+		readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
 		renameFastHD  prefixFAhd parse_duration resolve_path
 		clenSplitFastas getAssemblPath fileGZe fileGZs filsizeMB
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
@@ -1009,7 +1012,7 @@ sub readMap{
 	my $SeqTech = -1; #mate = mate pairs; SLR = synthetic long reads, e.g. 10X, TELseq..
 	my $SeqTechS = -1; 
 	my $AssGroupCol = -1; my $EstCovCol = -1; my $MapGroupCol = -1; my $SupRdsCol = -1;my $ExcludeAssemble = -1;
-	my $cut5pR1 = -1;my $cut5pR2 = -1; my $FamGroupCol = -1;
+	my $cut5pR1 = -1;my $cut5pR2 = -1; my $FamGroupCol = -1; my $firstXrdsRd = -1;my $firstXrdsWr = -1;
 	#some global params
 	my $dir2dirs = ""; #dir on file system, where all dirs specified in map can be found (enables different indirs with different mapping files)
 	my $dir2out = "";
@@ -1071,6 +1074,8 @@ sub readMap{
 			$ExcludeAssemble = first_index { /^ExcludeAssembly$/ } @spl;
 			$cut5pR2 = first_index { /^cut5PR2$/ } @spl;
 			$cut5pR1 = first_index { /^cut5PR1$/ } @spl;
+			$firstXrdsRd = first_index {/^firstXreadsRd/} @spl;
+			$firstXrdsWr = first_index {/^firstXreadsWr/} @spl;
 			if ($xtraColStr ne ""){
 				$xtraCol = first_index { /$xtraColStr/ } @spl;
 			}
@@ -1183,6 +1188,7 @@ sub readMap{
 		}
 		if ($rLenCol >= 0){$ret{$curSmp}{readLength} = $spl[$rLenCol];} else {$ret{$curSmp}{readLength} = 0;}
 		if ($ExcludeAssemble >= 0){$ret{$curSmp}{ExcludeAssem} = $spl[$ExcludeAssemble];} else {$ret{$curSmp}{ExcludeAssem} = 0;}
+		#cut first basepairs from each read.. (read1 and read2)
 		$ret{$curSmp}{cut5pR2} = 0;
 		if ($cut5pR2 >= 0){
 			if (defined ($spl[$cut5pR2]) && length($spl[$cut5pR2]) > 0){
@@ -1195,6 +1201,21 @@ sub readMap{
 				$ret{$curSmp}{cut5pR1} = $spl[$cut5pR1];
 			}
 		} 
+		#read only the first few reads in each sample..
+		$ret{$curSmp}{firstXrdsRd} = 0;
+		if ($firstXrdsRd >= 0){
+			if (defined ($spl[$firstXrdsRd]) && length($spl[$firstXrdsRd]) > 0){
+				$ret{$curSmp}{firstXrdsRd} = $spl[$firstXrdsRd];
+			}
+		} 
+		#write only the first few reads in each sample..
+		$ret{$curSmp}{firstXrdsWr} = 0;
+		if ($firstXrdsWr >= 0){
+			if (defined ($spl[$firstXrdsWr]) && length($spl[$firstXrdsWr]) > 0){
+				$ret{$curSmp}{firstXrdsWr} = $spl[$firstXrdsWr];
+			}
+		} 
+		
 		if ($xtraCol != -1){$ret{$curSmp}{$xtraColStr} = $spl[$xtraCol];}
 		if ($EstCovCol >= 0){$ret{$curSmp}{DoEstCoverage} = $spl[$EstCovCol];} else {$ret{$curSmp}{DoEstCoverage} = 0;}
 		if ($AssGroupCol >= 0 && $spl[$AssGroupCol] ne ""){

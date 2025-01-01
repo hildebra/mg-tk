@@ -199,6 +199,8 @@ Further, you can add the following specifics for each single sample:
 - **ExcludeAssembly** [0/1] - Exclude sample from assemblies?
 - **cut5PR1** [INT] - remove the first nts (from 5') on read 1
 - **cut5PR2** [INT] - remove the first nts (from 5') on read 2
+- **firstXreadsRd** [INT] - only read the first X reads (paired reads count as 2) for that sample.
+- **firstXreadsWr** [INT] - only write the first X reads (paired reads count as 2) for that sample.
  
  The following tags can be added to a new line (ie row) in the map. Tag is followed by tab delimiter and specific input.
 

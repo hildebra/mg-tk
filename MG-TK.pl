@@ -32,9 +32,9 @@ use Mods::Subm qw (qsubSystemWaitMaxJobs qsubSystem emptyQsubOpt findQsubSys qsu
 
 #some useful HPC commands..
 #bjobs | awk '$3=="CDDB" {print $1}' |xargs bkill
-#bjobs | grep 'dWXmOT' | cut -f11 -d' ' | xargs -t -i bkill {}
-#squ | grep 'r' | cut -f11 -d' ' | xargs -t -i scontrol update TimeLimit=84:00:00 jobid={}
-#squ | grep 'dencyNev' | cut -f11 -d' ' | xargs  -t -i scancel {}
+#bjobs | grep 'dWXmOT' | cut -f12 -d' ' | xargs -t -i bkill {}
+#squ | grep 'r' | cut -f12 -d' ' | xargs -t -i scontrol update TimeLimit=84:00:00 jobid={}
+#squ | grep 'dencyNev' | cut -f12 -d' ' | xargs  -t -i scancel {}
 #bhosts | cut -f1 -d' ' | grep -v HOST_NAME | xargs -t -i ssh {} 'killall -u hildebra'
 #hosts=`bhosts | grep ok | cut -d" " -f 1 | grep compute | tr "\\n" ","`; pdsh -w $hosts "rm -rf /tmp/hildebra"
 
@@ -111,7 +111,8 @@ sub setupHPC;
 #.55: 23.10.24: integrated -getAssemblConsSNPsuppRds -SNPconsMinDepth flags and functionalities
 #.56: 25.10.24: small bugfixes to submission logic, to submit less jobs that would fail in any case
 #.57:26.10.24: enabled multi-input files for minimap2/strobealign, added "-mapperLargeRef" flag
-my $MATFILER_ver = 0.57;
+#.58: 30.12.24: firstXrdsRd & firstXrdsWr function added, required sdm 3.08
+my $MATFILER_ver = 0.58;
 
 
 #operation mode?
@@ -3485,7 +3486,11 @@ sub sdmClean(){
 	my $sdm_Extr = "";
 	$sdm_Extr .= "-logLvsQ 1 " if ($MFopt{SDMlogQualvsLen});
 	# $ret{$curSmp}{cut5pR2}
-	my $sdm_cut = "-5PR1cut $map{$curSmpl}{cut5pR1} -5PR2cut $map{$curSmpl}{cut5pR2} ";
+	my $sdm_cut = "";
+	$sdm_cut .= "-5PR1cut $map{$curSmpl}{cut5pR1} " if ($map{$curSmpl}{cut5pR1} > 0); $sdm_cut .= "-5PR2cut $map{$curSmpl}{cut5pR2} " if ($map{$curSmpl}{cut5pR2} > 0);
+	$sdm_cut .= "-XfirstReadsRead $map{$curSmpl}{firstXrdsRd} " if ($map{$curSmpl}{firstXrdsRd} > 0);
+	$sdm_cut .= "-XfirstReadsWritten $map{$curSmpl}{firstXrdsWr} " if ($map{$curSmpl}{firstXrdsWr} > 0);
+	
 	my $catCmd = "cat ";
 	#$catCmd = "$pigzBin -p $comprCores -c " if ($MFopt{gzipSDMOut});
 	if ($pairReadMode){
