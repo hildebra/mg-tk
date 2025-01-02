@@ -4,7 +4,7 @@ channels:
 - https://conda.anaconda.org/bioconda
 dependencies:
 #MF specific programs
-  - sdm>=2.18
+  - sdm>=3.08
   - lca>=0.25
 #  - rtk2>=2.11
 

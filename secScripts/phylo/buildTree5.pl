@@ -2,12 +2,14 @@
 #perl /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/helpers/buildTree4.pl -fna /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//allFNAs.fna -aa /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//allFAAs.faa -cats /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//categories4ete.txt -outD /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2/testMSA/ -cores 12 -useEte 0 -NTfilt 0.8 -runIQtree 0 -calcDistMat 1 -continue 0
 #perl /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/helpers/buildTree4.pl -fna /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//allFNAs.fna -aa /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//allFAAs.faa -cats /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2//renameTEC2//categories4ete.txt -outD /g/scb/bork/hildebra/SNP/GNMass3/TECtime/v5//T2/tesssst/ -cores 12 -useEte 0 -NTfilt 0.8 -NonSynTree 0 -SynTree 0 -runRAxML 0 -runGubbins 0
 #perl /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec//secScripts/phylo/buildTree4.pl -fna /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat///intra_phylo//MB2bin314//allFNAs.fna -aa /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat///intra_phylo//MB2bin314//allFAAs.faa -smplSep '\|' -cats /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat///intra_phylo//MB2bin314//all.cat -outD /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat///intra_phylo//MB2bin314/  -runIQtree 1 -runFastTree 0 -cores 20  -AAtree 0 -bootstrap 000 -NTfiltCount 300 -NTfilt 0.05 -NTfiltPerGene 0.7 -GenesPerSpecies 0.2 -runRaxMLng 0 -minOverlapMSA 2 -SynTree 0 -NonSynTree 0 -MSAprogram 2 -continue 1 -AutoModel 0 -iqFast 1 -superTree 0 -outgroup MB2bin720 -superCheck 1
+# perl /g/scb/bork/luetge/pangenomics/speciation/dNdS/scripts/buildTree4_mod2.pl -fna /g/scb/bork/luetge/pangenomics/speciation/dNdS/fasta/allOrtho_freeze11_cluster_10.fna -aa /g/scb/bork/luetge/pangenomics/speciation/dNdS/fasta/allOrtho_freeze11_cluster_10.faa -cats /g/scb/bork/luetge/pangenomics/speciation/dNdS/catFiles/freeze11_cluster_10_categories4MSA.txt -outD /g/scb/bork/luetge/pangenomics/speciation/dNdS/outFiles/test/ -cores 12 -useEte 0 -NTfilt 0.8 -NonSynTree 0 -SynTree 0 -runRAxML 0 -runGubbins 0 -runLengthCheck 0 -runDNDS 0 -genesToPhylip 0 -continue 1 -runFastgear 0 -runFastGearPostProcessing 1 -clustername cluster_10
+
 #ARGS: ./buildTree.pl -fna [FNA] -faa [FAA] -cat [categoryFile] -outD [outDir] -cores [CPUs] -useEte [1=ETE,0=this script] -NTfilt [filter]
 #versions: ver 2 makes a link to nexus file formats, to be used in MrBayes and BEAST etc
 #8.12.17: added mod3 from Mechthild
 #2.1.20: rewrite of workflow to extend superTrees to superCheck
 #version 5 added: hyphy fubar, R scripts for theta, guidance2
-# perl /g/scb/bork/luetge/pangenomics/speciation/dNdS/scripts/buildTree4_mod2.pl -fna /g/scb/bork/luetge/pangenomics/speciation/dNdS/fasta/allOrtho_freeze11_cluster_10.fna -aa /g/scb/bork/luetge/pangenomics/speciation/dNdS/fasta/allOrtho_freeze11_cluster_10.faa -cats /g/scb/bork/luetge/pangenomics/speciation/dNdS/catFiles/freeze11_cluster_10_categories4MSA.txt -outD /g/scb/bork/luetge/pangenomics/speciation/dNdS/outFiles/test/ -cores 12 -useEte 0 -NTfilt 0.8 -NonSynTree 0 -SynTree 0 -runRAxML 0 -runGubbins 0 -runLengthCheck 0 -runDNDS 0 -genesToPhylip 0 -continue 1 -runFastgear 0 -runFastGearPostProcessing 1 -clustername cluster_10
+#2.1.25: v5.02: reduced threshold for including genes from MGS
 
 use warnings;
 use strict;
@@ -42,7 +44,7 @@ sub createTreeOpt;
 sub treePresent;
 
 my $doPhym= 0;
-my $version = 5.01;
+my $version = 5.02;
 
 my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
 #die $pal2nal;
