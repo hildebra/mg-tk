@@ -367,7 +367,7 @@ if ($isAligned){
 		if ($spl[0] =~ m/^#/){shift @spl;}
 		@spl = grep !/^NA$/, @spl;#remove NAs
 		my @spl2;
-		$genesPerCat[$cnt] = scalar(@spl);
+		#$genesPerCat[$cnt] = scalar(@spl) ;
 		my @geneLs;
 		$spl[0] =~ m/^(.*)$smplSep(.*)$/;	my $sp = $1;my $gene = $2;
 		foreach my $seq (@spl){### $seq = genomeX_NOGY
@@ -385,7 +385,7 @@ if ($isAligned){
 		$qtl90NTcnt{$gene} = $qtl;#
 		foreach my $seq (@spl){
 			$seq =~ m/^(.*)$smplSep(.*)$/;	my $sp = $1;
-			quantile(0.9,values(%{$charCnts{$sp}}));
+			#quantile(0.8,values(%{$charCnts{$sp}}));
 			if ( $charCnts{$sp}{$seq} >= ($qtl90NTcnt{$gene}  * $ntFracGene)){
 				push(@spl2, $seq);
 				$geneTooLong++;
@@ -394,6 +394,8 @@ if ($isAligned){
 			}
 		}
 		push(@linesCats2,\@spl2);
+		#has to work with what is actually there, not what could have been..
+		$genesPerCat[$cnt] = scalar(@spl2);
 		#die;
 	}
 	#die;
@@ -405,7 +407,12 @@ if ($isAligned){
 		if (@spl >= (($GenesQtl90 * $fracMaxGenes90pct) ) ){ #$GenesQtl50 || 
 			push(@linesCats3,\@spl);
 		}
+		#print @spl . " ";
 	}
+	
+	print "\n\n-----------------  Prefilter  ------------------\n";
+	print "Remaining gene cats: ". scalar(@linesCats3) . "/" . scalar(@linesCats)."; Removed $geneTooShort/$geneTooLong genes < $ntFracGene qtl90 gene length\n";
+	print "Warning:: Size linesCats3:: " . @linesCats3 . " linesCats2:: " .@linesCats2 ."\n$GenesQtl50 || $GenesQtl90 * $fracMaxGenes90pct\n" if (@linesCats3 < 20);
 	@linesCats2 = (); #make space..
 	$cnt=-1;
 	foreach my $aRef (@linesCats3){
@@ -442,11 +449,13 @@ if ($isAligned){
 		}
 	}
 	#die "@genesPerCat\n$GenesQtl90\n".$fracMaxGenes90pct*$GenesQtl90."\n" ;
-
+	my @specs = keys %specList;
+	#print "specs:: @specs\n";
+	die "No species left after filtering!!\n" if (@specs == 0);
 	
 	
 	my $maxGenes=0; my $maxNtCntTotal=0; #my @allNTcnts;
-	foreach my $sp (keys %specList){
+	foreach my $sp (@specs){
 		if ($specList{$sp}>$maxGenes){$maxGenes = $specList{$sp};}
 		if (!exists($totalNTs{$sp})){$totalNTs{$sp}=0;}
 		if ($maxNtCntTotal< $totalNTs{$sp}){$maxNtCntTotal = $totalNTs{$sp};}
@@ -457,9 +466,9 @@ if ($isAligned){
 	my $qtl90Genes = quantile(0.9,values(%specList));
 
 	my %smplsRmvd; my $tooFewGenes=0;my $tooFewNTs=0;my $tooFewNTs2=0; my $specsRemain = 0;
-	print "Samples removed due to low gene presence:\n";
+	#print "Samples removed due to low gene presence:\n";
 	my $OGfnd=0;
-	foreach my $sp (keys %specList){
+	foreach my $sp (@specs){
 		my $isOG=0;  if ($outgroup ne "" && $outgroup eq $sp){$isOG = 1;$OGfnd++;}
 		
 		my $NTfilter = 0; $NTfilter =1 if ( $totalNTs{$sp} < ($qtl90NTcntAll * $ntFrac));
@@ -485,11 +494,11 @@ if ($isAligned){
 	}
 	#############################################################################################
 
-	print "\n\n-----------------  Prefilter  ------------------\nPer species: MaxGenes: $maxGenes, Qtl90Genes: $qtl90Genes, MaxAA: $maxNtCntTotal, Qtl90 NTs: $qtl90NTcntAll\n";
+	
+	print "Per species: MaxGenes: $maxGenes, Qtl90Genes: $qtl90Genes, MaxAA: $maxNtCntTotal, Qtl90 NTs: $qtl90NTcntAll\n";
 	print "Species/Smpls removed: <NTs($ntFrac,$ntCntTotal):$tooFewNTs,$tooFewNTs2 ; <genes($GeneFracPSpec):$tooFewGenes\n";
-	print "Remaining Smpls/Species: $specsRemain/".scalar(keys%specList)."\n";
-	print "Remaining gene cats: ". scalar(@linesCats3) . "/" . scalar(@linesCats)."; Removed $geneTooShort/$geneTooLong genes < $ntFracGene qtl90 gene length\n";
-	print "\n------------------------------------------------\n";
+	print "Remaining Smpls/Strains: $specsRemain/".scalar(keys%specList)."\n";
+	print "------------------------------------------------\n";
 	#die "$maxGenes\n";
 	@linesCats = (); #empty array
 
