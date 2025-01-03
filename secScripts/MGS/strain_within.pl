@@ -19,6 +19,7 @@ my $neiTree = getProgPaths("neighborTree");
 sub extractFNAFAA2genes;
 sub histoMGS;
 sub readGenesSample_Singl;
+sub reportMGSperSample;
 die "Not enough args!\n" unless (@ARGV > 1);
 
 #v.14: reworked massively how many genes get included
@@ -29,12 +30,13 @@ die "Not enough args!\n" unless (@ARGV > 1);
 #v.19: 17.11.24: stricter filtering of genes, removing entire MGS if too many "bad genes" in them; added abundance based filtering of genes/sample
 #v0.20: 22.11.24: fixed bug with v0.19 no longer accepting assmblGrps. code refactor that makes it a lot easier to understand
 #v0.21: 2.1.25: v0.20 fix, to only select single gene instead of COG; further changed how genes are selected, to reomve potentially conspecific MGS per sample (instead of removing entire gene)
-my $version = 0.21;
+#v0.22: added per sample (not assmblGrp) MGS filtering based on multigenes
+my $version = 0.22;
 
 #input args..
 my $GCd = "";#$ARGV[0];
 my $MGSfile = "";#$ARGV[1];
-my $numCores = 1;#$ARGV[2];
+my $numCores = 4;#$ARGV[2];
 my $outDpre = "";
 my $maxCores = -1;
 my $onlySubmit =0;#extract genes anew?
@@ -121,15 +123,15 @@ my $outD =  $bindir;#"$GCd/$mode/intra_phylo/";
 $outD .= "/intra_phylo/";
 $outD = $outDpre if ($outDpre ne "");
 
-print "\n!! WARNING !!: RESUBMISSION mode selected (will resubmit MSA + phylos even for already completed MGS) !!\n\n" if ($reSubmit);
-print "\n!! WARNING !!: REDOSUBMISSIONDATA mode selected (will redo and resubmit MSA + phylos even for already completed MGS) !!\n\n" if ($redoSubmissionData);
+print "\n!! WARNING !!: RESUBMISSION mode selected (will resubmit MSA + phylos even for already completed MGS) !!\n" if ($reSubmit);
+print "\n!! WARNING !!: REDOSUBMISSIONDATA mode selected (will redo and resubmit MSA + phylos even for already completed MGS) !!\n" if ($redoSubmissionData);
 
 my $mapF = `cat $GCd/LOGandSUB/GCmaps.inf`;chomp $mapF;
 
 
 print "============= Strains from MGS v$version =============\n";
 print "Creating within species strains for ${mode}s in $GCd\n";
-print "GC dir: $GCd\nIn Cluster: $MGSfile\n# cores: $numCores (max: ${maxCores})\n";
+print "GC dir: $GCd\nIn Cluster: $MGSfile\nCores: $numCores (max: ${maxCores})\n";
 print "MAP: $mapF\n";
 #print "Ref tree: $treeFile\n";
 print "Using tree $treeFile to create automatically outgroups\n" if ($treeFile ne "");
@@ -286,7 +288,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 }
 $PhylosExist = 0 if (!$allCatFileE || !$dirsArePrepped);
  #my $refFAA = "$GCd/compl.incompl.95.prot.faa";	my $hr = readFasta($refFAA,1,"\\s",\%Gene2COG);  %FAAref = %{$hr};	die "read ". scalar(keys %FAAref)." genes\nTher are ".scalar(keys %Gene2COG)." norm genes\n";
-
+my %smplsPerMGS; #stats: MGS is represented in how many different samples?
 
 if ($dirsArePrepped == 0 || $onlySubmit == 0){
 	print "Preparing base strain alignments, per MGS\nThis might take a good while..\n";
@@ -331,7 +333,9 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0){
 		foreach my $sm (keys %{$multiGeneMGSsmpl{$MGS}}){
 			my $lfrac = $multiGeneMGSsmpl{$MGS}{$sm} / $totGenes;
 			if ($lfrac > $multiGeneSmplMax){
-				$locConspec++;$MGSsmplConsp{$MGS}{$sm}=1;
+				$locConspec++;
+				$MGSsmplConsp{$MGS}{$sm}=1;
+				
 				#print "MGSsmplConsp{$MGS}{$sm};\n";#MGSsmplConsp{MGS.66}{IL140M24};
 			} else {$locNonCons++;}
 		}
@@ -356,6 +360,8 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0){
 				$multiGeneCnt++ ;
 			}
 		}
+		
+
 		#fraction of samples where gene was double. Genes were this is obviously too high need to be excluded (multi copy)
 		#my $frac = $multiGeneCnt/$totSmpl;
 		my $frac = $multiGeneCnt/keys(%tmpGen); #print "$frac = $multiGeneCnt/$totSmpl \n"; #fraction of samples with >1 gene   #@genegenes;
@@ -363,12 +369,13 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0){
 			$badGene++;$multiGnInMGS{$MGS}++;
 			next;
 		}
-		$goodGene ++;$singleGnInMGS{$MGS}++;
+		$goodGene ++;$singleGnInMGS{$MGS}++; #in principle good gene (single copy mostly).. but could still be multicopy in single samples..
 		foreach my $sm(keys %tmpGen){
-			next if (scalar(@{$tmpGen{$sm}}) > 1); #don't copy this gene in this sample .. no decission which is the right one..
+			#next if (scalar(@{$tmpGen{$sm}}) > 1); #don't copy this gene in this sample .. no decission which is the right one.. -> too harsh?? check for each sample within assembly group instead..
 			#here gene is saved for later usage..
 			@{$cl2gene2{$sm}{$gene}} = @{$tmpGen{$sm}};
 			$geneCntd++;
+			$smplsPerMGS{$MGS}{$sm}++;
 		}
 	}
 	undef %cl2gene; #lessen mem
@@ -394,6 +401,8 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0){
 	print "\n";
 	
 	
+	reportMGSperSample();
+
 	#die;
 	
 
@@ -521,7 +530,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	my $totMem = int($inputFNAsize /250*40)+10;$totMem = 20 if ($totMem < 20);
 	my $numCoreL = $numCores;	
 	if ($maxCores >0){ #scale cores according to used memory size
-		$numCoreL = int($maxCores * sqrt($totMem) / sqrt(250));
+		$numCoreL = int($maxCores * (sqrt($totMem) / sqrt(180)));
 		$numCoreL = 4 if ($numCoreL < 4);		$numCoreL = $maxCores if ($numCoreL > $maxCores);
 	}
 
@@ -784,14 +793,26 @@ sub appendWriteMGSgenes{
 }
 
 
+sub reportMGSperSample{
+	#eval #sample/MGS
+	my %smplPmgs;
+	foreach my $MGS (keys %smplsPerMGS){
+		foreach my $sm (keys %{$smplsPerMGS{$MGS}}){
+			$smplPmgs{$MGS}++ if ($smplsPerMGS{$MGS}{$sm} > 10);
+		}
+	}
+	my $qt50=quantileArray(0.5,values(%smplPmgs));my $qt90=quantileArray(0.90,values(%smplPmgs));
+	my @smplNs = values(%smplPmgs);@smplNs = sort { $b <=> $a}  @smplNs;
+	print "Samples/MGS: QTL 50,90: $qt50 $qt90 . Top 5: $smplNs[0] $smplNs[1] $smplNs[2] $smplNs[3] $smplNs[5]\n";
+	#die;
+}
+
 
 
 
 #this routine hast to get genes out of each sample, that are needed
 #and save them to be later written per specI
 sub extractFNAFAA2genes{
-	#my () = @_;
-	#my %cl2gene2 = %{$hr};
 	my %perMGScnts;
 	my %totGnes;
 	#create gene to genes list
@@ -833,35 +854,14 @@ sub extractFNAFAA2genes{
 	my $writeLink = 1; my $appCnt=0;
 		#DEBUG	@srtdSmpls = ("PDB3.F");
 	foreach my $sm (@srtdSmpls){
-		#print $sm;
-		#my @locGenes;
-		my %subG; my %locMGScnt;
-		my %locCl2G2 = %{$cl2gene2{$sm}};
-		
-		#%hash = map { $_ => 1 } @array;
-		
-		foreach my $gn (keys %locCl2G2){
-			#put genes into hash to avoid duplicates..
-			$subG{$_} = 1 foreach(@{$locCl2G2{$gn}}) ;
-			#stats collection on MGS usage
-			if (exists($Gene2MGS{$gn})){
-				$locMGScnt{$Gene2MGS{$gn}}++;
-			}
-		}
-		print "$smCnt/" . scalar(@srtdSmpls) ." $sm\t".scalar(keys(%subG))." genes, " . scalar(keys(%locMGScnt)). " MGS\n";
-		my @histoMGScnts = values %locMGScnt;
-		#foreach my $MGS (keys %locMGScnt){push(@histoMGScnts,  scalar( keys( %{$locMGScnt{$MGS}} ) ));}
-		histoMGS(\@histoMGScnts, "Possible Bins in sample");
-		readGenesSample_Singl(\%subG,$sm, $OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink);
+
+		print "$smCnt/" . scalar(@srtdSmpls) ." $sm\t";
+		readGenesSample_Singl($sm, $OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink);
 		$smCnt++; $appCnt++;
 		if ($appCnt >= $appendWriteTrigger){
 			appendWriteMGSgenes($OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink);
 			$appCnt=0;
 		}
-		
-		#DEBUG
-		#foreach my $MGS (keys %locMGScnt){print "$MGS\t$locMGScnt{$MGS}\n";}die;
-		
 	}
 	
 	appendWriteMGSgenes($OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink);
@@ -875,9 +875,28 @@ sub extractFNAFAA2genes{
 sub readGenesSample_Singl{
 	#go into curSpl dir and extract all marked gene reps.. 
 	#write to correct format so they can be used in phylo later
-	my ($subGHR,$sm, $OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink) = @_;
-	my %subG = %{$subGHR};#$_[0]};
-	my $sd = $_[1]; #this is current sample
+	my ($sm, $OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink) = @_;
+	#my %subG = %{$subGHR};#$_[0]};
+	
+	my %subG; my %locMGScnt;
+	my %locCl2G2 = %{$cl2gene2{$sm}};
+			
+	foreach my $gn (keys %locCl2G2){
+		#put genes into hash to avoid duplicates..
+		$subG{$_} = 1 foreach(@{$locCl2G2{$gn}}) ;
+		#stats collection on MGS usage
+		if (exists($Gene2MGS{$gn})){
+			$locMGScnt{$Gene2MGS{$gn}}++;
+		}
+	}
+	print scalar(keys(%subG))." genes, " . scalar(keys(%locMGScnt)). " MGS\n";
+	my @histoMGScnts = values %locMGScnt;
+	histoMGS(\@histoMGScnts, "Possible Bins in sample");
+
+	
+	
+	
+	my $sd = $sm; #this is current sample
 	my $sd2 = $sd;
 #	my $writeLink = 1;
 	if (exists(  $map{altNms}{$sd}  )){
@@ -940,7 +959,7 @@ sub readGenesSample_Singl{
 		}
 		$FAA2 = {};
 		#stats on different ways to filter genes
-		my $geneLost=0; my $conSpecCnt=0; my $abundFail=0;
+		my $geneLost=0; my $conSpecCnt=0; my $abundFail=0; my $doubleGsFail=0;
 		#my @kks = keys %{$FNA};
 		#foreach my $ge (@subGKs){
 			#die"YES $ge $fastaf" if ($ge =~ m/C1404_L=8071=_3/);
@@ -991,25 +1010,26 @@ sub readGenesSample_Singl{
 			next if (@{$COGprios{$SI}} == 0);
 			next if (exists($ConspecificMGS{$SI}));
 			#print "MGSsmplConsp{$SI}{$sd3}\n";
-			if (exists($MGSsmplConsp{$SI}{$sd}) ||  exists($MGSsmplConsp{$SI}{$sd3} )){next;}#print " DIIIIIIIIIIIIIIIID\n\n"; next;}
+			#if (exists($MGSsmplConsp{$SI}{$sd}) ||  exists($MGSsmplConsp{$SI}{$sd3} )){next;}#print " DIIIIIIIIIIIIIIIID\n\n"; next;}
 			
 			my $OCstr=""; my $OFstr = ""; my $OAstr = ""; my $OLstr = "";
-			my $locCnt=0; my $locConSpecGen=0; my $accAbu=0; my $Gtrials=0; my $LmissG=0;
+			my $locCnt=0; my $locConSpecGen=0; my $accAbu=0; my $Gtrials=0; my $LmissG=0; my $doubleCntL=0;
 			die "Can't find $SI in COGprios!\n" unless (exists($COGprios{$SI}));
 			#get actual gene & gene2assmblname
 			my @genes2 = (); #stores semi-final list of genes
 			my @abunGs = (); #abundance vector of genes
 			my %curcgs ;
 			my $curGcnt=0;
+			my $MGSgcnt = @{$COGprios{$SI}};
 			
 			foreach my $cog (@{$COGprios{$SI}}){#keys %{$SIgenes{$SI}}){
 				#print "G";
 				next unless (exists($SIgenes{$SI}{$cog}));
 				my $tar = $SIgenes{$SI}{$cog};
 				#print "Y $tar";
-				next unless (exists($cl2gene2{$sd}{$tar}));
+				next unless (exists($locCl2G2{$tar})); #$cl2gene2{$sd}{$tar}
 				#print "yes ";
-				my @genes = @{$cl2gene2{$sd}{$tar}};
+				my @genes = @{$locCl2G2{$tar}};
 				#die "genes arr:: @genes\n";
 				#print "$SI ";
 				
@@ -1024,9 +1044,11 @@ sub readGenesSample_Singl{
 				my $curG = "";
 				my $maxAB =0;my $bestAB=100000;
 				#if (1 ){#@genes > 1){
-				$doubleGenes++ if (@genes > 1); #95%gene is represented by >1 gene in sample.. potentially conspecific
+				#$doubleGenes++ if (@genes > 1); #95%gene is represented by >1 gene in sample.. potentially conspecific
 					#if several genes: select most abundant from $abunHR->{}
-				foreach my $gX (  @genes ){
+				my $gX ; my $nonZeroCnt=0;
+				foreach $gX (  @genes ){
+					
 					$Gtrials++;
 					next if ($gX eq "");
 					if ( !exists($FAA->{$gX})){ #(exists($gene2genes{$gX}) && !exists($FAA{$gene2genes{$gX}} )) && 
@@ -1035,8 +1057,17 @@ sub readGenesSample_Singl{
 						next;
 					}
 					#my $gX2 = $gX;if (exists($gene2genes{$gX}) && exists($FAA{$gene2genes{$gX}}) ){$gX2 = $gene2genes{$gX} ;} 
+					if (exists($abunHR->{$gX})){
+						$bestAB = $abunHR->{$gX};
+						if ($bestAB > 0){
+							$nonZeroCnt++ ;
+							$curG = $gX ;
+						}
+					}
 
 					
+					next;
+					#rest loop deactivated..
 					#$curG = $gX;
 					if (exists($abunHR->{$gX}) ){
 						if ($abunHR->{$gX} > $maxAB){
@@ -1054,28 +1085,33 @@ sub readGenesSample_Singl{
 						}
 						#print "AB: $maxAB";
 					} else {
-						$curG = $gX; #no info.. still take gene..
+						#$curG = $gX; #no info.. still take gene..  -> don't take gene, not present in samples..
 						$maxAB = $accAbu/$curGcnt if ($curGcnt);
 						if ($curGcnt == 0){
 							$maxAB = $accAbu;
 						}
 					}
 				}
+				if ($nonZeroCnt != 1 ){ #either 0 (gene not present) or >1 (too many copies) is not wanted
+					$curG = "";
+					$doubleCntL++ if ($nonZeroCnt>1);
+				} 
+
 				#} 
 				if ($curG ne ""){
 					push (@genes2 , $curG); 
 					$curcgs{$curG} = $cog;
 					$curGcnt++;
-					if ($bestAB != 100000){
+					#if ($bestAB != 100000){
 						push(@abunGs, $bestAB);
 						$accAbu += $bestAB ;
-					} else {
-						push(@abunGs, $maxAB);
-						$accAbu += $maxAB;
-					}
+					#} else {
+					#	push(@abunGs, $maxAB);
+					#	$accAbu += $maxAB;
+					#}
 				}
+				last; #currently: only use first registered gene per COG
 			}
-			$missGene += $LmissG;
 			if (0&& $Gtrials > 100 && $LmissG == $Gtrials ){
 				print "$SI :: Something seems completely wrong with sample $fastaf\nNo machting genes found between faa and gene catalog\nSampling gene cat genes ($LmissG == $Gtrials , $accAbu ): "; my $llcnt=0;
 				foreach my $cog (@{$COGprios{$SI}}){
@@ -1088,8 +1124,17 @@ sub readGenesSample_Singl{
 				print "\nSampling faa(2) genes: $locFAAhds[0] $locFAAhds[1] $locFAAhds[2] $locFAAhds[3] $locFAAhds[4] \n";
 				die;
 			}
-			 
+			
 			next if ($curGcnt ==0 );
+			if (($doubleCntL/$MGSgcnt) > $multiGeneSmplMax){
+				#print "$doubleCntL/$MGSgcnt > $multiGeneSmplMax\n";
+				$doubleGsFail++;
+				next;
+			}
+			 
+
+			$doubleGenes += $doubleCntL;
+			$missGene += $LmissG;
 			my $quan10 = quantileArray(0.1,@abunGs);
 			my $quan90 = quantileArray(0.9,@abunGs);
 			my @genes3=();
@@ -1171,7 +1216,7 @@ sub readGenesSample_Singl{
 		my @genesPmgs = values %locMGSgenes; 	@genesPmgs = sort { $a <=> $b}  @genesPmgs;
 		histoMGS(\@genesPmgs,"Detected Bin Genes:");
 		
-		print "$sd3 - Missed/lost/abundFail/SNPresF Gs: ${missGene}/${geneLost}/${abundFail}/$SNPresFail\tConspec Gs/doublGs/MGS: ${conspGen}/${doubleGenes}/$conSpecCnt\tFoundGs: $foundGene/". scalar %locFAA . "\tMGS/skipped MGS: ${SInum}/$MGStoolowGskip\t";
+		print "$sd3 - Missed/lost/abundFail/SNPresF Gs: ${missGene}/${geneLost}/${abundFail}/$SNPresFail\tConspec Gs/doublGs/consMGS/failcMGS: ${conspGen}/${doubleGenes}/$conSpecCnt/$doubleGsFail\tFoundGs: $foundGene/". scalar %locFAA . "\tMGS/skipped MGS: ${SInum}/$MGStoolowGskip\t";
 		print "GperMGS (median,mean): " . median(@genesPmgs) . "/". int(mean(@genesPmgs)+0.5);#int($foundGene/$SInum) if ($SInum);
 		print "\n";
 	}

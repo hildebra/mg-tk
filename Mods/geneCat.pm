@@ -264,7 +264,7 @@ sub readGene2tax{
 		}
 		$inclGenes++;
 		$totalTax{$spl[1]} ++;
-		push(@{$cogPrio{$spl[1]}},$OG) unless (exists($SIgenes{$spl[1]}{$OG}));
+		push(@{$cogPrio{$spl[1]}},$OG);# unless (exists($SIgenes{$spl[1]}{$OG}));
 		$SIgenes{$spl[1]}{$OG} = $spl[0];
 		$Gene2COG{$spl[0]} = $OG;
 		$Gene2MGS{$spl[0]} = $spl[1];
