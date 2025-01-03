@@ -58,8 +58,8 @@ my $familyVar = ""; my $groupStabilityVars = "";
 
 
 my $takeAll = 0;
-my $conspecificSpThr = 0.1;
-my $multiCpyThr = 0.2; #kick out specific genes if too many copies / genome
+my $conspecificSpThr = 0.1; #higher fraction of genes being two copies in the same sample (abundance >0), and the whole MGS is removed from that sample
+my $multiCpyThr = 0.2; #kick out specific genes if too many copies / genome: should be relatively high (0.2+) as there are less intrusive mechanisms for removing such genes..
 my $multCpyMGSthr = 0.7; #kick out entire MGS, if it has too many multicopy genes at above threshhold
 my $MGStoolowGsThr = 10; #less genes than this in a single sample -> rm MGS from sample for strains
 my $mode = "MGS";
@@ -1022,27 +1022,24 @@ sub readGenesSample_Singl{
 			my $curGcnt=0;
 			my $MGSgcnt = @{$COGprios{$SI}};
 			
-			foreach my $cog (@{$COGprios{$SI}}){#keys %{$SIgenes{$SI}}){
-				#print "G";
+			# 1: decide which gene to use in case of multiple COGs
+			
+			foreach my $cog (@{$COGprios{$SI}}){ 
+				next if ($cog eq "");
+				my $tar = "";my @genes ; 
 				next unless (exists($SIgenes{$SI}{$cog}));
-				my $tar = $SIgenes{$SI}{$cog};
-				#print "Y $tar";
-				next unless (exists($locCl2G2{$tar})); #$cl2gene2{$sd}{$tar}
-				#print "yes ";
-				my @genes = @{$locCl2G2{$tar}};
-				#die "genes arr:: @genes\n";
-				#print "$SI ";
+				next unless (exists($locCl2G2{$SIgenes{$SI}{$cog}}));
+				@genes = @{$locCl2G2{$SIgenes{$SI}{$cog}}};
+				#my $bestCOGcnt=0; next unless (scalar(@genes) > $bestCOGcnt);$bestCOGcnt = scalar(@genes);
+				$tar = $SIgenes{$SI}{$cog};
 				
+				
+				#foreach my $cog (@{$COGprios{$SI}}){ 
 				#write link file, but only needs to be done once.. this avoids doing this later when the cat file is written
 				if ($writeLink){
-					#if ($rename){#replaces assmblGrp tag (e.g. IL140M24__) to sample specific tag (e.g. IL2__) -> needed for unique genes in phylo
-					#	unless ($ge2 =~ s/${sd}__/${sd3}__/){die "could not replace $sd with $sd3 in string $ge2\n";}
-					#}
-					#$OLstr .= "$cog\t$tar\t".scalar @genes . "\t".join(",",@genes)."\n" ;
 					$OLstr .= "$cog\t$tar\t".scalar @genes . "\t".join(",",@genes)."\n" ;
 				}
-				my $curG = "";
-				my $maxAB =0;my $bestAB=100000;
+				my $curG = "";my $maxAB =0;my $bestAB=100000;
 				#if (1 ){#@genes > 1){
 				#$doubleGenes++ if (@genes > 1); #95%gene is represented by >1 gene in sample.. potentially conspecific
 					#if several genes: select most abundant from $abunHR->{}
@@ -1110,8 +1107,9 @@ sub readGenesSample_Singl{
 					#	$accAbu += $maxAB;
 					#}
 				}
-				last; #currently: only use first registered gene per COG
 			}
+		
+			
 			if (0&& $Gtrials > 100 && $LmissG == $Gtrials ){
 				print "$SI :: Something seems completely wrong with sample $fastaf\nNo machting genes found between faa and gene catalog\nSampling gene cat genes ($LmissG == $Gtrials , $accAbu ): "; my $llcnt=0;
 				foreach my $cog (@{$COGprios{$SI}}){

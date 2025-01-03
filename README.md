@@ -593,7 +593,8 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-ignoreSmpls [string]			comma separated list of #SmplIDs that are skipped (sample id in .map file)
 	-rmSmplLocks [0|1]				1: remove existing sample locks (useful if jobs have crashed, leaving abondened sample locks) 
 	-redoFails [0|1]				if any step of requested analysis failed, just redo everything (use with care!) 
-	-maxConcurrentJobs			max jobs in queue, useful for large samples sets, currently only works on slurm 
+	-maxConcurrentJobs [#]			max jobs in queue, useful for large samples sets, currently only works on slurm (see also -killDepNever)
+	-killDepNever [0|1]				kills jobs in the "JobDependencyNeverMet" state, as these will block [maxConcurrentJobs], 	
 	-excludeNodes [string]					exclude certain HPC nodes, comma separated list e.g. node1,node2,..
 	-submSystem [qsub,SGE,bsub,LSF]	set submission system (default: autodetect)
 	-redoContigStats [0|1]				if any step of requested analysis failed, contigStats (coverage per gene, kmers, GC content) will be deleted & started again

@@ -264,10 +264,12 @@ sub readGene2tax{
 		}
 		$inclGenes++;
 		$totalTax{$spl[1]} ++;
-		push(@{$cogPrio{$spl[1]}},$OG);# unless (exists($SIgenes{$spl[1]}{$OG}));
-		$SIgenes{$spl[1]}{$OG} = $spl[0];
-		$Gene2COG{$spl[0]} = $OG;
-		$Gene2MGS{$spl[0]} = $spl[1];
+		unless (exists($SIgenes{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
+			push(@{$cogPrio{$spl[1]}},$OG); ;
+			$SIgenes{$spl[1]}{$OG} = $spl[0];
+			$Gene2COG{$spl[0]} = $OG;
+			$Gene2MGS{$spl[0]} = $spl[1];
+		}
 	}
 	close I;
 	print "Found ". scalar(keys %totalTax) ." groups with $inclGenes/$totalGenes included genes\n";
