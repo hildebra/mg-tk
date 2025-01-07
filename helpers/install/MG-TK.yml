@@ -9,19 +9,19 @@ dependencies:
 #  - rtk2>=2.11
 
 #sys dependencies
-  - python=3.10
+  - python>=3.10
   - perl=5.32.1
   - vim
-  - wget=1.20.3
+  - wget=1.21.4
   - xz=5.2.6
-  - zlib=1.2.13
+#  - zlib>=1.3
   - zstd>=1.5.2
   - bzip2=1.0.8
-  - cmake=3.29.4
-  - cxx-compiler
-  - git=2.45.1
-  - curl=8.8.0
-  - gsl
+  - conda-forge::cmake>=3.30
+  - conda-forge::cxx-compiler=1.8
+  - git>=2.45
+#  - curl=8.8.0
+#  - gsl
 #  - libacl=>2.3
 #  - gcc_impl_linux-64>=10
 #  - gcc_linux-64>=10
@@ -33,29 +33,29 @@ dependencies:
 #  - ld_impl_linux-64>=2.36.1
 #  - libblas>=3.9.0
 #  - libcurl>=7.84.0
-  - make=4.3
-  - conda-forge::ncurses=6.5
-  - conda-forge::biopython=1.81
+  - conda-forge::make=4.4
+#  - conda-forge::ncurses=6.5
+#  - conda-forge::biopython=1.81
   - pigz=2.8
   - pip=24.0
   - rsync=3.2.7
-  - strobealign=0.14
+  - bioconda::strobealign=0.15
 #  - screen>=4.8
 #  - glpk
 
 
 
-  - spades=3.15.5
-  - augustus=3.1
-  - bcftools=1.21
+  - bioconda::spades=3.15.5
+  - bioconda::augustus=3.1
+  - bioconda::bcftools=1.21
 #  - mosdepth>=0.3.4
 #  - bedtools>=2.30
 #  - blas>=1.0
 #  - blast>=2.13.0
-  - bowtie2=2.5.4
+  - bioconda::bowtie2=2.5.4
 #  - kma>=1.4.9
 #  - bwa=0.7.17
-  - cd-hit=4.8.1
+  - bioconda::cd-hit=4.8.1
 #  - wfmash>=0.6
 #  - checkm-genome>=1.2.2
 #  - openmp
@@ -68,22 +68,22 @@ dependencies:
 #  - scipy
 #  - cmseq>=1.0.4
 #  - colorama>=0.4.5
-  - diamond=2.1.9
+  - bioconda::diamond=2.1.10
   - porechop=0.2.4
 
   - flash=1.2.11
   - hmmer=3.3.2
   - kraken2=2.1.3
-  - lambda=3.0
-  - metamdbg=1.0
-  - megahit=1.2.9
-  - flye=2.9.4
+  - lambda=3.1
+  - metamdbg=1.1
+  - bioconda::megahit>=1.2.9
+  - flye=2.9
 #  - metaphlan=3.1.0
   - minimap2=2.28
   - bowtie2=2.5.4
   - bwa=0.7.18
   - vsearch=2.28.1
-  - foldseek=5.53465f0
+  - foldseek>=5.53465f0
   - mmseqs2=16.747c6
 #  - motus>=3
   - mreps=2.6.01
