@@ -262,13 +262,13 @@ sub readGene2tax{
 			$OG="uniq$uniqs{$spl[1]}";
 			#die "$OG\n";
 		}
-		$inclGenes++;
-		$totalTax{$spl[1]} ++;
 		unless (exists($SIgenes{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
 			push(@{$cogPrio{$spl[1]}},$OG); ;
 			$SIgenes{$spl[1]}{$OG} = $spl[0];
 			$Gene2COG{$spl[0]} = $OG;
 			$Gene2MGS{$spl[0]} = $spl[1];
+			$inclGenes++;
+			$totalTax{$spl[1]} ++;
 		}
 	}
 	close I;
