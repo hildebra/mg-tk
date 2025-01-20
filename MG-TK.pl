@@ -949,7 +949,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#		totalInputSizeMB => $totalInputSizeMB,rawReads => $rawReads,mmpu => $mmpu, WT => $WT);
 	#unzip and change ifastap & cfp1/cfp2
 	my $curUnzipDep = ""; 
-	if ($MFconfig{maxUnzpJobs} >0 && @unzipjobs > $MFconfig{maxUnzpJobs}){#only run X jobs in parallel, lest the cluster IO breaks down..
+	if (0 && $MFconfig{maxUnzpJobs} >0 && @unzipjobs > $MFconfig{maxUnzpJobs}){#only run X jobs in parallel, lest the cluster IO breaks down..
 		$curUnzipDep = $unzipjobs[-($MFconfig{maxUnzpJobs})];#join(";",@last_n);
 		$waitTime=0;
 	}

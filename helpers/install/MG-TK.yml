@@ -100,3 +100,4 @@ dependencies:
 #  - unicycler>=0.5.0
 #  - vsearch=2.22
   - eggnog-mapper=2.1.12
+  - bioconda::hostile>=2.0
