@@ -88,6 +88,8 @@ metPhl2	metaphlan	env:MGTKcheckm2
 metPhl2Merge	merge_metaphlan_tables.py	env:MGTKcheckm2
 #kraken	kraken
 kraken2	kraken2
+hostile	hostile
+hostileDB	[MFLRDir]/data/DBs/hostile/
 TaxaTarget	python /hpc-home/hildebra/bin/taxaTarget/run_pipeline_scripts/run_protist_pipeline_fda.py
 motus2	motus	env:MGTKgtdbtk
 #kaijuDir	[BINDir]/kaiju/bin/

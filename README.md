@@ -628,9 +628,9 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-ProbRdFilter [???]				sdm probabilistic filter ???
 	-pairedReadInput [0|1]			0: not paired input 1: read pairs are expected in each in dir
 	-inputReadLength [#]			read length #
-	-filterHumanRds [0|1]			0: do not filter host reads, 1: filter host reads (same as -filterHostRds)
-	-filterHostRds				0: do not filter host reads, 1: filter host reads (same as -filterHumanRds)
+	-filterHostRds				0: do not filter host reads, 1: filter host reads via kraken2, 2: .. via kraken1, 3: .. via hostile
 	-filterHostKrak2DB $PATH		path to host kraken database
+	-hostileIndex $PATH			name of hostile DB to filter against (default: human-t2t-hla)
 	-onlyFilterZip [0|1]			??
 	-mocatFiltered [0|1]			??
 	-filterHostKr2Conf [#]                      set host kraken2 confidence parameter (e.g. 0.05) 

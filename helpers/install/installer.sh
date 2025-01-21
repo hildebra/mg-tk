@@ -54,6 +54,7 @@ mkdir -p $MFdir/gits/
 INSTdir=$MFdir/helpers/install/
 DBdir=$MFdir/data/DBs/
 
+
 #MFLRDir	$MF3DIR
 if [ ! -f $MFdir/config.txt ] ; then
 	cp -f $MFdir/Mods/config.old $MFdir/Mods/MATAFILERcfg.txt
@@ -120,9 +121,16 @@ if command -v foldseek &> /dev/null ; then
 	if [ ! -d $DBdir/PtostT5_W ];then
 		foldseek databases ProstT5 $DBdir/PtostT5_W $DBdir/tmp;
 	fi
-
 fi
 
+if command -v hostile &> /dev/null ; then
+	export HOSTILE_CACHE_DIR=$DBdir/hostile/
+	hostile index fetch --name human-t2t-hla
+	#run a second time in cases it crashes..
+	hostile index fetch --name human-t2t-hla
+	
+	
+fi
 echo ""
 echo "Installing/updating further dependencies in additional conda environments.."
 echo ""

@@ -50,7 +50,7 @@ sub manageFiles;sub clean_tmp;
 
 sub sdmClean; sub sdmOptSet;  #qual filter reads
 sub mergeReads; #merge reads via flash
-sub krakHSap; sub krakenTaxEst;sub prepKraken;
+sub removeHostSeqs; sub krakenTaxEst;sub prepKraken;
 
 
 sub metagAssemblyRun;
@@ -112,7 +112,8 @@ sub setupHPC;
 #.56: 25.10.24: small bugfixes to submission logic, to submit less jobs that would fail in any case
 #.57:26.10.24: enabled multi-input files for minimap2/strobealign, added "-mapperLargeRef" flag
 #.58: 30.12.24: firstXrdsRd & firstXrdsWr function added, required sdm 3.08
-my $MATFILER_ver = 0.58;
+#.59: 21.1.25: hostile integration
+my $MATFILER_ver = 0.59;
 
 
 #operation mode?
@@ -308,7 +309,7 @@ my $emptCmd = "sleep 333";
 #set up kraken human filter
 my $krakDeps = ""; my $krakenDBDirGlobal = $runTmpDirGlobal;
 if ($MFopt{DoKraken} && $MFopt{globalKraTaxkDB} eq ""){die "Kraken tax specified, but no DB specified\n";}
-$krakDeps = prepKraken() if ($MFopt{humanFilter} || ($MFopt{DoKraken}) || $MFopt{DoEukGenePred});
+$krakDeps = prepKraken() if ( ($MFopt{humanFilter}>0 && $MFopt{humanFilter}<3) || ($MFopt{DoKraken}) || $MFopt{DoEukGenePred});
 #profiling prep
 my $mOTU2Deps = prepMOTU2(); prepMetaphlan();
 #redo d2s intersample distance?
@@ -955,7 +956,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	}
 	my ($jdep,$hrefSeqSet) = 
 			seedUnzip2tmp($curDir,$curSmpl,$curUnzipDep,$nodeSpTmpD,
-			$smplTmpDir,$waitTime,$MFconfig{importMocat},$AsGrps{$cMapGrp}{CntMap},$calcUnzip,$finalMapDir,
+			$smplTmpDir,$waitTime,$AsGrps{$cMapGrp}{CntMap},$calcUnzip,$finalMapDir,
 			$porechopFlag,$inputRawFile);
 	my %seqSet = %{$hrefSeqSet};
 	push (@unzipjobs,$jdep) unless ($jdep eq "");
@@ -1026,7 +1027,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 
 	#filter human or other hosts..
-	$sdmjN = krakHSap($cleanSeqSetHR,$nodeSpTmpD,$sdmjN,1) if ($dowstreamAnalysisFlag && (!$boolAssemblyOK || $calcContamination));
+	$sdmjN = removeHostSeqs($cleanSeqSetHR,$nodeSpTmpD,$sdmjN,1) if ($dowstreamAnalysisFlag && (!$boolAssemblyOK || $calcContamination));
 	#merge reads?
 	($cleanSeqSetHR,$mergJbN) = mergeReads($cleanSeqSetHR,$sdmjN,$smplTmpDir."merge_clean/",$calcReadMerge,$dowstreamAnalysisFlag);
 	
@@ -3879,8 +3880,8 @@ sub valid_files{
 
 sub seedUnzip2tmp{
 	my ($fastp,$curSmpl,$jDepe,$tmpPath,$finDest, $WT,
-		$mocatImport,$libNum,$calcUnzp,$finalMapDir,$porechopFlag,$inputRawFile) = @_;
-		
+		$libNum,$calcUnzp,$finalMapDir,$porechopFlag,$inputRawFile) = @_;
+	my $mocatImport = $MFconfig{importMocat};
 	my $himipeSeqAd = getProgPaths("illuminaTS3pe"); #for trimomatic
 	my $himiseSeqAd = getProgPaths("illuminaTS3se");
 	my $trimJar = getProgPaths("trimomatic");
@@ -4313,7 +4314,7 @@ sub seedUnzip2tmp{
 	#	die($jobN);
 		#### 2 : remove human contamination
 		#DB just needs to be loaded way too often.. do after sdm to have single files
-		#$jobN = krakHSap(\@pa1,\@pa2, \@pas,$tmpPath,$jobN);
+		#$jobN = removeHostSeqs(\@pa1,\@pa2, \@pas,$tmpPath,$jobN);
 	}
 	#die "$unzipcmd\n";
 	
@@ -4451,13 +4452,12 @@ sub prepKraken(){
 	return $jobN;
 }
 
-sub krakHSap($ $ $ $){
+sub removeHostSeqs($ $ $ $){
 	my ($cleanSeqSetHR,$tmpD,$jDep,$checkIfExists) = @_;
 	return $jDep unless ($MFopt{humanFilter});
 	my @pa1 = @{${$cleanSeqSetHR}{arp1}}; my @pa2 = @{${$cleanSeqSetHR}{arp2}}; my @pas = @{${$cleanSeqSetHR}{singAr}};
 	my $outputExists=1;
 	my $fileDir = "";
-	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
 
 	if ($fileDir eq ""){
 		if (@pa1 > 0){
@@ -4466,15 +4466,19 @@ sub krakHSap($ $ $ $){
 			$pas[0] =~ m/(.*\/)[^\/]+$/; $fileDir= $1 ;
 		}
 	}
+	my $hostRMVer=$MFopt{humanFilter}; #0: no, 1:kraken2, 2: kraken1, 3:hostile
 	#files don't need to be checked.. it's in any case just sdm files..
 	$outputExists = 0 if (!-e "$fileDir/krak.stone");
 	#die "$outputExists && $checkIfExists\n";
 	return $jDep if ($outputExists && $checkIfExists);
 	
 	#flag whether to use kraken v1 or v2
+	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
 	my $krkBin = "";
-	my $krak1= 1;	if ($krk2Bin ne ""){ $krak1=0; }
-	if ($krak1){
+	my $hostileBin = getProgPaths("hostile");
+	my $hostileDB = getProgPaths("hostileDB");
+	#my $krak1= 1;	if ($krk2Bin ne ""){ $krak1=0; }
+	if ($hostRMVer==2){
 		$krkBin = getProgPaths("kraken");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
 	}
 
@@ -4504,7 +4508,7 @@ sub krakHSap($ $ $ $){
 			my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($pa1[$i] =~ m/\.gz$/);
 			my $gzEnd = ""; $gzEnd = ".gz" if ($gzFlag ne "");
 
-			if ($krak1){
+			if ($hostRMVer==2){
 				$cmd .= "$krkBin --preload --threads $numThr --fastq-input $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j]  $r1 $r2 > /dev/null\n";
 				#overwrites input files
 				$r1 =~ s/\.gz$//; $r2 =~ s/\.gz$//;
@@ -4512,26 +4516,41 @@ sub krakHSap($ $ $ $){
 				if ($gzFlag ne ""){
 					$cmd .= "$pigzBin -f -p $numThr $r1 $r2\n";
 				}
-			} else {
+			} elsif($hostRMVer==1) { #kraken2
 				$tmpF ="$tmpD/krak.tmp#.fq"; my $tmpF1 = "$tmpD/krak.tmp_1.fq";my $tmpF2 = "$tmpD/krak.tmp_2.fq";
 				$cmd .= "$krk2Bin --threads $numThr $gzFlag --paired --unclassified-out $tmpF --db $DBdir$DBname[$j] --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $r1 $r2 \n";
-					$cmd .= "$pigzBin -f -p $numThr $tmpF1 $tmpF2\n" unless ($gzFlag eq "");
-					$cmd .= "rm -f $r1 $r2; \n";
-					$cmd .= "mv $tmpF1$gzEnd $r1; mv $tmpF2$gzEnd $r2\n";
+				$cmd .= "$pigzBin -f -p $numThr $tmpF1 $tmpF2\n" unless ($gzFlag eq "");
+				$cmd .= "rm -f $r1 $r2; \n";
+				$cmd .= "mv $tmpF1$gzEnd $r1; mv $tmpF2$gzEnd $r2\n";
+			} elsif($hostRMVer==3) { #hostile
+				system "rm $hostileDB/human-t2t-hla.mmi" if (-z "$hostileDB/human-t2t-hla.mmi");
+			
+				$cmd .= "export HOSTILE_CACHE_DIR=$hostileDB\n";
+				$cmd .= "$hostileBin clean --fastq1 $r1 --fastq2 $r2 --index $hostileDB/$MFopt{hostileIndex} --aligner auto --output $tmpD/ --threads $numThr --airplane --force\n";
+				my $newR1 = $r1; my $newR2 = $r2; 
+				$newR1 =~ s/.*\///; $newR2 =~ s/.*\///; #remove path
+				$newR1 =~ s/\.fq([\.gz])?/\.clean_1\.fastq$1/;$newR2 =~ s/\.fq([\.gz])?/\.clean_2\.fastq$1/;
+				$cmd .= "rm $r1 $r2\nmv $tmpD/$newR1 $r1;\nmv $tmpD/$newR2 $r2\n";
+				
+				#die $cmd."\n";
 			}
 		}
 		for (my $i=0;$i<@pas;$i++){
 			my $rs = $pas[$i]; 
 			my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($pas[$i] =~ m/\.gz$/);
-			if ($krak1){
+			if ($hostRMVer==2){
 				$cmd .= "$krkBin --preload --threads $numThr --fastq-input $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j]  $rs > /dev/null\n";
-			} else {
+			} elsif ($hostRMVer==1) {
 				$cmd .= "$krk2Bin --threads $numThr $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j] --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $rs \n";
-			}
-			if ($gzFlag eq ""){
-				$cmd .= "rm -f $rs; mv $tmpF $rs\n";
-			} else{
-				$cmd .= "rm -f $rs; $pigzBin -f -p $numThr -c $tmpF > $rs\nrm -f $tmpF\n";
+				if ($gzFlag eq ""){$cmd .= "rm -f $rs; mv $tmpF $rs\n";
+				} else{$cmd .= "rm -f $rs; $pigzBin -f -p $numThr -c $tmpF > $rs\nrm -f $tmpF\n";}
+			} elsif($hostRMVer==3) {#hostile
+				system "rm $hostileDB/human-t2t-hla.mmi" if (-z "$hostileDB/human-t2t-hla.mmi");
+				$cmd .= "export HOSTILE_CACHE_DIR=$hostileDB\n";
+				$cmd .= "$hostileBin clean --fastq1 $rs --index $MFopt{hostileIndex} --aligner auto --output $tmpD/ --threads $numThr --airplane --force\n";
+				my $newR1 = $rs;
+				$newR1 =~ s/.*\///;$newR1 =~ s/\.fq([\.gz])?/\.clean\.fastq$1/;
+				$cmd .= "rm $rs \nmv $tmpD/$newR1 $rs;\n";
 			}
 			#overwrites input files
 		}
@@ -5845,23 +5864,34 @@ sub optiDups{
 }
 
 sub getContamination{
-	my ($inFi) = @_;
-	my $outStr = "";my $outStrDesc = "";$outStrDesc .= "FilteredContaRdsPerc\tFilteredContaRds\tFilteredNonContaRds\t";
+	my ($inFi,$inFi2) = @_;
+	my $outStr = "?\t?\t?\t";my $outStrDesc = "";$outStrDesc .= "FilteredContaRdsPerc\tFilteredContaRds\tFilteredNonContaRds\t";
 	my $filStats = getFileStr($inFi,0);#`cat $inD/LOGandSUB/KrakHS.sh.etxt`; chomp $filStats;
-	if ($filStats eq "" ){$outStr .= "?\t?\t?\t";	return ($outStr,$outStrDesc);}
+	#if ($filStats eq "" ){$outStr .= "?\t?\t?\t";	return ($outStr,$outStrDesc);}
 	
 	my @matches = ($filStats =~ m/\d+ sequences classified \((\d+\.?\d*)%\)/g);
 	my @hits = ($filStats =~ m/(\d+) sequences classified \(\d+\.?\d*%\)/g);
 	my @nonhits = ($filStats =~ m/(\d+) sequences unclassified \(\d+\.?\d*%\)/g);
 	
-	if (@matches > 0){
+	if (@nonhits == 0){#check if this was done via hostile..
+		$filStats = getFileStr($inFi2,0); #paired reads should be counted as two.. but are counted as one in hostile..
+		@hits = ($filStats =~ m/"reads_removed": (\d*),/g); #"reads_removed": 202,
+		@nonhits = ($filStats =~ m/"reads_out": (\d*),/g); 
+		@matches = ($filStats =~ m/"reads_removed_proportion": (\d*),/g); 
+	}
+	
+	
+	if (@nonhits > 0){
 		my $totHits=0; my $totNH=0;
 		for (my $i=0;$i<@hits;$i++){
 			$totHits += $hits[$i];$totNH += $nonhits[$i];
 		}
 		
-		$outStr.= join(";",@matches) . "\t$totHits\t$totNH\t";
-	}
+		$outStr = join(";",@matches) . "\t$totHits\t$totNH\t";
+	} 
+	
+	
+	
 	#die "$outStr\n$inFi\n";
 	return ($outStr,$outStrDesc);
 }
@@ -6023,7 +6053,7 @@ sub smplStats(){
 	$outStrDesc .= "InputIsPaired\tInputIsSingle\t";
 
 
-	my ($t1,$t2) = getContamination("$inD/LOGandSUB/KrakHS.sh.etxt");
+	my ($t1,$t2) = getContamination("$inD/LOGandSUB/KrakHS.sh.etxt","$inD/LOGandSUB/KrakHS.sh.otxt");
 	$locStats{contamination} = $t1;
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){		$outStr5 .= $t1;	$outStrDesc5 .= $t2;	}
@@ -7017,7 +7047,7 @@ sub setupHPC{
 	my $currentJobs = numUserJobs($QSBoptHR1,1);
 	print "Found $currentJobs jobs registered to user.";
 	#could be only the submitting job is active? is this within a submission?
-	if ($currentJobs == 0 && $MFconfig{rmSmplLocks} ==0){print " Removing sample locks (to override set \"-rmSmplLocks -1\").\n";$MFconfig{rmSmplLocks}=1;}
+	if ($currentJobs == 0 && $MFconfig{rmSmplLocks} ==0){print " Auto-removing sample locks (to override set \"-rmSmplLocks -1\").\n";$MFconfig{rmSmplLocks}=1;}
 	elsif ($MFconfig{rmSmplLocks} == -1 ){$MFconfig{rmSmplLocks}=0;} #clearly a debug option.. not documented
 	else {print "\n";}
 	#die;
@@ -7147,10 +7177,11 @@ sub setDefaultMFconfig{
 	$MFopt{DoKraken} = 0; $MFopt{RedoKraken} = 0; 
 	$MFopt{krakenCores} = 9;
 	$MFopt{completeContaStats} = 1;
-	$MFopt{humanFilter} = 0; #use kraken to filter out human reads
+	$MFopt{humanFilter} = 0; ##0: no, 1:kraken2, 2: kraken1, 3:hostile
 	$MFopt{filterHostDB1} = "";  #customize host org to filter (e.g. human, chicken ..)
 	$MFopt{krakHostConf} = 0.01; #confidence needed to assign read to host ref
-	$MFopt{filterHostKr2QuickMode} = "--quick ";
+	$MFopt{filterHostKr2QuickMode} = "";# "--quick "; deactivated for now..
+	$MFopt{hostileIndex} = "human-t2t-hla";
 	$MFopt{globalKraTaxkDB} = "";
 	$MFopt{globalDiamondDependence} = {CZy=>"",MOH2 => "", MOH=>"",NOG=>"",ABR=>"",ABRc=>"",KGB=>"",KGE=>"",ACL=>"",KGM=>"", PTV=>"", PAB => ""};
 	
@@ -7298,10 +7329,11 @@ sub getCmdLineOptions{
 		"pairedReadInput=i" => \$MFconfig{readsRpairs}, #determines if read pairs are expected in each in dir
 		"inputReadLength=i" => \$MFconfig{defaultReadLength},
 		"inputReadLengthSuppl=i" => \$MFconfig{defaultReadLengthX},
-		"filterHostRds|filterHumanRds=i" => \$MFopt{humanFilter},
+		"filterHostRds|filterHumanRds=i" => \$MFopt{humanFilter}, #0: no, 1:kraken2, 2: kraken1, 3:hostile
 		"filterHostKrak2DB=s" => \ $MFopt{filterHostDB1}, #customize host org to filter (e.g. human, chicken ..)
 		"filterHostKr2Conf=s" => \$MFopt{krakHostConf},
 		"filterHostKr2Quick=s" => \$MFopt{filterHostKr2QuickMode},
+		"hostileIndex=s" => \$MFopt{hostileIndex},
 		"onlyFilterZip=i" => \$MFconfig{unpackZip},
 		"mocatFiltered=i" => \$MFconfig{importMocat},
 		"logQualvsLen=i" => \$MFopt{SDMlogQualvsLen}, #sdm log file.. can be quite large; logs qual of read vs read length
