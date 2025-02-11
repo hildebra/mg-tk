@@ -26,10 +26,10 @@ checkm2DB	[DBDir]/checkm2/CheckM2_database/uniref100.KO.1.dmnd
 GTDBtk_DB	[DBDir]/MarkerG/GTDB_r207v2_MF/release207_v2/
 GTDBtk_mash	[DBDir]/MarkerG/GTDB_r207v2_MF/release207_v2/mashD/
 #this is used for GTDB python script from Joachim and MAG->GTDB marker gene tasks.. independent of GTDBtk version
-GTDBPath	[DBDir]/MarkerG/GTDB_r207_MF/markerGenes/
-GTDB_GTDB	[DBDir]/MarkerG/GTDB_r207_MF/gtdb_r207_lineageGTDB.tab
-GTDB_lnks	[DBDir]/MarkerG/GTDB_r207_MF/gtdb_r207_clustering.tab
-#GTDB_cutoff	[DBDir]/MarkerG/GTDB_r207_MF/markerGenes/cutoffs.txt
+GTDBPath	[DBDir]/MarkerG/GTDB_r207v2_MF/markerGenes/
+GTDB_GTDB	[DBDir]/MarkerG/GTDB_r207v2_MF/gtdb_r207_lineageGTDB.tab
+GTDB_lnks	[DBDir]/MarkerG/GTDB_r207v2_MF/gtdb_r207_clustering.tab
+#GTDB_cutoff	[DBDir]/MarkerG/GTDB_r207v2_MF/markerGenes/cutoffs.txt
 GTDB_cutoff	[MFLRDir]/data/GTDBcutoffs.txt
 
 
@@ -54,10 +54,8 @@ ABprod_path_DB	[DBDir]/Funct/ABprod_v1/
 VirDB_path_DB	[DBDir]/Funct/VIRDB/
 Module_path_DB	[DBDir]/Funct//myModules/Feb16/
 
-#Kraken_path_DB	/g/scb/bork/hildebra/DB/kraken/
 Kraken2_path_DB	[DBDir]/kraken2/
 Kraken2_mini	minikraken2_v1_8GB/
-#Kaiju_path_DB	/g/scb/bork/hildebra/DB/kaiju/
 
 
 #markerGene related DBs

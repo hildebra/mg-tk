@@ -3358,8 +3358,15 @@ sub getReadTechInMapSingl($){
 }
 
 
-sub sdmOptSet{
+sub sdmOptSet{ 
 	my ($curSmpl,$samplReadLength, $curReadTec, $curSTech) = @_;
+	
+	if ($MFopt{sdmOpt} ne ""){
+		if (! -f $MFopt{sdmOpt}){die "-customSDMopt must point to file! (currently: $MFopt{sdmOpt})\n";}
+		if (! -s $MFopt{sdmOpt}){die "-customSDMopt must point to non-empty file! (currently: $MFopt{sdmOpt})\n";}
+		
+		return ($MFopt{sdmOpt},$MFopt{sdmOpt});
+	}
 	my $curSDMopt = $baseSDMopt; 
 	#my $iqualOff = 33; #62 for 1st illu
 	
@@ -5754,7 +5761,7 @@ sub bwtLogRd($$$){
 sub getMapStats{
 	my ($inP) = @_;
 	my $inFi = "$inP/map.sh.etxt"; 
-	$inFi = "$inP/bwtMap.sh.etxt" if (!-e $inFi); #old MF file names..
+	$inFi = "$inP/bwtMap.sh.etxt" if (!-e $inFi && -e "$inP/bwtMap.sh.etxt"); #old MF file names..
 	#my $outStrDesc = "";
 	my @spl = ();
 	my $alignStats = getFileStr($inFi,0);
@@ -5763,7 +5770,7 @@ sub getMapStats{
 	}
 	#die "$alignStats\n";
 	my $idx =-1;my $dobwtStat=0;
-	if ($alignStats =~ m/\[M::worker_pipeline/){
+	if ($alignStats =~ m/strobealign/){ #m/\[M::worker_pipeline/){
 		$dobwtStat=2;
 	}elsif($alignStats =~ m/This is strobealign/){
 		$dobwtStat=3;
@@ -5818,7 +5825,7 @@ sub getMapStats{
 			#$locStats{totReadPairs} = -1 if (!exists($locStats{totReadPairs}));
 			my $frac = 0; $frac = $incoming/$locStats{totReadPairs} if( $locStats{totReadPairs}>0);
 			$locStats{AlignmRate}=$frac;
-			$outStr = "$locStats{totReadPairs}\t$retained\t".  $frac ."\t\t\t\t\t\t";
+			$outStr = "$locStats{totReadPairs}\t$retained\t".  $frac ."\t"  .$locStats{uniqAlign}/$locStats{totReadPairs}*100 . "\t\t\t\t\t";
 		}
 	}
 	return ($outStr,$outStrDesc);
@@ -7124,6 +7131,7 @@ sub setDefaultMFconfig{
 	#read preprocessing
 	$MFopt{unzipCores} = 3; 
 	$MFopt{trimAdapters} =1;
+	$MFopt{sdmOpt} = "";
 	$MFopt{usePorechop} = 0;
 	$MFopt{useSDM} = 2;
 	$MFopt{SDMlogQualvsLen} = 0; #sdm log of qual per read vs length (eg for PacBio qual checks..)
@@ -7344,6 +7352,7 @@ sub getCmdLineOptions{
 		"minReadLength=i" => \$MFopt{tmpSdmminSL},
 		"maxReadLength=i" => \$MFopt{tmpSdmmaxSL},
 		"filterAdapters=i" => \$MFopt{trimAdapters},
+		"customSDMopt=s"  => \$MFopt{sdmOpt},
 
 	#assembly related
 		"spadesCores|assemblCores=i" => \$MFopt{AssemblyCores},

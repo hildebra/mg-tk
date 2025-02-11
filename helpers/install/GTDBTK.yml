@@ -14,7 +14,7 @@ dependencies:
   - motus=3.1
 #  - bioconda::metaphlan=4.1 (requires R, too many requirements.. separate package
 #  - mash=2.2.2
-#  - gsl=2.6
+  - gsl=2.6
 #  - samtools=1.16
 #  - bzip2=1.0.8
 
