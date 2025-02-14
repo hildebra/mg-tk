@@ -42,11 +42,11 @@ perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQreg
 -inputBAMregex '.*\.bam$' \
 -assembleMG 5 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory 50 \
 -Binner 2 -redoBinning 0 \
--mapper -1 -mappingCores 11 -mappingMem 12 -mapSortMem 13 -mapReadsOntoAssembly 1 -mapSupportReadsOntoAssembly 1 -mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10' -rmDuplicates 1 \
+-mapper -1 -mapSaveCRAM 0 -mappingCores 11 -mappingMem 12 -mapSortMem 13 -mapReadsOntoAssembly 1 -mapSupportReadsOntoAssembly 1 -mapperFilterIll '0.05 0.75 20' -mapperFilterPB '0.15 0.75 10' -rmDuplicates 1 \
 -getAssemblConsSNP 1 -getAssemblConsSNPsuppRds 1 -SNPconsMinDepth 2 -SNPsaveVCF 0 \
 -rmSmplLocks 1 \
 -submit 1 -inputReadLength 150 -inputReadLengthSuppl 8000 \
--from 0 -to 2
+-from 0 -to 10
 
 
 echo ""

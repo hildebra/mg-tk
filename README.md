@@ -10,7 +10,7 @@
 - [Installing MG-TK](#installing-MG-TK)
 - [Running MG-TK](#running-MG-TK)
 	- [Temporary and output files](#temporary-and-output-files)
-	- [Mapping file](#mapping-file)
+- [Mapping file](#mapping-file-for-MG-TK)
 - [Examples](#examples)
 	- [MG-TK metagenomic assembly and gene catalog](#MG-TK-metagenomic-assembly-and-gene-catalog)
 	- [Assembly-independent MG-TK mode](#assembly-independent-MG-TK-mode)
@@ -179,8 +179,9 @@ The output path for storing non-temporary files (like assemblies, binnings, gene
 
 Since the pipeline is expected to run on a compute cluster, temporary directories are of enormous importance for a) performance and b) file exchange between compute nodes that are usually physically separated clusters.
 The pipeline expects a path to a storage that is globally available on all nodes and a tmp dir that is locally available on each node (given by arguments "globalTmpDir" and "nodeTmpDir" in the config file). 
+</details>
 
-### Mapping file
+## Mapping file for MG-TK
 
 <details>
   <summary>Expand section</summary>
@@ -253,7 +254,6 @@ Mouse16t1	SubDir3		M16
 
 - <ins>**Loading and saving a mapping file into R will likely lead to problems!**</ins> This is because the #DirPath tag sets the path for all samples underneath. Loading this into R will often skip the #DirPath line or reorder the samples, so saving this again will lead to wrong paths being set!
 
-</details>
  
 </details>
 
@@ -653,15 +653,6 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-predictEukGenes [0|1]		predict eukaryotic genes; severely limits the total predicted gene amount (~25% of total genes) (Default: 0)
 	-kmerPerGene [0|1]			1: report kmer frequencies per gene (Default: 0)
 
-# binning
-	-Binner [1|2|3]				#0=no binning, 1= do metaBat2 binning, 2=SemiBin, 3= MetaDecoder (experimental) (Default: 0)
-	-BinnerMem [#]			define binning memory; e.g. 600 (Default: automatic)
-	-BinnerCores [#]			cores used for Binning process (and checkM)
-	-redoEmptyBins [0|1]		mostly for debugging: redo every sample where no bins where found (note that in some metagenomes there might be no bins)
-	-checkM2 [0|1]			using checkM2 to assess bin quality
-	-checkM1 [0|1]			using checkM1 to assess bin quality
-	-redoBinning [0|1]			redo binning
-
 # mapping
 	-mapper [1|2|3|4]				1: bowtie2, 2:bwa, 3: minimap2, 4:kma, 5:strobealign -1:auto (bowtie2 short, minimap2 long reads), -2:auto(strobealign short, minimap2 long). (Default: -1)
 	-mappingCores [#]				cores # used for mapping
@@ -676,6 +667,16 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-remap2assembly [0|1]			1: redo the mapping to assembly (Default: 0)
 	-JGIdepths [0|1]			1: calculate jgi coverage, only required when using MetaBAT2 binning (Default: automatic)
 	-mapperLargeRef [0|1]			1: reference DB that is mapped against is veryyy large (highly unusual that this is needed) (Default: 0)
+	-mapSaveCRAM [0|1]				1: keep .cram from mapping reads to assembly, 0: delete after essential processes have used them (Default: 1)
+
+# binning
+	-Binner [1|2|3]				#0=no binning, 1= do metaBat2 binning, 2=SemiBin, 3= MetaDecoder (experimental) (Default: 0)
+	-BinnerMem [#]			define binning memory; e.g. 600 (Default: automatic)
+	-BinnerCores [#]			cores used for Binning process (and checkM)
+	-redoEmptyBins [0|1]		mostly for debugging: redo every sample where no bins where found (note that in some metagenomes there might be no bins)
+	-checkM2 [0|1]			using checkM2 to assess bin quality
+	-checkM1 [0|1]			using checkM1 to assess bin quality
+	-redoBinning [0|1]			redo binning
 
 # SNPs
 	-getAssemblConsSNP [0|1]		1: SNPs (onto self assembly); calculates consensus SNP of assembly (useful for checking assembly gets consensus and Assmbl_grps)

@@ -363,6 +363,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		$curDir = $map{$curSmpl}{rddir};	$curOutDir = $map{$curSmpl}{wrdir};	
 	}
 	$logDir = "$curOutDir/LOGandSUB/";
+	system("mkdir -p $logDir") unless (-d $logDir);
 
 	#ignore samples .. for various reasons ------------------------------------------------------------------------------------
 	if ($MFconfig{ignoreSmpl} ne ""){if ($MFconfig{ignoreSmpl} =~ m/$SmplName/){print "\n ======= Ignoring sample $SmplName =======\n";next;}}
@@ -408,6 +409,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $nodeSpTmpD = "$nodeTmpDirBase/$SmplName";
 	my @checkLocs = ($smplTmpDir);
 	push(@checkLocs,$curDir)  if ($curDir ne "");
+	$QSBoptHR->{LocationCheckStrg} = checkDrives(\@checkLocs);
+
 	my $mapOut = "$smplTmpDir/mapping/";
 	#$DBpath="$curOutDir/readDB/";
 	my $finalCommAssDir = "$curOutDir/assemblies/metag/";
@@ -625,15 +628,16 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		if (!$efinAssLoc && !$ePreAssmbly && !$emetaGassembly ){$locRedoAssMapping = 1 ;}#print "R1";}
 		if (!$MappingGo && $eFinalMapDir){$locRedoAssMapping = 1 ;print "R2 ";}
 		if (-e $STOcram && !-e "$finalMapDir/$SmplName-smd.bam.coverage.gz" && !-e "$finalMapDir/$SmplName-smd.bam.coverage"){$locRedoAssMapping = 1 ;print "R3 ";}
-		if ($eFinMapCovGZ && (exists($locStats{uniqAlign}) && $locStats{uniqAlign} > 20) && -s $CRAMmap <300){$locRedoAssMapping = 1 ;print "R4";}
+		#if ($eFinMapCovGZ && (exists($locStats{uniqAlign}) && $locStats{uniqAlign} > 20) && -s $CRAMmap <300){$locRedoAssMapping = 1 ;print "R4";}
 		#print "$CRAMmap :: $locRedoAssMapping\n";
 		print "redo assem mapping!" . " -s $CRAMmap \n" if ($locRedoAssMapping && -e $CRAMmap); #. (-s $CRAMmap)
+		
 		#die "$STOcram && !-e $finalMapDir/$SmplName-smd.bam.coverage.gz";
+		
 	}
 
 	#die "locRedoAssMapping : $locRedoAssMapping $finalMapDir   : !$efinAssLoc && !$emetaGassembly\n" if ($locRedoAssMapping);
-	my $sizemap = -s $CRAMmap;
-	#print "size map: " . $sizemap . "\n";
+	#my $sizemap = -s $CRAMmap;#print "size map: " . $sizemap . "\n";
 	#delete assembly
 	if ($MFopt{redoAssembly} || $locRedoAssembl){
 		print "Removing assembly ... \n" if ($emetaGassembly);
@@ -799,40 +803,11 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$allMapDone = 1 if (-e "$finalMapDir/$SmplName-smd.$bamcramMap" && $eCovAsssembly && !$ePreAssmbly && ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ );
 	
 	
-
-	if ( ($boolAssemblyOK || ($doPreAssmFlag && $ePreAssmbly && !$ePreAssmblPck)) && !$locRedoAssMapping ){#causes a lot of overhead but mainly to avoid unpacking reads again..
-		print "present: $curOutDir \n"; $presentAssemblies ++;#= $AsGrps{$cAssGrp}{CntAimAss};
-		#base is present, but is the additions? 
-
-		if ($MFopt{map2Assembly} && $MFopt{doBam2Cram} && #.cram.sto to check that everything went well
-			$AssemblyGo && $MappingGo && $eFinMapCovGZ && $allMapDone ){
-						#(-e "$finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{mini2IdxFileSuffix}" || -e "$finalCommAssDir/scaffolds.fasta.filt${bwt2IdxFileSuffix}.1.bt2") &&
-			#delete bwt2 index to save some space..
-			#need to ensure that all mapping in mapping group are fine..
-			system "rm -f $finalCommAssDir/scaffolds.fasta.filt$MFcontstants{bwt2IdxFileSuffix}* $finalCommAssDir/scaffolds.fasta.filt.fai $finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{mini2IdxFileSuffix} $finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{kmaIdxFileSuffix}";
-			system "rm -f $finalMapDir/${SmplName}*smd.bam.bai $finalMapDir/${SmplName}*smd.bam.coverage.c* $finalMapDir/${SmplName}*smd.bam.coverage.gen* $finalMapDir/${SmplName}*smd.bam.coverage.m* $finalMapDir/${SmplName}*smd.bam.coverage.p*";
-			
-		}
-		my $subprts = $MFconfig{defaultContigSubs}; my $CSthre = 1;
-		if ($AssemblyGo ){
-			$subprts = $MFconfig{defaultContigSubs}."gFG";$CSthre = 6; $subprts .= "m" if ($MFopt{DoBinning});
-			$subprts .= "4" if ($MFopt{kmerPerGene} ); $subprts .= "k" if ($MFopt{kmerAssembly} );
-		} #k
-		
-		
-		#call contigStats only from 1 (actually two) places: end of for loop
-		#my ($tmpCSj,$tmpCSc,$tmpCSd) = runContigStats($curOutDir ,"",$finalCommAssDir,$subprts,1,$samplReadLength,$nodeSpTmpD,$AssemblyGo,$CSthre, $curSmpl);
-		#add2SampleDeps(\@sampleDeps, [$tmpCSj]);
-		#$contigStatsUsed = $tmpCSd;
-		#print "SmplDps: @sampleDeps\n";
-		#die "$boolScndMappingOK && !$MFopt{DoCalcD2s} && !$calcRibofind && !$calcDiamond && !$calcMetaPhlan && !$calcKraken\n";
-	} 
-	
-	my $calcMetaBat2 = 0;
-	if ($MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e "$BinningOut.cm" && !-s "$BinningOut.cm2")) {
-		$calcMetaBat2=$MFopt{DoMetaBat2};
+	my $calcBinning = 0;
+	if ($MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e "$BinningOut.cm" && !-s "$BinningOut.cm2") ) {
+		$calcBinning=$MFopt{DoMetaBat2};
+		#die "$MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e $BinningOut.cm || !-s $BinningOut.cm2\n";
 	}
-	#die "Binner: $calcMetaBat2 :: $MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo (!-e $BinningOut.cm && !-s $BinningOut.cm2)\n$BinningOut\n" ;
 	
 	#not complete yet? Then delete..
 	if ($MFconfig{redoFails} && ($calcRibofind||$calcDiamond || $calcDiaParse ||$calcMOTU2 || $calcMetaPhlan || $calcTaxaTar)){
@@ -841,8 +816,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system("rm -f -r $curOutDir $smplTmpDir $collectFinished ");
 	}
 
-	system("mkdir -p $logDir") unless (-d $logDir);
-	$QSBoptHR->{LocationCheckStrg} = checkDrives(\@checkLocs);
 
 
 	#die "$metaGassembly\n$finAssLoc\n$nodeSpTmpD\n";
@@ -900,7 +873,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#some more flow control..
 	if (
 		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
-		!$calcConsSNP && !$calcSuppConsSNP && !$calcMetaBat2 && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
+		!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
 		 && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag
 		#&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && 
 		#!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq ""
@@ -908,13 +881,38 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#free some scratch
 		system "rm -rf $smplTmpDir &" if ($MFconfig{rmScratchTmp} );
 		#system "rm -f $smplLockF" if (-e $smplLockF);
+		
+		if ( ($boolAssemblyOK || ($doPreAssmFlag && $ePreAssmbly && !$ePreAssmblPck)) && !$locRedoAssMapping ){#causes a lot of overhead but mainly to avoid unpacking reads again..
+			print "present: $curOutDir \n"; $presentAssemblies ++;#= $AsGrps{$cAssGrp}{CntAimAss};
+			#base is present, but is the additions? 
+
+			if ($MFopt{map2Assembly} && $MFopt{doBam2Cram} && #.cram.sto to check that everything went well
+				$AssemblyGo && $MappingGo && $eFinMapCovGZ && $allMapDone ){
+							#(-e "$finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{mini2IdxFileSuffix}" || -e "$finalCommAssDir/scaffolds.fasta.filt${bwt2IdxFileSuffix}.1.bt2") &&
+				#delete bwt2 index to save some space..
+				#need to ensure that all mapping in mapping group are fine..
+				system "rm -f $finalCommAssDir/scaffolds.fasta.filt$MFcontstants{bwt2IdxFileSuffix}* $finalCommAssDir/scaffolds.fasta.filt.fai $finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{mini2IdxFileSuffix} $finalCommAssDir/scaffolds.fasta.filt.$MFcontstants{kmaIdxFileSuffix}";
+				system "rm -f $finalMapDir/${SmplName}*smd.bam.bai $finalMapDir/${SmplName}*smd.bam.coverage.c* $finalMapDir/${SmplName}*smd.bam.coverage.gen* $finalMapDir/${SmplName}*smd.bam.coverage.m* $finalMapDir/${SmplName}*smd.bam.coverage.p*";
+				
+			}
+			if ($MFopt{map2Assembly} && !$MFopt{mapSaveCram} && -s $BinningOut && (-s "$BinningOut.cm2" || -e "$BinningOut.cm") &&
+				!$calcBinning && !$calcConsSNP && !$calcSuppConsSNP && $eFinMapCovGZ && $efinAssLoc && $eFinalMapDir && -s $CRAMmap){
+#				die;
+				print "deleting $CRAMmap to save space..\n";
+				system "rm -rf $CRAMmap";
+			}
+		}
+		
+		
 		print "next due to sample finished";
 		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;
 	}
-	
+
+	#print why not "next" ?
+	#print "		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s}\n &&!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag\n";
 	
 	#report for debugging:
-	#print "!$calcConsSNP && !$calcMetaBat2 && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && $calcCoverage\n";
+	#print "!$calcConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && $calcCoverage\n";
 	
 	
 	if (!$assemblyFlag && $AssemblyGo && !$efinAssLoc && $emetaGassembly){
@@ -1292,7 +1290,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		postSubmQsub("$logDir/MultiContigStats.sh",$AsGrps{$cAssGrp}{PostClnCmd},$AsGrps{$cAssGrp}{CSfinJobName},$contRun);
 		$AsGrps{$cAssGrp}{PostClnCmd} = "";$AsGrps{$cAssGrp}{CSfinJobName} = $contRun;
 		$jdep = $contRun;
-	
 	} elsif ( (exists($AsGrps{$cAssGrp}{MapDeps}) && $AsGrps{$cAssGrp}{MapDeps} =~ m/[^;\s]/ && $MappingGo) || ($eFinMapCovGZ) ) {
 		#die "test23  $AsGrps{$cAssGrp}{MapDeps}\n";
 		#calculate solely abundance / gene, has to be run after clean & assembly contigstat step and after mapping has started (at all!)
@@ -1304,7 +1301,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	add2SampleDeps(\@sampleDeps, [$cln1,$jdep]);
 
 	#Binning, SNP calling: only after copying files from tmp and running contig stats
-	if ( $calcMetaBat2 &&$AssemblyGo ){  #$allMapDone rm: this is checked now via $AsGrps{$cAssGrp}{MapDeps}
+	if ( $calcBinning &&$AssemblyGo ){  #$allMapDone rm: this is checked now via $AsGrps{$cAssGrp}{MapDeps}
 		my $binnerTmp = $nodeSpTmpD;
 		$binnerTmp = $smplTmpDir if ($MFopt{useBinnerScratch});
 		my $binDep  = submitGenomeBinner($binnerTmp,$metaGassembly,$BinningOut, $cAssGrp,$smplIDs[-1]);
@@ -2837,16 +2834,17 @@ sub runContigStats{
 	$Nthr =1 unless ($subprts =~m/[FGEm]/);
 	
 	
-	my $jobName = ""; $QSBoptHR->{LocationCheckStrg}=""; my $tmpCmd="";
+	my $jobName = "_CS$JNUM"; $QSBoptHR->{LocationCheckStrg}=""; my $tmpCmd="";
+	my $jobDep = "";
 	#system "mkdir -p $cwd" unless ($cwd eq "" || -d $cwd);
 	my $cmd = "";
 	#$cmd .= "mkdir -p $cwd\n" unless ($cwd eq "" );
 	$cmd .= "$sepCtsScript -inD $path -assD $assD -subparts $subprts -readLength $readL -readLengthSup $readLX -tmpD $tmpD -threads $Nthr";
-	$jobName = "_CS$JNUM"; 
-	($jobName,$tmpCmd) = qsubSystem($logDir."ContigStats.sh",$cmd,$Nthr,int(50/$Nthr)."G",$jobName,$jobd,"",$immSubm,[],$QSBoptHR);
+	#$jobName = "_CS$JNUM"; 
+	($jobDep,$tmpCmd) = qsubSystem($logDir."ContigStats.sh",$cmd,$Nthr,int(50/$Nthr)."G",$jobName,$jobd,"",$immSubm,[],$QSBoptHR);
 	$tmpCmd = "" if ($immSubm);
 	#die "$cmd\n$logDir.ContigStats.sh,$cmd,$Nthr,int(50/$Nthr).G,$jobName,$jobd,$cwd,$immSubm\n";
-	return ($jobName,$tmpCmd, 1);
+	return ($jobDep,$tmpCmd, 1);
 }
 sub calcCoverage{
 	my ($cov,$gff,$RL,$cstNme,$jobd,$dirsHr) = @_;
@@ -4773,6 +4771,39 @@ sub getAlgnCmdBase{
 	}
 	return $algCmdBase;
 }
+
+
+
+sub announce_MGTK{
+	
+	
+#	print "888b     d888        d8888 88888888888     d8888 8888888888 8888888 888      8888888888 8888888b.  \n";#
+#	print "8888b   d8888       d88888     888        d88888 888          888   888      888        888   Y88b \n";
+#	print "88888b.d88888      d88P888     888       d88P888 888          888   888      888        888    888 \n";
+#	print "888Y88888P888     d88P 888     888      d88P 888 8888888      888   888      8888888    888   d88P \n";
+#	print "888 Y888P 888    d88P  888     888     d88P  888 888          888   888      888        8888888P\"  \n";
+#	print "888  Y8P  888   d88P   888     888    d88P   888 888          888   888      888        888 T88b   \n";
+#	print "888   \"   888  d8888888888     888   d8888888888 888          888   888      888        888  T88b  \n";
+#	print "888       888 d88P     888     888  d88P     888 888        8888888 88888888 8888888888 888   T88b \n";
+
+#	print "/------------------------------------------------------------------------\\\n";
+#	print "|  _______ _______ _______ _______ _______ _____        _______  ______  |\n";
+#	print "|  |  |  | |_____|    |    |_____| |______   |   |      |______ |_____/  |\n";
+#	print "|  |  |  | |     |    |    |     | |       __|__ |_____ |______ |    \\_  |\n";
+#	print "|                                                                        |\n";
+	print "/--------------------------------------------\\\n";
+	print "|  ███╗   ███╗ ██████╗    ████████╗██╗  ██╗  |\n";
+	print "|  ████╗ ████║██╔════╝    ╚══██╔══╝██║ ██╔╝  |\n";
+	print "|  ██╔████╔██║██║  ███╗█████╗██║   █████╔╝   |\n";
+	print "|  ██║╚██╔╝██║██║   ██║╚════╝██║   ██╔═██╗   |\n";
+	print "|  ██║ ╚═╝ ██║╚██████╔╝      ██║   ██║  ██╗  |\n";
+	print "|  ╚═╝     ╚═╝ ╚═════╝       ╚═╝   ╚═╝  ╚═╝  |\n";
+	print "\\--------------------------------------------/\n";
+
+	print "This is MG-TK v$MATFILER_ver\n";
+}
+
+
 
 
 sub getMapProgNm{
@@ -7163,6 +7194,7 @@ sub setDefaultMFconfig{
 	$MFopt{doBam2Cram} = 1; $MFopt{redoAssMapping} =0;
 	$MFopt{DoJGIcoverage} = 0; #only required for metabat binning, not required any longer..
 	$MFopt{bamfilterIll} = "0.05 0.75 20"; $MFopt{bamfilterPB} = "0.15 0.75 10";
+	$MFopt{mapSaveCram} = 1; #by default, keep the back-mapping bams/crams 
 	$MFopt{MapperCores} = 8;  $MFopt{MapperRmDup} = 1; #mapping cores; ??? ; remove Dups (can be costly if many ref seqs present)
 	$MFopt{bamSortCores} = -1;
 	$MFopt{MapperMemory} = -1; #total mem for mapping job in Gb, Default -1
@@ -7386,6 +7418,7 @@ sub getCmdLineOptions{
 		"mappingCores=i" => \$MFopt{MapperCores},
 		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality
 		"mapperFilterPB=s" => \$MFopt{bamfilterPB},
+		"mapSaveCRAM=i" => \$MFopt{mapSaveCram},
 		#"redoMapping=i" =>\$MFopt{redoMapping},
 	#mapping related (2) (assembly)
 		"remap2assembly|redoMap2assembly|redoMapping=i" => \$MFopt{redoAssMapping},
@@ -7488,43 +7521,14 @@ sub getCmdLineOptions{
 		$HDDspace{$k} .= "G" unless ($HDDspace{$k} =~ m/G$/);
 	}
 	
+	if ($MFopt{DoAssembly} == 5 && $MFopt{mapSaveCram}){
+		print "deactivating \"-mapSaveCram\", not supported for hybrid assemblies\n";
+		$MFopt{mapSaveCram} = 0;
+	}
+	
 	
 	print "Done. ";
 
 }
 
-
-
-sub announce_MGTK{
-	
-	
-#	print "888b     d888        d8888 88888888888     d8888 8888888888 8888888 888      8888888888 8888888b.  \n";#
-#	print "8888b   d8888       d88888     888        d88888 888          888   888      888        888   Y88b \n";
-#	print "88888b.d88888      d88P888     888       d88P888 888          888   888      888        888    888 \n";
-#	print "888Y88888P888     d88P 888     888      d88P 888 8888888      888   888      8888888    888   d88P \n";
-#	print "888 Y888P 888    d88P  888     888     d88P  888 888          888   888      888        8888888P\"  \n";
-#	print "888  Y8P  888   d88P   888     888    d88P   888 888          888   888      888        888 T88b   \n";
-#	print "888   \"   888  d8888888888     888   d8888888888 888          888   888      888        888  T88b  \n";
-#	print "888       888 d88P     888     888  d88P     888 888        8888888 88888888 8888888888 888   T88b \n";
-
-#	print "/------------------------------------------------------------------------\\\n";
-#	print "|  _______ _______ _______ _______ _______ _____        _______  ______  |\n";
-#	print "|  |  |  | |_____|    |    |_____| |______   |   |      |______ |_____/  |\n";
-#	print "|  |  |  | |     |    |    |     | |       __|__ |_____ |______ |    \\_  |\n";
-#	print "|                                                                        |\n";
-	print "/--------------------------------------------\\\n";
-	print "|  ███╗   ███╗ ██████╗    ████████╗██╗  ██╗  |\n";
-	print "|  ████╗ ████║██╔════╝    ╚══██╔══╝██║ ██╔╝  |\n";
-	print "|  ██╔████╔██║██║  ███╗█████╗██║   █████╔╝   |\n";
-	print "|  ██║╚██╔╝██║██║   ██║╚════╝██║   ██╔═██╗   |\n";
-	print "|  ██║ ╚═╝ ██║╚██████╔╝      ██║   ██║  ██╗  |\n";
-	print "|  ╚═╝     ╚═╝ ╚═════╝       ╚═╝   ╚═╝  ╚═╝  |\n";
-	print "\\--------------------------------------------/\n";
-
-	print "This is MG-TK v$MATFILER_ver\n";
-                                                                                                   
-                                                                                                   
-                                                                                                   
-
-}
 
