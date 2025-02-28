@@ -18,7 +18,7 @@ use vars qw($CONFIG_FILE);
 
 #load MF specific modules
 use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp lcp readFastHD prefixFAhd prefix_find gzipopen fileGZe
-			readFasta writeFasta systemW getAssemblPath  filsizeMB
+			readFasta writeFasta systemW getAssemblPath  filsizeMB resetAsGrps
 			iniCleanSeqSetHR checkSeqTech is3rdGenSeqTech hasSuppRds 
 			getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp);
 use Mods::IO_Tamoc_progs qw(getProgPaths setConfigFile jgi_depth_cmd inputFmtSpades inputFmtMegahit createGapFillopt  
@@ -51,7 +51,7 @@ sub manageFiles;sub clean_tmp;
 sub sdmClean; sub sdmOptSet;  #qual filter reads
 sub mergeReads; #merge reads via flash
 sub removeHostSeqs; sub krakenTaxEst;sub prepKraken;
-
+sub loop2C_check;
 
 sub metagAssemblyRun;
 sub createPsAssLongReads; #pseudo assembler
@@ -113,7 +113,8 @@ sub setupHPC;
 #.57:26.10.24: enabled multi-input files for minimap2/strobealign, added "-mapperLargeRef" flag
 #.58: 30.12.24: firstXrdsRd & firstXrdsWr function added, required sdm 3.08
 #.59: 21.1.25: hostile integration
-my $MATFILER_ver = 0.59;
+#.60: 28.2.25: updates to loop2complete mechanic (debugging), clusterMAGs version 0.25
+my $MATFILER_ver = 0.60;
 
 
 #operation mode?
@@ -317,11 +318,12 @@ if ($MFopt{DoCalcD2s}) {$MFopt{DoCalcD2s} = !-e "$baseOut/d2StarComp/d2meta.ston
 
 
 
-my $from = $FROM1; my $to = $TO1;
-if ($to > @samples){
+if ($TO1 > @samples){
 	print "Reset range of samples to ". @samples."\n";
-	$to = @samples;
+	$TO1 = @samples;
 }
+my $from = $FROM1; my $to = $TO1;
+#die "\"@samples\"\n";
 if ($loop2c_winsize > 0){
 	$to = $from + $loop2c_winsize; $to = $TO1 if ($to > $TO1);
 }
@@ -339,15 +341,21 @@ if ($loop2c_winsize > 0){
 #for loop that goes over every single sample in the .map
 for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
-	
-	#local flow control
-	next if (exists($jmp{$JNUM}));
 	qsubSystemWaitMaxJobs($MFconfig{checkMaxNumJobs}, $MFconfig{killDepNever});
 	
 	
 	#set up initial local paths for a given sample
 	my $dir2rd=""; my $curDir = "";my $curOutDir = ""; 
 	$curSmpl = $samples[$JNUM];
+	#key IDs for sample
+	my $cAssGrp = $curSmpl;my $cMapGrp = $map{$curSmpl}{MapGroup};
+	if ($map{$curSmpl}{AssGroup} ne "-1"){ $cAssGrp = $map{$curSmpl}{AssGroup};}
+	my @sampleDeps = (); #catalogues all job dependencies created in this loop
+
+	#local flow control
+	if (exists($jmp{$JNUM})){loop2C_check($cAssGrp,\@sampleDeps);next;}
+
+	#print "SMPL::$curSmpl\n";
 	$dir2rd = $map{$curSmpl}{dir};
 	$dir2rd = $map{$curSmpl}{prefix} if ($dir2rd eq "");
 	#print "$curSmpl  $map{$curSmpl}{dir}  $map{$curSmpl}{rddir}  $map{$curSmpl}{wrdir}\n";	next;
@@ -366,11 +374,14 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	system("mkdir -p $logDir") unless (-d $logDir);
 
 	#ignore samples .. for various reasons ------------------------------------------------------------------------------------
-	if ($MFconfig{ignoreSmpl} ne ""){if ($MFconfig{ignoreSmpl} =~ m/$SmplName/){print "\n ======= Ignoring sample $SmplName =======\n";next;}}
+	if ($MFconfig{ignoreSmpl} ne ""){
+		if ($MFconfig{ignoreSmpl} =~ m/$SmplName/){print "\n ======= Ignoring sample $SmplName =======\n";
+		loop2C_check($cAssGrp,\@sampleDeps);next;}
+	}
 	my $smplLockF = "$logDir/$MFcontstants{DefaultSampleLock}";
 	if (-e $smplLockF){
 		if ($MFconfig{rmSmplLocks}){ system "rm -f $smplLockF";
-		} else {print "\n    >>>>>>>>>> Sample $SmplName is locked! <<<<<<<<<<  \n";next;}
+		} else {print "\n    >>>>>>>>>> Sample $SmplName is locked! <<<<<<<<<<  \n";loop2C_check($cAssGrp,\@sampleDeps);next;}
 	} 
 	$QSBoptHR->{LOCKfile} = $smplLockF; #set lockfile to be created if any job is submitted
 	
@@ -388,10 +399,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	}
 	
 	
-	#key IDs for sample
-	my $cAssGrp = $curSmpl;
-	my $cMapGrp = $map{$curSmpl}{MapGroup};
-	if ($map{$curSmpl}{AssGroup} ne "-1"){ $cAssGrp = $map{$curSmpl}{AssGroup};}
 	my $contigStatsUsed = 0;
 
 	%locStats = ();
@@ -439,7 +446,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		$AsGrps{$cAssGrp}{AssemblJobName} = "";#"_XXASpl$cAssGrp"."XX_" ;
 		$AsGrps{$cAssGrp}{CSfinJobName} = "";#"_XXCSpl$cAssGrp"."XX_" ;
 	}
-	my @sampleDeps = ();
 	
 	$AsGrps{$cAssGrp}{CntAss} ++;
 	print "AssmblyGrp: " . $AsGrps{$cAssGrp}{CntAss} .":".$AsGrps{$cAssGrp}{CntAimAss}. "; " if ($AsGrps{$cAssGrp}{CntAimAss} > 1 && !$MFconfig{silent});
@@ -602,7 +608,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		if ($MFconfig{OKtoRWassGrps}){
 			$locRewrite=1 ;
 		}elsif ($MFconfig{skipWrongPairedSmpls}){
-			next ;
+			loop2C_check($cAssGrp,\@sampleDeps);next;
 		}
 	}
 	
@@ -868,10 +874,18 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$calcUnzip=1 if ($calcDiamond || $porechopFlag || $seqCleanFlag  || $mapAssFlag || $mapSuppAssFlag || (!$MFopt{useUnmapped} && !$boolScndMappingOK)); 
 	#print "chk1 $mapSuppAssFlag $calcSuppCoverage $eSuppCovAsssembly\n" ;
 
+	if ($scaffTarExternal ne "" &&  $map{$curSmpl}{"SupportReads"} !~ /mate/i && $scaffTarExtLibTar ne $curSmpl ){print"scNxt\n";loop2C_check($cAssGrp,\@sampleDeps);next;}
+	
+	if (!$assemblyFlag && $AssemblyGo && !$efinAssLoc && $emetaGassembly){
+		die "assem copy\n"; #should actually never be here..
+		push(@{$AsGrps{$cAssGrp}{AssCopies}}, $assDir."/metag/*",$finalCommAssDir);
+	}
+
+
 #	#-----------------------  END FLAGS  ------------------------  
 
 	#some more flow control..
-	if (
+	if ( 
 		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
 		!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
 		 && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag
@@ -905,28 +919,14 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		
 		
 		print "next due to sample finished";
-		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;
-	}
+		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+		loop2C_check($cAssGrp,\@sampleDeps);next;
 
-	#print why not "next" ?
-	#print "		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s}\n &&!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag\n";
+	}
 	
+
 	#report for debugging:
 	#print "!$calcConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && $calcCoverage\n";
-	
-	
-	if (!$assemblyFlag && $AssemblyGo && !$efinAssLoc && $emetaGassembly){
-		die "assem copy\n"; #should actually never be here..
-		push(@{$AsGrps{$cAssGrp}{AssCopies}}, $assDir."/metag/*",$finalCommAssDir);
-	}
-
-
-	#die "$pseudAssFlag\n$boolGenePredOK\n$pseudoAssFileFinal\n";
-	if ($scaffTarExternal ne "" &&  $map{$curSmpl}{"SupportReads"} !~ /mate/i && $scaffTarExtLibTar ne $curSmpl ){print"scNxt\n";next;}
-	#has this sample extra reads (e.g. long reads?)
-	#die "$assemblyFlag || !$boolScndMappingOK || $nonPareilFlag || $calcDiamond || $MFopt{DoCalcD2s} || $calcKraken\n";
-	#die "$curDir\n";
-	
 	
 
 
@@ -963,7 +963,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 	#$seqSet{"curSDMopt"} = $curSDMopt; $seqSet{"curSDMoptSingl"} = $curSDMoptSingl;
 	
-	if ($jdep eq "EMPTY_DO_NEXT"){push(@EmptySample,$curSmpl);next;}
+	if ($jdep eq "EMPTY_DO_NEXT"){push(@EmptySample,$curSmpl);loop2C_check($cAssGrp,\@sampleDeps);next;}
 	push(@inputRawFQs,$seqSet{"rawReads"});
 	if($scaffTarExtLibTar eq $curSmpl){
 		@scaffTarExternalOLib1 = @{$seqSet{"pa1"}}; @scaffTarExternalOLib2 = @{$seqSet{"pa2"}};
@@ -1020,7 +1020,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			|| (!$ePreAssmblPck && $ePreAssmbly && !$postPreAssmblGo && !$efinAssLoc )  )
 	){ #last sample (assembly) should not map while other maps are still running..
 		print "next due to waiting for preassemblies";
-		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;
+		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); loop2C_check($cAssGrp,\@sampleDeps); next;
 	}
 
 
@@ -1043,7 +1043,10 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	push(@allFilter1,@{${$cleanSeqSetHR}{arp1}});
 	push(@allFilter2,@{${$cleanSeqSetHR}{arp2}});
 	#die;
-	if ($MFconfig{unpackZip}){print "next due to onlyFilterZip 1\n";MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;}
+	if ($MFconfig{unpackZip}){
+		print "next due to onlyFilterZip 1\n";MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+		loop2C_check($cAssGrp,\@sampleDeps);next;
+	}
 	
 	
 	
@@ -1091,7 +1094,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#non pareil (estimate community size etc)
 	if ($nonPareilFlag){
 		nopareil(${$cleanSeqSetHR}{arp1},$nonParDir, $globalNPD, $SmplName,$primaryDep);
-		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;
+		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+		loop2C_check($cAssGrp,\@sampleDeps);next;
 	}
 	if ($calcGenoSize){#use microbeCensus to get avg genome size
 		my $gsJdep = genoSize($cleanSeqSetHR,$curOutDir."MicroCens/",$mergJbN.";".$primaryDep);
@@ -1199,7 +1203,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	} elsif ($MFopt{mapModeActive}) {
 		#still needs delays in cleaning command
 		$AsGrps{$cMapGrp}{ClSeqsRm} .= ";".$smplTmpDir;
-		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); next;
+		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+		loop2C_check($cAssGrp,\@sampleDeps); next;
 	}
 	
 	
@@ -1340,35 +1345,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
 	}
 
-	
-	### loop functionality
-	if ($loop2completion ){
-		push (@grandDeps, @sampleDeps);
-		if ($JNUM == ($to-1)){
-			qsubSystemJobAlive( \@grandDeps,$QSBoptHR ,1 );
-			#reset some key params...
-			@grandDeps = ();
-			foreach my $cMapGrp (keys %AsGrps){$AsGrps{$cMapGrp}{CntMap} = 0;$AsGrps{$cAssGrp}{CntAss} = 0;}
-			$totalChecked -= ($JNUM - $from);
-			$JNUM=($from-1);$loop2completion--;
-			print "\n\n-------------------------------------------\n-------------------------------------------\nRepeating samples loop: going into iteration  - $loop2completion: \n";
-			print "Reanalyzing samples $from till $to\n";
-			if ($loop2c_winsize > 0 && !$loop2completion){
-				my $tmpStr = "Changing sample window from $from -> $to to ";
-				$from = $to;$to = $from + $loop2c_winsize; 
-				if ($to > $TO1){
-					$to = $TO1 ;
-					if ($from-1 >= $TO1){
-						print "Last loop, breaking..\n";last;
-					}
-				} else {$loop2completion = $loop2completion_ini;}
-				print "$tmpStr$from -> $to \n";#" . ($JNUM + $loop2c_winsize) . "\n";
-			}
-			$statStr = ""; print "-------------------------------------------\n-------------------------------------------\n";
-		}
-	}
-	#print "END2\n@sampleDeps\n".@sampleDeps."\n";
 	MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+	
+	### loop2complete functionality
+	loop2C_check($cAssGrp,\@sampleDeps);
+
+	#print "END2\n@sampleDeps\n".@sampleDeps."\n";
 }
 
 
@@ -1442,7 +1424,38 @@ exit(0);
 #
 #####################################################
 
-
+sub loop2C_check(){
+	my ($cAssGrp,$sampleDeps_AR) = @_;
+	if ($loop2completion ){
+		push (@grandDeps, @{$sampleDeps_AR});
+		if ($JNUM == ($to-1)){
+			#print "L2C:: $loop2completion  @{$sampleDeps_AR}\n";
+			qsubSystemJobAlive( \@grandDeps,$QSBoptHR ,1 );
+			#reset some key params...
+			@grandDeps = ();
+			resetAsGrps(\%AsGrps);
+			
+			#$totalChecked -= ($JNUM - $from);
+			$JNUM=($from-1);$loop2completion--;
+			print "\n\n-------------------------------------------\n-------------------------------------------\n";
+			print "Repeating samples loop: going into iteration  - $loop2completion: \n";
+			print "Reanalyzing samples $from till $to\n";
+			if ($loop2c_winsize > 0 && !$loop2completion){
+				my $tmpStr = "Changing sample window from $from -> $to to ";
+				$from = $to;$to = $from + $loop2c_winsize; 
+				if ($to > $TO1){
+					$to = $TO1 ;
+					if ($from-1 >= $TO1){
+						print "Last loop, breaking..\n";$from=$TO1;
+					}
+				} else {$loop2completion = $loop2completion_ini;}
+				print "$tmpStr$from -> $to \n";#" . ($JNUM + $loop2c_winsize) . "\n";
+			}
+			$statStr = ""; 
+			print "-------------------------------------------\n-------------------------------------------\n";
+		}
+	}
+}
 sub postprocess{
 
 	#print "\n\n###################################\nMain Loop done\n######################################\n";
@@ -7331,7 +7344,7 @@ sub getCmdLineOptions{
 		"submit=i" => \$doSubmit,  #submit any jobs at all? (0= no submission, just for trying if everything is correctly set up)
 		"from=i" => \$FROM1,  #start at which samples from map file?
 		"to=i" => \$TO1,   #stop at which samples from map file?
-		"loopTillComplete=s" => \$loop2completion, #dangerous flag, script will loop over the assigned samples until all jobs are finished
+		"loopTillComplete=s" => \$loop2completion, #dangerous flag, script will loop over the assigned samples until all jobs are finished.
 		#use synatx "X:Y" where X is num loops, Y is the window size, eg "6:250" would run 6 loops of max 250 samples, then move on to next 250 samples
 		"excludeNodes=s" => \$MFconfig{excludeNodes}, #exclude certain nodes?
 		"maxConcurrentJobs=i" => \$MFconfig{checkMaxNumJobs}, #max jobs in queue, useful for large samples sets, currently only works on slurm 

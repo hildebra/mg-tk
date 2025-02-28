@@ -8,7 +8,7 @@
 #SBATCH -p "ei-medium,qib-medium,qib-long,ei-long"
 #  SBATCH --time=248:00:00
 # #SBATCH --localscratch=ssd:10
-#SBATCH -J subPB
+#SBATCH -J 1.MGTKexmpl
 set -e
 ulimit -c 0;
 
@@ -32,7 +32,7 @@ perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQreg
 -assembleMG 2 -assemblCores 12 -assemblyKmers "25,43,67,87,111,127" -assemblMemory  20 -Binner 2  \
 -mapReadsOntoAssembly 1 -saveReadsNotMap2Assembly 0  -mappingMem 7 -filterHostRds 3 -hostileIndex human-t2t-hla \
 -mapper 5  -mapSaveCRAM 0 -getAssemblConsSNP 1 -SNPsaveVCF 1 -rmSmplLocks 0 \
--submit 1  \
+-submit 1 -loopTillComplete 6:250  \
 -from 0 -to 10
 
 

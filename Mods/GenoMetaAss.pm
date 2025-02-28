@@ -11,6 +11,7 @@ our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFast
 		readMap 
 		
 		readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
+		resetAsGrps
 		renameFastHD  prefixFAhd parse_duration resolve_path
 		clenSplitFastas getAssemblPath fileGZe fileGZs filsizeMB
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
@@ -900,6 +901,40 @@ sub emptyAssGrpsObj($){
 
 
 
+sub resetAsGrps{
+	my ($AsGrps) = @_;
+	foreach my $cAssGrp (keys %{$AsGrps}){
+		$AsGrps->{$cAssGrp}{CntMap} = 0;
+		$AsGrps->{$cAssGrp}{CntAss} = 0;
+		$AsGrps->{$cAssGrp}{BinDeps} = "";
+		$AsGrps->{$cAssGrp}{readDeps} = "";
+		$AsGrps->{$cAssGrp}{scndMapping} = "";
+		$AsGrps->{$cAssGrp}{SeqUnZDeps} = "";
+		@{$AsGrps->{$cAssGrp}{FilterSeq1}} = ();
+		@{$AsGrps->{$cAssGrp}{FilterSeq2}} = ();
+		@{$AsGrps->{$cAssGrp}{FilterSeqS}} = ();
+		@{$AsGrps->{$cAssGrp}{ReadTec}} = ();
+		@{$AsGrps->{$cAssGrp}{MapSupCopies}} = ();
+		$AsGrps->{$cAssGrp}{CleanSeqs} = {};
+		$AsGrps->{$cAssGrp}{RawSeqs} = {};
+		$AsGrps->{$cAssGrp}{SeqClnDeps} = "";
+		$AsGrps->{$cAssGrp}{AssCopies} = [];
+		$AsGrps->{$cAssGrp}{prodRun} = "";
+		$AsGrps->{$cAssGrp}{AssemblJobName} = "";
+		$AsGrps->{$cAssGrp}{PostAssemblCmd} = "";
+		$AsGrps->{$cAssGrp}{ClSeqsRm} = "";
+		$AsGrps->{$cAssGrp}{MapDeps} = "";
+		$AsGrps->{$cAssGrp}{BinDeps} = "";
+		$AsGrps->{$cAssGrp}{MapCopies} = [];
+		$AsGrps->{$cAssGrp}{MapCopiesNoDel} = [];
+		$AsGrps->{$cAssGrp}{nothing} = "";
+		$AsGrps->{$cAssGrp}{PostClnCmd} = "";
+		$AsGrps->{$cAssGrp}{CSfinJobName} = "";
+	}
+}
+
+
+
 sub readMapS{
 	my ($inF,$folderStrClassical) = ($_[0],$_[1]);
 	my $xtraCols = ""; $xtraCols = $_[2] if (@_ > 2);
@@ -1036,20 +1071,20 @@ sub readMap{
 	#print $inF."\n";
 	open I,"<$inF" or die "Can't open map: $inF\n";
 	#AssGrps
-	while (<I>){
+	while (my $line = <I>){
 		#use chomp and s/\R//g; to catch also windows formated lines..
-		$cnt++;s/\R//g;chomp;
-		next if (length($_) ==0);
-		if (m/^#/ && $cnt > 0 ){#check for ssome global parameters
-			if (m/^#DirPath\s(\S+).*$/){$dir2dirs = resolve_path($1); $dir2dirs.="/" unless ($dir2dirs=~m/\/$/); push(@dir2dirsA,$dir2dirs);}
-			if (m/^#OutPath\s+(\S+)/){$dir2out = resolve_path($1); $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);}
-			if (m/^#RunID\s+(\S+)/){$baseID = $1; $inDirSet=0;}
-			if (m/^#mocatFiltPath\s+(\S+)/){$mocatFiltPath = resolve_path($1);}
-			if (m/^#illuminaClip\s+(\S+)/){$illuminaClip = resolve_path($1);}
-			if (m/^#NodeTmpDir\s+(\S+)/){$NodeTmpD = $1;}
-			if (m/^#GlobalTmpDir\s+(\S+)/){$GlbTmpD = $1;}
-			if (m/^#WARNING\sOFF/){$DOWARN=0;print "Warning: Deactivated Warnings while reading the map file! ..\n";}
-			if (m/^#RelaxSMPLID\sTRUE/){$relaxSmplID = 1;print "Relaxed SMPLIDs\n";}
+		$cnt++;$line =~ s/\R//g;chomp $line;
+		next if (length($line) <= 1);
+		if ($line =~ m/^#/ && $cnt > 0 ){#check for ssome global parameters
+			if ($line =~ m/^#DirPath\s(\S+).*$/){$dir2dirs = resolve_path($1); $dir2dirs.="/" unless ($dir2dirs=~m/\/$/); push(@dir2dirsA,$dir2dirs);}
+			if ($line =~ m/^#OutPath\s+(\S+)/){$dir2out = resolve_path($1); $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);}
+			if ($line =~ m/^#RunID\s+(\S+)/){$baseID = $1; $inDirSet=0;}
+			if ($line =~ m/^#mocatFiltPath\s+(\S+)/){$mocatFiltPath = resolve_path($1);}
+			if ($line =~ m/^#illuminaClip\s+(\S+)/){$illuminaClip = resolve_path($1);}
+			if ($line =~ m/^#NodeTmpDir\s+(\S+)/){$NodeTmpD = $1;}
+			if ($line =~ m/^#GlobalTmpDir\s+(\S+)/){$GlbTmpD = $1;}
+			if ($line =~ m/^#WARNING\sOFF/){$DOWARN=0;print "Warning: Deactivated Warnings while reading the map file! ..\n";}
+			if ($line =~ m/^#RelaxSMPLID\sTRUE/){$relaxSmplID = 1;print "Relaxed SMPLIDs\n";}
 			if (!$inDirSet && $dir2out ne "" && $baseID ne ""){
 				$dir2out.=$baseID unless ($dir2out =~ m/$baseID[\/]*$/); $inDirSet =1;
 				$dir2out .= "/" if ($dir2out !~ m/\/$/);
@@ -1057,7 +1092,7 @@ sub readMap{
 			$dir2out .= "/" if ($dir2out !~ m/\/$/);
 			next;
 		}
-		my @spl = split(/\t/,$_,-1);
+		my @spl = split(/\t/,$line,-1);
 		if ($cnt == 0){
 			#die "@spl\n";
 			$smplCol = first_index { /^#SmplID$/ } @spl;
@@ -1093,13 +1128,15 @@ sub readMap{
 		die "inPath has to be set in mapping file!\n" if ($dir2dirs eq "");
 		#die "$dir2out\n";
 		my $curSmp = $spl[$smplCol];
+		
+		die"Error in .map, found empty sample id on line $Scnt,: \"$line\"\n" if ($curSmp eq "");
 		my $altCurSmp = "";
 		#print $curSmp." ";
-		die "\"opt\" is reserved keyword and can't be used as samples\n" if ($curSmp eq "opt");
+		die "\"opt\" is reserved keyword and can't be used as sample name (.map line $cnt)\n" if ($curSmp eq "opt");
 		die "\"altNms\" is reserved keyword and can't be used as samples\n" if ($curSmp eq "altNms");
 		#die "\"smpl_order\" is reserved keyword and can't be used as samples\n" if ($curSmp eq "smpl_order");
 		#die "\"totSmpls\" is reserved keyword and can't be used as samples\n" if ($curSmp eq "totSmpls");
-		die "Double sample ID \"$curSmp\"\n$_\n" if (exists $ret{$curSmp});
+		die "Double sample ID \"$curSmp\"\n$line\n" if (exists $ret{$curSmp});
 		die "Can't use character \"$\" in sampleID: $curSmp\n" if ($curSmp =~ m/\$/);
 		die "Can't use character \"_\" in sampleID: $curSmp\n" if ($curSmp =~ m/_/);
 		die "Can't use character \",\" in sampleID: $curSmp\n" if ($curSmp =~ m/,/);
@@ -1301,6 +1338,8 @@ sub readMap{
 
 	return (\%ret,$asGrpHr);
 }
+
+
 
 
 

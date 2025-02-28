@@ -506,9 +506,10 @@ sub MFnext($ $ $ $){
 	$QSBoptHR->{afterAny}=1;
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
 	$QSBoptHR->{useShortQueue} =1;
-	qsubSystem($logF,$cmd,1,"1G",$jobN,$jDepe,"",1,\{},$QSBoptHR);
+	my ($jN,$jID) = qsubSystem($logF,$cmd,1,"1G",$jobN,$jDepe,"",1,\{},$QSBoptHR);
 	$QSBoptHR->{afterAny}=0;$QSBoptHR->{useShortQueue}=0;
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
+	push(@{$aR}, $jID);
 }
 
 

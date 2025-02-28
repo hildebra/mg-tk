@@ -10,6 +10,7 @@
 #2.1.20: rewrite of workflow to extend superTrees to superCheck
 #version 5 added: hyphy fubar, R scripts for theta, guidance2
 #2.1.25: v5.02: reduced threshold for including genes from MGS
+#14.2.25: v5.03: added treshrink
 
 use warnings;
 use strict;
@@ -44,7 +45,7 @@ sub createTreeOpt;
 sub treePresent;
 
 my $doPhym= 0;
-my $version = 5.02;
+my $version = 5.03;
 
 my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
 #die $pal2nal;
@@ -114,6 +115,8 @@ my $minPcId = 0;
 my $doSuperTree =0;
 my $doSuperCheck=0;#check if tree's of single genes behave "strange"
 my $gzipInput =0; my $removeMSA = 0;
+my $useTreeShrink =0;
+
 
 #EDBUGGIN
 my $reparseHyphyJson = 1;
@@ -177,6 +180,7 @@ GetOptions(
 	"runRAxML=i" => \$doRAXML,
 	"runRaxMLng=i" => \$doRAXMLng,
 	"runFastTree=i" => \$doFastTree,
+	"treeShrink=i" => \$useTreeShrink,
 	"runIQtree=i" => \$doIQTree,
 	"AutoModel=i" => \$treeAutoModel,
 	"iqFast=i" => \$iqFast, #fast qiTree mode
@@ -756,7 +760,7 @@ if (0 && !$useAA4tree){ #this is outdated
 #Tree building part with RaxML, IQtree, fasttree2, phyml
 #-------------------------------------------
 
-treeAtHeart($tOhr );
+my $trRetH = treeAtHeart($tOhr );
 if ($calcSyn){ #tree at syn pos
 	treeAtHeart($tOhrSyn);
 } 
@@ -764,6 +768,13 @@ if ($calcNonSyn){ #tree at non-syn pos
 	treeAtHeart($tOhrNSun);
 }
 #system "rm -f $multAli.ph $multAliSyn.ph $multAliNonSyn.ph";
+
+if ($useTreeShrink){
+	my $trShr = getProgPaths("treeshrink");
+	my $cmd = "$trShr -i $outD -t ${$trRetH}{IQtreeout}.treefile -q 0.05  -O TS. -f";
+	print $cmd; 
+	die;
+}
 
 #die "$distTree_scr -d -a --dist-output $raxD/distance.syn.txt $raxD/RXML_sym.nwk\n";
 
@@ -793,9 +804,9 @@ FastGear();
 
 system "rm -rf $MsaD" if ($removeMSA);
 if ($gzipInput){
-system "$pigzBin -p $ncore  $aaFna " unless ($aaFna =~ m/\.gz$/);
-system "$pigzBin -p $ncore $fnFna  " unless ($fnFna =~ m/\.gz$/);
-system "$pigzBin -p $ncore $cogCats" unless ($cogCats =~ m/\.gz$/);
+	system "$pigzBin -p $ncore  $aaFna " unless ($aaFna =~ m/\.gz$/);
+	system "$pigzBin -p $ncore $fnFna  " unless ($fnFna =~ m/\.gz$/);
+	system "$pigzBin -p $ncore $cogCats" unless ($cogCats =~ m/\.gz$/);
 }
 
 system "rm -rf $tmpD";

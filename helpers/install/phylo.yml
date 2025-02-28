@@ -25,5 +25,5 @@ dependencies:
   - pigz=2.8
   - perl=5.32.1
   - pal2nal=14
-  - smirarab::treeshrink>=1.3
+#  - smirarab::treeshrink>=1.3  -> needs R
 

@@ -229,6 +229,7 @@ ete3	ete3	env:MGTKphylo
 codeml	codeml	env:MGTKphylo
 phyml	phyml	env:MGTKphylo
 modeltest	modeltest-ng	env:MGTKphylo
+treeshrink	run_treeshrink.py	env:MGTKphylo
 
 
 #     experimental
