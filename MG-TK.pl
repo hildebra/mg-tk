@@ -7534,9 +7534,9 @@ sub getCmdLineOptions{
 		$HDDspace{$k} .= "G" unless ($HDDspace{$k} =~ m/G$/);
 	}
 	
-	if ($MFopt{DoAssembly} == 5 && $MFopt{mapSaveCram}){
+	if ($MFopt{DoAssembly} == 5 && !$MFopt{mapSaveCram}){
 		print "deactivating \"-mapSaveCram\", not supported for hybrid assemblies\n";
-		$MFopt{mapSaveCram} = 0;
+		$MFopt{mapSaveCram} = 1;
 	}
 	
 	
