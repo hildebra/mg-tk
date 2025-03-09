@@ -43,10 +43,10 @@ def main():
 	print("output FAA:", faa_file)
 
 	transl_table = None
-	reTransl_table = re.compile("^# Model Data:.+transl_table=(\d+);")
-	reID = re.compile("^ID=\d+_(\d+);.+start_type=(.+);")
-	posfreq = re.compile("POS=(.*) FR=(.*) FREQT")
-	refreq = re.compile(" COV=(\d+) .* FREQT=(.*) CONFL=")
+	reTransl_table = re.compile(r"^# Model Data:.+transl_table=(\d+);")
+	reID = re.compile(r"^ID=\d+_(\d+);.+start_type=(.+);")
+	posfreq = re.compile(r"POS=(.*) FR=(.*) FREQT")
+	refreq = re.compile(r" COV=(\d+) .* FREQT=(.*) CONFL=")
 
 
 	## Save contigs as dict

@@ -544,7 +544,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#$MFopt{mapSupport2Assembly}
 	my $locMapSup2Assembly =0; $locMapSup2Assembly =1 if ($MFopt{mapSupport2Assembly} && $map{$curSmpl}{"SupportReads"} ne "");
 	my $eFinSupMapCovGZ = 0; $eFinSupMapCovGZ = 1 if ($locMapSup2Assembly && -e $STOsupCram && -e "$finalMapDir/$SmplName.sup-smd.bam.coverage.gz");
-	#die "$eFinSupMapCovGZ  $finalMapDir\n";
+	#die "$locMapSup2Assembly $eFinSupMapCovGZ  $finalMapDir\n";
 	my $dfinalCommAssDir = 0 ; $dfinalCommAssDir = 1 if (-d $finalCommAssDir);
 	my $eFinalMapDir = 0; $eFinalMapDir = 1 if (-s $STOmapFinal);
 	#upload2EBI 
@@ -851,8 +851,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
 	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
-	
-	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
+
+	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
 	
 	#die "genePredSNP $genePredSNP\n";
@@ -1251,7 +1251,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#die "$curOutDir/mapping\n" . "$mapOut/$SmplName-smd.bam.coverage.gz"
 	}
 	if ($mapSuppAssFlag){ #supplementary mappings (eg PacBio in hybrid assemblies)
-		print "mapping support reads!!\n";
+		print "mapping support reads\n";
 		my $mapNow = 1;
 		my $unAlDir = "$mapOut/unaligned_supp/";$unAlDir = "" if (!$MFopt{SaveUnalignedReads});
 		my %dirset = 	(nodeTmp=>$nodeSpTmpD,outDir => "$finalMapDir/", unalDir => $unAlDir,
@@ -1337,10 +1337,11 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						minCallQual => $MFopt{SNPminCallQual},
 					);
 		$SNPinfo{SeqTechSuppl} = "PB" if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/);
+		
 		if ($calcSuppConsSNP){
 			$SNPinfo{STOconSNPsupp} = $STOsnpSuppCons   ; #trigger for also looking at cons SNP for support reads
 		}
-		my $consSNPdep = createConsSNP(\%SNPinfo);
+		my $consSNPdep = createConsSNP(\%SNPinfo); #SNP calls on assembly
 		add2SampleDeps(\@sampleDeps, [$consSNPdep]);
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
 	}
@@ -1709,6 +1710,9 @@ sub createConsSNP{
 		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}."-smd.".$SNPinfo{bamcram});
 		$SNPinfo{MAR} = \@mapping;
 	}
+	
+	#check for supp:	my $locMapSup2Assembly =0; $locMapSup2Assembly =1 if ($MFopt{mapSupport2Assembly} && $map{$curSmpl}{"SupportReads"} ne "");
+	#die "$SNPinfo{STOconSNPsupp}\n";
 	if ($SNPinfo{STOconSNPsupp} ne "" && !exists($SNPinfo{MARsupp})){
 		my @mapping = ($SNPinfo{mapD}."/".$SNPinfo{smpl}.".sup-smd.".$SNPinfo{bamcram});
 		$SNPinfo{MARsupp} = \@mapping;
@@ -6337,7 +6341,7 @@ sub scndMap2Genos{
 		
 		
 		
-		if ($calc2ndMapSNP){ #2nd map SNP calling (consensus)
+		if ($calc2ndMapSNP){ #2nd mapping SNP calling (consensus) (not assembly!!)
 			my %SNPinfo = (
 				assembly => "$bwt2outD[$i]/$bwt2ndMapNmds[$i].fa",#$DBbtRefX[$i],
 				MAR => ["$bwt2outD[$i]/$bamBaseNameS[$i]-smd.bam"],
