@@ -7,7 +7,8 @@ sub v2q_post_process;
 sub sumCL;
 my $indelWin=5; 
 #v0.1: 23.10.24: added support for merged .vcf
-my $vcf2fastCons = 0.1; 
+#v.011: 12.3.25: fix for multiple inputs
+my $vcf2fastCons = 0.11; 
 
 #my $line1tmp = <>;
 
@@ -32,6 +33,7 @@ my $chromL=0;
 my $disagreeCall=0;my $overridePrevCall=0; my $disagreeCallLocal=0; #stats
 my $bpAdded =0; my $bpIsN =0;my $lbpIsN =0; my $entryNum=0; #stats
 my $prevLine="";
+my %list_of_Chrs; # to track what was already processed..
 #my $minDepthPar = 0; 
 
 print STDERR "vcf2cons_mpi v $vcf2fastCons\nParameters: minDepth=$minDepthPar minCallQual=$minCallQual\n";
@@ -74,6 +76,11 @@ while (my $line = <STDIN>) {
 		$bpIsN += $lbpIsN; $lbpIsN =0;
 		$prevDep=0; $prevDidAlt=0;
 		$last_chr =~ m/L=(\d+)=/;  $chromL = $1;
+		#ensure fasta entry is only reported once
+		if (exists($list_of_Chrs{$last_chr})){
+			die "$last_chr was processed already previously.\nOn line $lcnt : $line\n";
+		}
+		$list_of_Chrs{$last_chr}=1;
 	}
 	#print STDERR "$last_pos pos \n";
 	if ($t[1] - $last_pos > 1) {
@@ -85,7 +92,7 @@ while (my $line = <STDIN>) {
     }
 	if ($t[1] == ($last_pos) ) { #
 		$addMode=1;
-		die "$line\n$prevLine\n$last_pos $t[1]";
+		#die "$line\n$prevLine\n$last_pos $t[1]";
 		#next;
 	}
 	#die("Fatal vcf2cons_mpi.pl::@t"."\nlast_pos == $t[1] $last_pos\n") if ($last_pos == $t[1] );

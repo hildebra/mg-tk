@@ -427,8 +427,9 @@ sub SNPconsensus_vcf{
 		if ($SNPsuppStone ne "" ){
 			$vcfFileS .= ".gz" unless ($vcfFileS =~ m/\.gz$/);
 			$postcmd .= "cat `ls $tmpOut2.*.gz $sortedFileList` >$vcfFileS ;\nrm -f $tmpOut2.*.gz;\n";
-			$postcmd .= "$bcftBin index $vcfFileS; $bcftBin index $vcfFile;\n";
+			$postcmd .= "$bcftBin index -f $vcfFileS; $bcftBin index -f $vcfFile;\n";
 			$vcfSuff = ".mrg.gz";
+			#-d all 
 			$postcmd .= "$bcftBin concat -a --threads $samcores -O z -o $vcfFile$vcfSuff $vcfFile $vcfFileS;\n\n";				
 		}
 		$postcmd .= "zcat $vcfFile$vcfSuff | $vcfcnsScr $ofasCons.depStat $minDepth $minCallQual | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai
