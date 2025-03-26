@@ -31,12 +31,8 @@ use Mods::Subm qw (qsubSystemWaitMaxJobs qsubSystem emptyQsubOpt findQsubSys qsu
 
 
 #some useful HPC commands..
-#bjobs | awk '$3=="CDDB" {print $1}' |xargs bkill
-#bjobs | grep 'dWXmOT' | cut -f12 -d' ' | xargs -t -i bkill {}
-#squ | grep 'r' | cut -f12 -d' ' | xargs -t -i scontrol update TimeLimit=84:00:00 jobid={}
-#squ | grep 'dencyNev' | cut -f12 -d' ' | xargs  -t -i scancel {}
-#bhosts | cut -f1 -d' ' | grep -v HOST_NAME | xargs -t -i ssh {} 'killall -u hildebra'
-#hosts=`bhosts | grep ok | cut -d" " -f 1 | grep compute | tr "\\n" ","`; pdsh -w $hosts "rm -rf /tmp/hildebra"
+#squ | grep 'r' | cut -f11 -d' ' | xargs -t -i scontrol update TimeLimit=84:00:00 jobid={}
+#squ | grep 'dencyNev' | cut -f11 -d' ' | xargs  -t -i scancel {}
 
 
 
@@ -74,7 +70,7 @@ sub getCmdLineOptions;
 sub setupHPC;
 
 
-#------- version history MATAFILER --------
+#------- version history MATAFILER / MG-TK --------
 #.22: fixing of assembly.txt paths, if output folders were later copied around
 #.23: upgrade to metaphlan3 & motus3 & general update to workflow that these no longer need sdm filtered reads
 #.24: new sdm version, better HDD space usage control, reworked EBIupload routines, sdm cores back to 4, bug fixes..
@@ -114,7 +110,9 @@ sub setupHPC;
 #.58: 30.12.24: firstXrdsRd & firstXrdsWr function added, required sdm 3.08
 #.59: 21.1.25: hostile integration
 #.60: 28.2.25: updates to loop2complete mechanic (debugging), clusterMAGs version 0.25
-my $MATFILER_ver = 0.60;
+#.61: 19.3.25: metaPhlan4 more stable support
+#.62: 26.3.25: hybrid assembly  enabled for mixed SR, SR+LR samples in same assembly group
+my $MATFILER_ver = 0.62;
 
 
 #operation mode?
@@ -529,13 +527,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#detect what already exists..
 	my $efinAssLoc = 0; $efinAssLoc = 1  if (-s $finAssLoc && -e "$finalCommAssDir/$STOassmbleDone");
+	#die "$efinAssLoc\n$finalCommAssDir/$STOassmbleDone\n";
 	#activate if two assemblies for single sample required, e.g. hybrid assemblies
-	my $ePreAssmbly = 0; $ePreAssmbly = 1 if (-s $finAssLoc && -e "$finalCommAssDir/$STOpreAssmblDone");
-	my $ePreAssmblPck = 0; $ePreAssmblPck = 1 if (-s $finAssLoc && -e "$metaGpreAssmblDir/moved.sto");
-	my $doPreAssmFlag = 0; my $postPreAssmblGo =0 ;
-	($doPreAssmFlag,$postPreAssmblGo,$ePreAssmblPck) = prepPreAssmbl($finalCommAssDir,$metaGpreAssmblDir,$finalMapDir, "$smplTmpDir/preAssmblData/",
-				$ContigStatsDir, $curSmpl, $cAssGrp, $efinAssLoc, $ePreAssmblPck);#moves files to new locations
-				
+	#my $doPreAssmFlag = 0; my $postPreAssmblGo =0 ;
+	my ($ePreAssmbly,$doPreAssmFlag,$postPreAssmblGo,$ePreAssmblPck) = prepPreAssmbl($finalCommAssDir,$metaGpreAssmblDir,$finalMapDir, "$smplTmpDir/preAssmblData/",
+				$ContigStatsDir, $curSmpl, $cAssGrp, $finAssLoc,$efinAssLoc,$finalCommAssDir);#moves files to new locations
+	#die "$ePreAssmbly,$doPreAssmFlag,$postPreAssmblGo,$ePreAssmblPck\n$finalCommAssDir/$STOpreAssmblDone\n$metaGpreAssmblDir/moved.sto\n";
 	my $eCovAsssembly = 0; $eCovAsssembly = 1 if (-e $coveragePerCtg);
 	my $eSuppCovAsssembly = 0; $eSuppCovAsssembly = 1 if (-e $suppCoveragePerCtg);
 	#will be created in contigstats step (not related to bowtie & sortbam)
@@ -675,8 +672,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system "rm -rf $binningDir";
 	}
 
-	if ((!$eFinMapCovGZ && $eCovAsssembly)  #redo only contigstats related to coverage..
-				|| ($eSuppCovAsssembly && !$eFinSupMapCovGZ) || $MFconfig{redoCS}){
+	if ( (!$doPreAssmFlag || !$ePreAssmblPck) && ((!$eFinMapCovGZ && $eCovAsssembly)  #redo only contigstats related to coverage..
+				|| ($eSuppCovAsssembly && !$eFinSupMapCovGZ) )|| $MFconfig{redoCS}){
 		print "redoing contig stats global..\n";
 		system("rm -rf $finalCommAssDir/ContigStats/ $ContigStatsDir $binningDir/");
 		$eCovAsssembly = 0; $eSuppCovAsssembly=0; #contigstats needs redoing..
@@ -837,7 +834,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$calcReadMerge = 1 if ($MFopt{doReadMerge} && ($MFopt{calcOrthoPlacement} || $calcDiamond || $calcGenoSize));
 	my $mapAssFlag = 0; $mapAssFlag = 1 if ($MFopt{map2Assembly} && !$eFinMapCovGZ  );
 	my $calcCoverage = 0; $calcCoverage =1 if (!$eCovAsssembly && $MFopt{map2Assembly});
-	
 	#only for support reads (from hybrid assemblies)
 	my $mapSuppAssFlag =0;$mapSuppAssFlag = 1 if ($locMapSup2Assembly && !$eFinSupMapCovGZ && $efinAssLoc  );#hasSuppRds(\%AsGrps,$cAssGrp,$curSmpl ) );
 	my $calcSuppCoverage = 0; $calcSuppCoverage =1 if ($MFopt{mapSupport2Assembly} && !$eSuppCovAsssembly && $map{$curSmpl}{"SupportReads"} ne "");
@@ -851,7 +847,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
 	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
-
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
 	
@@ -885,8 +880,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 #	#-----------------------  END FLAGS  ------------------------  
 
 	#some more flow control..
-	if ( 
-		!$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
+	if ( !$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
 		!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
 		 && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag
 		#&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && 
@@ -926,11 +920,13 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 
 	#report for debugging:
-	#print "!$calcConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && $calcCoverage\n";
+#	print "!$calcConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && $calcCoverage\n";
+	#die;
 	
 
 
 
+	#die "$mapAssFlag\n";
 
 
 
@@ -1020,6 +1016,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			|| (!$ePreAssmblPck && $ePreAssmbly && !$postPreAssmblGo && !$efinAssLoc )  )
 	){ #last sample (assembly) should not map while other maps are still running..
 		print "next due to waiting for preassemblies";
+		#print "$ePreAssmblPck && $ePreAssmbly && !$postPreAssmblGo && !$efinAssLoc \n";
 		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); loop2C_check($cAssGrp,\@sampleDeps); next;
 	}
 
@@ -2967,7 +2964,7 @@ sub GapFillCtgs{
 }
 
 sub movePreAssmData{
-	my ($metagD, $mvD,$mapD, $tmpD, $CSdir, $smplID ) = @_;
+	my ($metagD, $mvD,$mapD, $CSdir, $smplID ) = @_; #$tmpD ,
 	#very thorough checks that everything is correctly prepped
 	my $mvSTO = "$mvD/moved.sto";
 #	system "rm -fr $metagD;\n" if ($AssemblyGo && -e $mvSTO);
@@ -2976,55 +2973,62 @@ sub movePreAssmData{
 		return;
 	}
 	print "Preparing assembly from preassembly..";
-	die "Coverage does not exist.. can't move preAssembly\n" if (!-e "$CSdir/Coverage.percontig.gz");
+	#die;
+	die "Coverage does not exist in $CSdir .. can't move preAssembly\n" if (!-e "$CSdir/Coverage.percontig.gz");
 	die "Not a preassebmly?: $metagD\n" unless (-e "$metagD/$STOpreAssmblDone");
 	die "Couldn't find ContigStats in $metagD\n" unless (-d $CSdir);
 	die "Couldn't find Assembly $metagD/scaffolds.fasta.filt\n" unless (-e "$metagD/scaffolds.fasta.filt");
 	my $cmd = "";
 	#my $newCovFile = "$tmpD/$smplID.coverage.perCtg";
-	$cmd .= "mkdir -p $tmpD;cp -r $metagD/scaffolds.fasta.filt $metagD/$STOpreAssmblDone $CSdir/Coverage* $tmpD;\n";
+	$cmd .= "mkdir -p $mvD;cp -r $metagD/scaffolds.fasta.filt $metagD/$STOpreAssmblDone $CSdir/Coverage* $mvD;\n";
 	#$cmd .= "cp $CSdir/Coverage.median.percontig $newCovFile\n";
 	$cmd .= "rm -fr $mapD;\n" ;
-	$cmd .= "cp -r $metagD/AssemblyStats.txt $logDir/preAssmStat.txt\n";
+	$cmd .= "cp -rf $metagD/AssemblyStats.txt $logDir/preAssmStat.txt\n";
 	#if ($AssemblyGo){$cmd .= "rm -fr $metagD;\n" ; print "removed preASsmbl dir";}
 	$cmd .= "mkdir -p $mvD;\n";
 	#$cmd .= "cp $tmpD/$STOpreAssmblDone $metagD;\n";
-	$cmd .= "cp -r $tmpD/* $mvD/;\n";
-	$cmd .= "rm -fr $tmpD\n";
+	#$cmd .= "cp -rf $tmpD/* $mvD/;\n";
+	#$cmd .= "rm -fr $tmpD\n";
 	$cmd .= "touch $mvSTO\n";
 	#die $cmd;
 	systemW $cmd;
 	print " Done \n";
 	#return $newCovFile;
+	return;
 }
 
 #used in hybrid assemblies
 sub prepPreAssmbl{
-	my ($metagD, $mvD,$mapD, $tmpD , $CSdir, $curSmpl, $cAssGrp, $assmDone, $ePreAssmblPck) = @_;
+	my ($metagD, $mvD,$mapD, $tmpD , $CSdir, $curSmpl, $cAssGrp, $finAssLoc, $efinAssLoc,$finalCommAssDir) = @_;
 	#die "$mvD\n";
+	my $ePreAssmbly = 0; $ePreAssmbly = 1 if (-s $finAssLoc && -e "$finalCommAssDir/$STOpreAssmblDone");
+	#die "$ePreAssmbly\n";
+	my $ePreAssmblPck = 0; if (-s $finAssLoc && -e "$mvD/moved.sto") {$ePreAssmbly=1;$ePreAssmblPck = 1;}
 	my $doPreAssmFlag = 0;
-	return ($doPreAssmFlag,0,$ePreAssmblPck) if ($assmDone);
+	if ($efinAssLoc){
+		return ($ePreAssmbly,$doPreAssmFlag,0,$ePreAssmblPck);
+	}
 	my $eCOV = 0; $eCOV = 1 if (-e "$CSdir/Coverage.percontig.gz");
 	#print "$eCOV $CSdir/Coverage.percontig\n";
-	if ($MFopt{DoAssembly} == 5 && $map{$curSmpl}{"SupportReads"} =~ m/PB:/ ){ #condition: right assembly mode and actually secondary support reads
+	if ($MFopt{DoAssembly} == 5 && $AsGrps{$cAssGrp}{SupportReads} =~ m/PB:/){#$map{$curSmpl}{"SupportReads"} =~ m/PB:/ ){ #condition: right assembly mode and actually secondary support reads
 		$doPreAssmFlag = 1 ;
-		if (!$eCOV && !$ePreAssmblPck){
+		if (!$eCOV || !$ePreAssmbly){
 			#print "preAssmbl: nothing done yet.. \n";#$mvD\n$metagD";
-			return ($doPreAssmFlag, 0, $ePreAssmblPck );
+			return ($ePreAssmbly,$doPreAssmFlag, 0, $ePreAssmblPck );
 		}
 	} else {
-		return (0,0,0); 
+		return (0,0,0,0); 
 	}
 	#die "$mvD\n";
 	#my $eCOV = 0; $eCOV =1 if ( -e "$CSdir/Coverage.percontig");
 	$AsGrps{$cAssGrp}{CntPreAss} = 0 unless (exists($AsGrps{$cAssGrp}{CntPreAss}));
 	
 	
-	if (($ePreAssmblPck || $eCOV) && -e "$metagD/$STOpreAssmblDone" ){
+	if ((!$ePreAssmblPck || $eCOV) && -e "$metagD/$STOpreAssmblDone" ){
 		#die "preAssmX: $PostAssemblyGo $doPreAssmFlag     $AsGrps{$cAssGrp}{CntPreAss} >= $AsGrps{$cAssGrp}{CntAimAss}\n";
 		$doPreAssmFlag = 0 ;#no prep needed any longer.. files will/are saved already!
 		#all ready for second assembly step!
-		movePreAssmData($metagD, $mvD,$mapD, $tmpD , $CSdir, $curSmpl) ;
+		movePreAssmData($metagD, $mvD,$mapD,  $CSdir, $curSmpl) ;#$tmpD ,
 		$ePreAssmblPck = 1;
 	}  
 	#die "XAS\n";
@@ -3039,7 +3043,7 @@ sub prepPreAssmbl{
 	#print "-e $CSdir/Coverage.percontig   $metagD/$STOpreAssmblDone\n" ;
 	#print "preAssm:  $doPreAssmFlag     $AsGrps{$cAssGrp}{CntPreAss} >= $AsGrps{$cAssGrp}{CntAimAss} :: $ePreAssmblPck $PostAssemblyGo\n";
 	#die "$doPreAssmFlag\n";
-	return ($doPreAssmFlag,$PostAssemblyGo,$ePreAssmblPck);
+	return ($ePreAssmbly,$doPreAssmFlag,$PostAssemblyGo,$ePreAssmblPck);
 }
 
 #scaffolding via mate pairs
@@ -3439,7 +3443,7 @@ sub sdmClean(){
 			#return [],[],[],[],"";
 			return ($cleanSeqSetHR,$jobd);
 		}
-		print "cleaning support reads..\n";
+		print "sdm'ing support reads..\n";
 	}
 	my $sdmBin = getProgPaths("sdm");# sdm program from LotuS2 pipeline
 	my $comprCores=$MFopt{sdmCores};
@@ -4205,7 +4209,7 @@ sub seedUnzip2tmp{
 		system "mkdir -p $supportDir" if ($i==0 && !-d $supportDir);
 		$paXs[$i] = outfiles_Bam($supportDir,$BamF);
 		$unzipcmd .= "echo \"Converting support bam $i to fastq\"\n";
-		$unzipcmd .= "mkdir -p $supportDir;\n";
+		$unzipcmd .= "mkdir -p $supportDir;\n" if ($i==0);
 		$unzipcmd .= "$smtBin fastq -@ $numCore -t $paBamX[$i] -0 $paXs[$i];\n"; # | $pigzBin -p $numCore -c > 
 		$lowEffort = 0;
 	}
@@ -5153,7 +5157,7 @@ sub mapReadsToRef{
 				die "single end mapping not implemented for bwa\n" if (!$usePairs);
 				$algCmd .= $algCmdBase." -R $rgStr $REF " . join(",",@accR1). " " . join(",",@accR2); ##$pa1[$i]." ".$pa2[$i];
 			} elsif ($mapperProgLoc==3){ #minimap2
-				$algCmd .= $algCmdBase." -R $rgStr -a $REF$MFcontstants{mini2IdxFileSuffix} ";
+				$algCmd .= $algCmdBase." -R $rgStr -a $REF ";#$MFcontstants{mini2IdxFileSuffix} ";
 				if ($usePairs){ $algCmd .= join(",",@accR1) . " " . join(",",@accR2); #$pa1[$i]." ".$pa2[$i]
 				} else { $algCmd .= join(" ",@accRS)
 				}
@@ -5364,7 +5368,7 @@ sub bamDepth{
 	$covCmd .= jgi_depth_cmd([$nxtBAM],$nxtBAM,95) if ($MFopt{DoJGIcoverage});
 	#$covCmd .= "/g/bork5/hildebra/bin/bedtools2-2.21.0/bin/genomeCoverageBed -ibam $nxtBAM -bg  | ".'awk \'BEGIN {pc=""} {	c=$1;	if (c == pc) {		cov=cov+$2*$5;	} else {		print pc,cov;		cov=$2*$5;	pc=c}';
 	#$covCmd .= "} END {print pc,cov}\' $nxtBAM.coverage | tail -n +2 > $nxtBAM.coverage.percontig";
-	$covCmd .= "rm -f $nxtBAM.bai;\n";
+	#$covCmd .= "rm -f $nxtBAM.bai;\n";
 	my ($CRAMcmd,$CRAMf) = bam2cram($nxtBAM,$REF,1,$doCram,$cramSTO, $numCore);
 	$CRAMcmd = "echo \"Building .cram ...\"\n$CRAMcmd" if ($CRAMcmd ne "");
 	unless ($mappDir eq $tmpOut){
@@ -5429,7 +5433,7 @@ sub mergeMP2Table($){
 		return;
 	}
 	my $getHDerCmd = "head -n1 ";
-	if ($MFopt{DoMetaPhlan3}){
+	if ($MFopt{DoMetaPhlan} >= 3){
 		$getHDerCmd = "head -n2 ";
 	}
 	my @slvl = ("k__","p__","c__","o__","f__","g__","s__"); my @llvl = ("kingdom","phylum","class","order","family","genus","species");
@@ -5493,22 +5497,22 @@ sub mergeMP2Table($){
 }
 
 sub prepMetaphlan{
-	
-	return unless ($MFopt{DoMetaPhlan3} || $MFopt{DoMetaPhlan});
-	return; #takes too much time..
-	my $met3Bin = getProgPaths("metPhl2");
+	#die;
+	return unless ($MFopt{DoMetaPhlan});
+	#return; #takes too much time..
+	my $metaPhlBin = getProgPaths("metPhl2");
 	print "Checking metaphlan version .. ";
 	my $vstr = "";
-	$vstr = `$met3Bin --version 2>/dev/null`;
+	$vstr = `$metaPhlBin --version 2>/dev/null`;
 	$vstr =~ m/version ([\.\d]+)/;
-	print "$1 ";
-	if ($MFopt{DoMetaPhlan3}){
+	#print "$1 ";
+	my $MPver = $1; my $MPverL = int(substr($MPver,0,1));
+	if ($MFopt{DoMetaPhlan}){
 		$MFopt{DoMetaPhlan} = 1;
-		if (substr($1,0,1) < 3.0){ print "Metaphlan version below 3, reinstall updated metaphlan3\n"; exit(33);}
-		print "will use version 3\n";
+		if ( $MPverL < 3.0){ print "Metaphlan version below 3, reinstall updated metaphlan3\n"; exit(33);}
+		print "will use MetaPhlan version $MPver\n";
+		$MFopt{DoMetaPhlan} = $MPverL;
 	}
-	#set globally to version 3
-	$MFopt{DoMetaPhlan3} = 1 if (substr($1,0,1) >= 3.0);
 }
 
 
@@ -5519,8 +5523,7 @@ sub metphlanMapping{
 
 	
 	my $bwt2Bin = getProgPaths("bwt2");#"/g/bork5/hildebra/bin/bowtie2-2.2.9/bowtie2";
-	
-	my $metPhl2Bin = getProgPaths("metPhl2");#"/g/bork3/home/hildebra/bin/metaphlan2/metaphlan2.py";
+	my $metPhlaBin = getProgPaths("metPhl2");#"/g/bork3/home/hildebra/bin/metaphlan2/metaphlan2.py";
 	#path to metaphlan DB
 	my $mpDB = getProgPaths("metPhl2_db",0);#metaphlan2/db_v20/mpa_v20_m200
 	my $metPhl2Merge = getProgPaths("metPhl2Merge");#"/g/bork3/home/hildebra/bin/metaphlan2/utils/merge_metaphlan_tables.py";
@@ -5539,26 +5542,32 @@ sub metphlanMapping{
 	my $finOut_noVB = $finOutD."$smp.MP2.noV.noB.txt";
 	my $finOut_Vo = $finOutD."$smp.MP2.VirusOnly.txt";
 	my $sam = "$tmpD/metph2.sam";
-	my $v3params = "";$v3params = " --sample_id $smp --nproc $Ncore --unknown_estimation --nreads \$readN -o " if ($MFopt{DoMetaPhlan3}); #--unknown_estimation -> requires --nreads
-	my $v2params = ""; $v2params = "--ignore_viruses >" if (!$MFopt{DoMetaPhlan3});
+	my $vXparams = "";#my $v2params = ""; 
+	if ($MFopt{DoMetaPhlan} >=4){ #version 4+
+		$vXparams = " --sample_id $smp --nproc $Ncore --unclassified_estimation --add_viruses --nreads \$readN -o " ; #if ($MFopt{DoMetaPhlan3}); #--unknown_estimation -> requires --nreads
+	} elsif ($MFopt{DoMetaPhlan} >=3){ #version 3+
+		$vXparams = " --sample_id $smp --nproc $Ncore --unknown_estimation --nreads \$readN -o " ; #if ($MFopt{DoMetaPhlan3}); #--unknown_estimation -> requires --nreads
+	} else { #version 2
+		$vXparams = "--ignore_viruses >";# if (!$MFopt{DoMetaPhlan3});
+	}
 	my $taxinfo = "--mpa_pkl $mpDB.pkl ";
-	$taxinfo = "--bowtie2db $mpDB1 -x $mpDB2 " if ($v3params ne "");
-	my $qsubFile = $logDir."metaPhl2.sh";
+	$taxinfo = "--bowtie2db $mpDB1 -x $mpDB2 " if ($MFopt{DoMetaPhlan} >=3);
+	my $qsubFile = $logDir."metaPhl$MFopt{DoMetaPhlan}.sh";
 	
-	
+	#$ bowtie2 --sam-no-hd --sam-no-sq --no-unal --very-sensitive -S metagenome.sam -x metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103  -U metagenome.fastq
 	my $cmd = "mkdir -p $tmpD\n$bwt2Bin --sam-no-hd --sam-no-sq --no-unal --very-sensitive -S $sam -p $Ncore -x $mpDB ";
 	$cmd .= "-1 $inF1 -2 $inF2 " if (@car1 > 0 );;
 	$cmd .= "-U $inFS " if (@sar > 0);
 	$cmd .= "\n\n";
 	$cmd .=  "sleep 1\nreadN=\$(grep -v 'Warning:' $qsubFile.etxt |  head -n1 | cut -f1 -d' ')\necho \$readN\n";
-	$cmd .= "$metPhl2Bin $sam --input_type sam $taxinfo $v2params $v3params $finOut\n";
-	#$cmd .= "$metPhl2Bin $sam --input_type sam $taxinfo $v2params $v3params $finOut_noV\n" if (!$MFopt{DoMetaPhlan3});
-	#$cmd .= "$metPhl2Bin $sam --input_type sam --ignore_bacteria --ignore_archaea $taxinfo $v2params $v3params $finOut_noVB\n";
-	#$cmd .= "$metPhl2Bin $sam --input_type sam --ignore_bacteria --ignore_eukaryotes --ignore_archaea $taxinfo $v2params $v3params $finOut_Vo\n";
+	$cmd .= "$metPhlaBin $sam --input_type sam $taxinfo $vXparams $finOut\n";
+	#$cmd .= "$metPhlaBin $sam --input_type sam $taxinfo $v2params $v3params $finOut_noV\n" if (!$MFopt{DoMetaPhlan3});
+	#$cmd .= "$metPhlaBin $sam --input_type sam --ignore_bacteria --ignore_archaea $taxinfo $v2params $v3params $finOut_noVB\n";
+	#$cmd .= "$metPhlaBin $sam --input_type sam --ignore_bacteria --ignore_eukaryotes --ignore_archaea $taxinfo $v2params $v3params $finOut_Vo\n";
 	$cmd .= "rm -f $sam\n";
 	my $mergeStr = "$metPhl2Merge *.MP2.txt > $finOutD/comb.MP2.txt";
 	$cmd .= "echo \' $mergeStr \' > $stone\n";
-	my $jobN = "MP2$JNUM";
+	my $jobN = "MP$MFopt{DoMetaPhlan}$JNUM";
 	
 	my ($jobN2,$tmpCmd) = qsubSystem($qsubFile,
 			$cmd,$Ncore,"3G",$jobN,$deps,"",1,[],$QSBoptHR);
@@ -5659,7 +5668,9 @@ sub manageFiles{
 	
 	#all dependencies before deleting tmp dirs
 	#die "$AsGrps{$cAssGrp}{SeqClnDeps}\n";
-	my $totJdeps = $jdep . ";" . "$AsGrps{$cAssGrp}{SeqClnDeps}" . ";" . $AsGrps{$cAssGrp}{MapDeps} . ";". $AsGrps{$cAssGrp}{scndMapping}.";".$AsGrps{$cAssGrp}{readDeps}.";".$AsGrps{$cAssGrp}{prodRun};
+	my $totJdeps = $jdep . ";" . "$AsGrps{$cAssGrp}{SeqClnDeps}" . ";" . $AsGrps{$cAssGrp}{MapDeps} . ";". 
+				$AsGrps{$cAssGrp}{scndMapping}.";".$AsGrps{$cAssGrp}{readDeps}.";".$AsGrps{$cAssGrp}{prodRun}. 
+				";" . $AsGrps{$cAssGrp}{AssemblJobName};
 	
 #	for ( ($jdep , $AsGrps{$cAssGrp}{MapDeps} , $AsGrps{$cAssGrp}{scndMapping},$AsGrps{$cAssGrp}{prodRun}) ){
 #		push(@sampleDeps, $_ ) if (defined $_ && $_ ne "");
@@ -6620,8 +6631,13 @@ sub longRdAssembly{
 	#print "$numInLibs libs\n";
 	
 	if ($MFopt{DoAssembly} == 5){#hybrid mode.. check that all required files are present or stop here
-		if (${$cReadTecAr}[0] ne "PB"){print "Hybrid Assembly.. expected \"PB\" reads for support reads! (found \
-		${$cReadTecAr}[0]\"\nAborting..\n";die;}
+		#if (${$cReadTecAr}[0] ne "PB"){print"Expected PacBio (\"PB\") readTech for metaMDBG, found \"${$cReadTecAr}[0]\"\n";die;}
+		my $PBdetected=0; foreach (@{$cReadTecAr}){$PBdetected=1 if (m/PB/);}
+		if (!$PBdetected){
+			print "Hybrid Assembly.. expected \"PB\" reads for support reads!";
+			print "(found \"@{$cReadTecAr}\" (size:". @{$cReadTecAr} ."))\nAborting..\n";
+			die;
+		}
 		return "" unless (-e $helpAssembl || $helpAssembl eq "hybridmMDBG");
 	}
 	#my ($p1arX,$p2arX,$singlArX,$cReadTecArX) = getCleanSeqsAssmGrp($asHr, $cAsGrp, 1);
@@ -6636,29 +6652,33 @@ sub longRdAssembly{
 	my $nodeTmp2 = "$nodeTmp/tmpRawRds/";
  	my $cmd = "rm -rf $nodeTmp\nmkdir -p $nodeTmp $finalOut $nodeTmp2\n\n"; #\n  mkdir -p $nodeTmp/tmp\n
 	#input reads for assembly .. expected unpaired, long reads
-	my @inRds = @{$singlAr};
+	my @inRds;# = @{$singlAr};
 	
 	#metaMDBG "hack" to impute illumina assemblies:
 	my $cmdPre = "";
 	if ($helpAssembl eq "hybridmMDBG" && $MFopt{DoAssembly} == 5){
-		if (${$cReadTecAr}[0] ne "PB"){print"Expected PacBio (\"PB\") readTech for metaMDBG, found \"${$cReadTecAr}[0]\"\n";die;}
 		my $spl4m = getProgPaths("split_fasta4metaMDBG_scr");
 		#my $illPathS = ;
 		my @illDirs = @{$AsGrps{$cAsGrp}{preAsmblDir}}; #split /,/,$illPathS;
 		$cmdPre .= "#presplitting helper assembly:\n";
-		die "preLib num (" .@illDirs . ") != read libs (" . @inRds . ")!" if (@illDirs != @inRds);
+		#die "preLib num (" .@illDirs . ") != read libs (" . @inRds . ")!" if (@illDirs != @inRds);
+		die "preLib num (" .@illDirs . ") < read libs (" . @inRds . ")!" if (@illDirs < @inRds);
+		#condition is not correct: there might be cases where there are less inRds (PB runs), but additional assmblGrp samples have illumina..
 		for (my $i=0;$i<@illDirs;$i++){
 			my $illD = $illDirs[$i];
 			die "longRdAssembly:: $illD is not a dir!" unless (-d $illD);
-			my $contigCov = "$illD/Coverage.median.percontig.gz"; my $dupiAssmbl = "$nodeTmp2/assmbl.$i.pre.fastq.gz";
+			my $contigCov = "$illD/Coverage.median.percontig.gz"; 
+			my $dupiAssmbl = "$nodeTmp2/assmbl.$i.pre.fastq.gz";
 			my $preAssmbl = "$illD/scaffolds.fasta.filt";
 			$cmdPre .= "$spl4m $preAssmbl $contigCov $dupiAssmbl;\n";
 			#merge this split with single reads in tmp dir..
-			$cmdPre .= "cat $inRds[$i] >> $dupiAssmbl;\n";
+			$cmdPre .= "cat $singlAr->[$i] >> $dupiAssmbl;\n" if (@{$singlAr} > $i);
 			$inRds[$i] = $dupiAssmbl;
 		}
 		#transfer commands to main #cmd stream..
 		$cmd .= $cmdPre."#presplitting done\n\n";
+	} else {
+		@inRds = @{$singlAr};
 	}
 	
 	#die "@inRds\n";
@@ -7159,7 +7179,7 @@ sub setDefaultMFconfig{
 
 	#non-asembly based tax + functional assignments #DoMetaPhlan3 merges into $DoMetaPhlan , after version check
 	#my $DoMetaPhlan = 0;   my $DoMetaPhlan3 = 0; my $DoMOTU2 = 0; my $DoTaxaTarget = 0; 
-	$MFopt{DoMetaPhlan}=0;$MFopt{DoMetaPhlan3}=0;
+	$MFopt{DoMetaPhlan}=0;#$MFopt{DoMetaPhlan3}=0;
 	$MFopt{DoMOTU2}=0;$MFopt{DoTaxaTarget}=0;
 	$MFopt{PABtaxChk} =0;
 
@@ -7488,8 +7508,8 @@ sub getCmdLineOptions{
 		"saveRiboRds=i" => \$MFopt{riboStoreRds},
 		"thoroughCheckRiboFinish=i" => \$MFopt{checkRiboNonEmpty},
 	#other tax profilers..
-		"profileMetaphlan2=i"=> \$MFopt{DoMetaPhlan},
-		"profileMetaphlan3=i"=> \$MFopt{DoMetaPhlan3},
+		"profileMetaphlan=i"=> \$MFopt{DoMetaPhlan},
+		#"profileMetaphlan3=i"=> \$MFopt{DoMetaPhlan3},
 		"profileMOTU2=i" => \$MFopt{DoMOTU2},
 		"profileKraken=i"=> \$MFopt{DoKraken},
 		"profileTaxaTarget=i" => \$MFopt{DoTaxaTarget},

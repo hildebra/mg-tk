@@ -65,7 +65,8 @@ sub clusterSingleStep;sub clusterMultiStep;
 #.48: 28.7.24: bugfix for resuming checkpointed GC
 #.49: 13.11.24: auto remove canopies if <10 samples
 #.50: 21.11.24: small fix to intial gene capturing step (subprepSmpls)
-my $version = 0.50;
+#.51: 26.3.25: small fix to ensure preprocessing takes the right start sample (could skip large numbers sometimes, due to rounding errors)
+my $version = 0.51;
 $| = 1;
 
 my $justCDhit = 1; #always set default to 0, to dangerous otherwise..
@@ -1565,10 +1566,12 @@ sub prepCDhit(){
 		system "mkdir -p $tmpDir/$COGdir" unless (-d "$tmpDir/$COGdir");
 		system "mkdir -p $qsubDir/preprocess/" unless (-d "$qsubDir/preprocess/");
 		system "rm -f touch $prepStone.1";
+		my $lastLocTo = 0;
 		for ( $batch = 0; $batch < $batchNum;$batch ++){
 			my $locTo = int($maxSmpls/$batchNum*(1+$batch));
 			my $locFrom = int($maxSmpls/$batchNum*($batch));
 			$locFrom ++ if (($batch +1) == $batchNum); ## last sample.. just add one extra to be safe
+			$locFrom = $lastLocTo if ($lastLocTo != $locFrom);
 			$locFrom = 0 if ($batch == 0);
 			#print "$locFrom,$locTo\n";
 			  
@@ -1579,6 +1582,7 @@ sub prepCDhit(){
 			my ($jdep,$txtBSUB) = qsubSystem($qsubDir."/preprocess/Preprocess.$batch.sh",$cmd,$numCor,int(30/$numCor)."G","PrPr$batch","","",1,[],$QSBoptHR);
 			push(@jobs,$jdep);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
+			$lastLocTo = $locTo;
 
 			# addingSmpls($locFrom,$locTo,$batch);  subprepSmpls
 		}

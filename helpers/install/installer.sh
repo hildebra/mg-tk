@@ -180,20 +180,30 @@ fi
 
 
 
-
+CM2DB=$DBdir/CM2/
+MP4DB=$DBdir/MP4/
 
 if ! find_in_mamba_env "MGTKcheckm2" ; then
 	echo "Installing MGTKcheckm2 environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/checkm2.yml 
 	$MAMBA_E activate MGTKcheckm2
-	checkm2 database --download --path $MFdir/DBs/
+	#install checkM2 DB
+	checkm2 database --download --path $CM2DB
+	#install metaphlan4 DB
+	#currently there is a bug: can't install into a given dir via conda
+	metaphlan --install --bowtie2db $MP4DB
 	$MAMBA_E deactivate
 else 
 	echo "Updating checkm2 environment"
 	$MAMBA_E update -y -q -f $INSTdir/checkm2.yml 
-	if [ ! -d $DBdir/CM2/ ]; then
+	if [ ! -d $CM2DB ]; then
 		$MAMBA_E activate MGTKcheckm2
-		checkm2 database --download --path $DBdir/CM2/
+		checkm2 database --download --path $CM2DB
+		$MAMBA_E deactivate
+	fi
+	if [ ! -d $MP4DB ]; then
+		$MAMBA_E activate MGTKcheckm2
+		metaphlan --install --bowtie2db $MP4DB
 		$MAMBA_E deactivate
 	fi
 	
