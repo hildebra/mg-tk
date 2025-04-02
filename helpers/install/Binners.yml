@@ -6,7 +6,7 @@ channels:
 dependencies:
   - conda-forge::numpy
   - conda-forge::scipy
-  - blas[build=openblas]
+#  - blas[build=openblas]
   - bioconda::semibin=2.2
 #  - conda-forge::python-igraph=0.10.4
   - canopy>=0.25

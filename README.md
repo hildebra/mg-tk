@@ -603,6 +603,7 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-silent [0/1] 			Controls how much information is printed on console
 	-OKtoRWassGrps [0|1]			1: can delete assemblies, if suspects error in them, powerful, but careful! (Default: 0)
 	-maxUnzpJobs [#]				#how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
+	-skipSmallSmplsMB [#]			skip sample if the overall file size is < than given number (in MB). Default: 1
 
 # Detecting raw input files
 	-inputFQregex1 [‘R1’]			R1 input regex extension (e.g. R1 could be '.*_1\.f[^\.]*q\.gz$' or last resort '(.*_pe_1\.f[^\.]*q\.gz$)|(.*R1_00\d\.f[^\.]*q\.gz$)|(.*[\._]1\.f[^\.]*q\.gz$)|(.*R1\.fq\.gz)' )
@@ -656,8 +657,8 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 # mapping
 	-mapper [1|2|3|4]				1: bowtie2, 2:bwa, 3: minimap2, 4:kma, 5:strobealign -1:auto (bowtie2 short, minimap2 long reads), -2:auto(strobealign short, minimap2 long). (Default: -1)
 	-mappingCores [#]				cores # used for mapping
-	-mappingMem [#]				memory # used for mapping bwa/bwt2 in GB (Default: auto)
-	-mapSortMem  [#]			memory # used for samtools sort in GB (Default: auto)
+	-mappingMem [#]				memory # used for mapping bwa/bwt2 in GB (Default: auto (-1))
+	-mapSortMem  [#]			memory # used for samtools sort in GB (Default: auto (-1))
 	-mappingCoverage			1: calculate coverage per predicted gene, contig, windows (Default: 1)
 	-mapSupportReadsOntoAssembly [#]   1: map also support reads (e.g. PacBio in case of hybrid assemblies) onto final assembly. (Default: 0)
 	-rmDuplicates [0|1]			1: remove read duplicates (Default: 1)

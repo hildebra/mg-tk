@@ -608,7 +608,7 @@ sub runCheckM2{#runs checkM2 on *.faa files (each file one Bin)
 
 
 sub runSemiBin{
-	my ($jgO,$outDir, $tmpDir, $nm, $fna, $cores, $dirsAR, $seqTec ) = @_;
+	my ($jgO,$outDir, $tmpDir, $nm, $fna, $cores, $dirsAR, $seqTec, $giveSBenv ) = @_;
 	#human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/global
 	my $SBbin = getProgPaths("SemiBin2");
 	#my $semibinGTDB = getProgPaths("semibinGTDB");
@@ -663,7 +663,7 @@ sub runSemiBin{
 	
 	# --environment human_gut, dog_gut, ocean, soil, cat_gut, human_oral, mouse_gut, pig_gut, built_environment, wastewater, chicken_caecum, global
 	my $smode = "single_easy_bin ";
-	my $senv = "--environment human_gut";
+	my $senv = "--environment human_gut";$senv =  "--environment $giveSBenv" if ($giveSBenv ne "");
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
 	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
@@ -672,7 +672,10 @@ sub runSemiBin{
 #	my $cmd = "";
 	#my $output = "$outD/$nm.semibin";
 	my $cmd .= "\n\n###Running SemiBin...\n";
-	if ($numBams == 1 && $jgO ne ""){
+	if ($giveSBenv ne ""){
+		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
+
+	}elsif ($numBams == 1 && $jgO ne ""){
 		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senv $seqType --output $outDir $dflags\n";
 	} else {
 		#--reference-db-data-dir $semibinGTDB --training-type self 

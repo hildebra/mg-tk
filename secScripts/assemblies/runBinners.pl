@@ -24,6 +24,7 @@ my $MB2coresL = 1;
 my $pathsPre = "";
 my $seqTec = "ill";
 my $BinnerName = "";
+my $giveSBenv = ""; #human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/chicken_caecum/global
 
 
 #"$BinnerScr -binner $DoMetaBat2 -binD $Bindir -smplID $smplIDs1 -tmpD $nodeSpTmpD2 -assmbl $metaGassembly -assmblGrp $cAssGrp -cores $MB2coresL -smplDirs " . join(",",@paths) . " -seqTec $seqTec 
@@ -70,7 +71,7 @@ if ($DoMetaBat2 == 1){
 } elsif ($DoMetaBat2 == 2){#SemiBin
 	#could work with jgidepth, but only for single sample.. not for co-assembly :(
 	#"$nodeSpTmpD2/depth$cAssGrp.jgi.depth.txt"
-	$MBcmd .= runSemiBin("",$BinDir,$nodeSpTmpD2, $smplIDs1,$metaGassembly,$MB2coresL,\@paths, $seqTec);
+	$MBcmd .= runSemiBin("",$BinDir,$nodeSpTmpD2, $smplIDs1,$metaGassembly,$MB2coresL,\@paths, $seqTec, $giveSBenv);
 	$BinnerName = "SB";
 }elsif ($DoMetaBat2 == 3){#MetaDecoder
 	#could work with jgidepth, but only for single sample.. not for co-assembly :(

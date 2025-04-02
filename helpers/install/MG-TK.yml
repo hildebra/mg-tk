@@ -38,7 +38,7 @@ dependencies:
 #  - conda-forge::biopython=1.81
   - pigz=2.8
   - pip=24.0
-  - rsync=3.2.7
+  - rsync=3.4.1
   - bioconda::strobealign=0.15
 #  - screen>=4.8
 #  - glpk

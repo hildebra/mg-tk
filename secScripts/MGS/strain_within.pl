@@ -1086,6 +1086,7 @@ sub readGenesSample_Singl{
 				if ($nonZeroCnt != 1 ){ #either 0 (gene not present) or >1 (too many copies) is not wanted
 					$curG = ""; #deactivate COG repri altogether..
 				}  
+				next if ($curG eq "");
 				
 				push (@genes2 , $curG); 
 				$curcgs{$curG} = $cog;
@@ -1146,6 +1147,7 @@ sub readGenesSample_Singl{
 				
 			#now write MGS into local temp storage for later tree building..
 			foreach my $gX (  @genes3 ){
+				print STDERR "Could not find \"$gX\" gene\n" unless (exists($FAA->{$gX}));
 				my $strCpy = ""; $strCpy = $FAA->{$gX};# if (exists($locFAA{$gX}));
 				my $AAlen = length($strCpy);
 				if ($AAlen == 0){$SNPresFail++; next;}

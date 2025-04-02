@@ -56,10 +56,12 @@ sub genePredictions; sub run_prodigal; #gene prediction
 sub mapReadsToRef;  sub scndMap2Genos;
 sub runContigStats;#sub bam2cram;
 sub mocat_reorder; sub postSubmQsub; 
-sub detectRibo;  sub RiboMeta;sub riboSummary;
+sub detectRibo;  sub riboSummary;
+
+sub checkRawProgsFin;
 
 sub runOrthoPlacement;
-sub runDiamond; sub DiaPostProcess; sub IsDiaRunFinished;
+sub runDiamond; sub DiaPostProcess;
 sub nopareil; sub calcCoverage;sub d2metaDist; 
 sub metphlanMapping; sub mergeMP2Table;
 sub mOTU2Mapping; sub mergeMotu2Table; sub prepMOTU2;
@@ -112,7 +114,8 @@ sub setupHPC;
 #.60: 28.2.25: updates to loop2complete mechanic (debugging), clusterMAGs version 0.25
 #.61: 19.3.25: metaPhlan4 more stable support
 #.62: 26.3.25: hybrid assembly  enabled for mixed SR, SR+LR samples in same assembly group
-my $MATFILER_ver = 0.62;
+#.63: 28.3.25: added -skipSmallSmplsMB option, that will skip samples with too little input read file size
+my $MATFILER_ver = 0.63;
 
 
 #operation mode?
@@ -417,6 +420,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$QSBoptHR->{LocationCheckStrg} = checkDrives(\@checkLocs);
 
 	my $mapOut = "$smplTmpDir/mapping/";
+	my $mapOutSup = "$smplTmpDir/mappingSupp/";
 	#$DBpath="$curOutDir/readDB/";
 	my $finalCommAssDir = "$curOutDir/assemblies/metag/";
 	my $finalCommAssDirSingle = $finalCommAssDir; #this is only used for checking..
@@ -653,7 +657,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#die "locDel\n";
 		print "Deleting previous assembly mapping, size map: ". (-s $CRAMmap) . "\n$CRAMmap\n" if ($MappingGo && $eFinalMapDir);
 		#die "$finAssLoc && !-e $metaGassembly\n";
-		system "rm -fr $finalMapDir $mapOut $ContigStatsDir/Coverage.* $ContigStatsDir/Cov.sup.*";
+		system "rm -fr $finalMapDir $mapOut $mapOutSup $ContigStatsDir/Coverage.* $ContigStatsDir/Cov.sup.*";
 		$eFinMapCovGZ = 0;	$emetaGassembly =  0;
 		$eCovAsssembly = 0; $eSuppCovAsssembly=0; $eFinSupMapCovGZ=0; $eFinalMapDir = 0;
 		#are there SNPs called? remove as well..
@@ -767,41 +771,15 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	} else {$progStats{KrakTaxFailCnts}++;}
 	
 	#system "rm -f $curOutDir/ribos//ltsLCA/LSU_ass.sto $curOutDir/ribos//ltsLCA/Assigned.sto"; fix for new LSU assignments
-	my $calcGenoSize=0; $calcGenoSize=1 if ($MFopt{DoGenoSizeEst} && 	!-e "$curOutDir/MicroCens/MC.0.result");
-	my $calcRibofind = 0; my $calcRiboAssign = 0;
-	$calcRibofind = 1 if ($MFopt{DoRibofind} && (!-e "$curOutDir/ribos//SSU_pull.sto"|| !-e "$curOutDir/ribos//LSU_pull.sto" || ($MFopt{doRiboAssembl} && !-e "$curOutDir/ribos/Ass/allAss.sto" ))); #!-e "$curOutDir/ribos//ITS_pull.sto"|| 
-	$calcRiboAssign = 1 if ($MFopt{DoRibofind} && ( !-e "$curOutDir/ribos//ltsLCA/Assigned.sto"  || !-e "$curOutDir/ribos//ltsLCA/SSU_ass.sto") );		#!-e "$curOutDir/ribos//ltsLCA/ITS_ass.sto"||  #ITS no longer required.. unreliable imo
-	#die "$calcRibofind\n\n";
-	#die "$calcRibofind $calcRiboAssign\n";
-	RiboMeta($calcRibofind,$calcRiboAssign,$curOutDir,$SmplName);
 
-	my ($calcDiamond,$calcDiaParse) = IsDiaRunFinished($curOutDir);
+	
 	#die "XX $calcDiamond $calcDiaParse\n";
-	my $calcMetaPhlan=0;
-	#die $dir_MP2."$SmplName.MP2.sto";
-	if ($MFopt{DoMetaPhlan}){
-		if (!-e $dir_MP2."$SmplName.MP2.sto"){
-			$calcMetaPhlan=1 ;
-			$progStats{metaPhl2FailCnts}++;
-		} else { $progStats{metaPhl2ComplCnts}++;}
-	}
-	my $calcMOTU2=0;
-	if ($MFopt{DoMOTU2}){
-		if (!-e $dir_mOTU2."$SmplName.Motu2.sto"){
-			$calcMOTU2=1;
-			$progStats{mOTU2FailCnts}++;
-		} else { $progStats{mOTU2ComplCnts}++;}
-	}
-	my $calcTaxaTar = 0;
-	if ($MFopt{DoTaxaTarget}){
-		if (!-e $dir_TaxTar."$SmplName.TaxTar.sto"){
-			$calcTaxaTar=1 ;
-			$progStats{taxTarFailCnts}++;
-		} else { $progStats{taxTarComplCnts}++;}
-	}
+	
+	my ($calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
+			$calcMetaPhlan, $calcMOTU2,$calcTaxaTar) = checkRawProgsFin($curOutDir,$SmplName);
 
 
-	#TODO
+
 	my $allMapDone =0;#used for SNP calling and Binning - but binning requires info if all maps are finished from all samples
 	$allMapDone = 1 if (-e "$finalMapDir/$SmplName-smd.$bamcramMap" && $eCovAsssembly && !$ePreAssmbly && ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ );
 	
@@ -955,18 +933,29 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my %seqSet = %{$hrefSeqSet};
 	push (@unzipjobs,$jdep) unless ($jdep eq "");
 	$seqSet{samplReadLength} = $samplReadLength; $seqSet{samplReadLengthX} = $samplReadLengthX;
-	#die "@{$seqSet{pa1}}\n@{$seqSet{pas}}\n";
-
-	#$seqSet{"curSDMopt"} = $curSDMopt; $seqSet{"curSDMoptSingl"} = $curSDMoptSingl;
 	
-	if ($jdep eq "EMPTY_DO_NEXT"){push(@EmptySample,$curSmpl);loop2C_check($cAssGrp,\@sampleDeps);next;}
-	push(@inputRawFQs,$seqSet{"rawReads"});
+	
+	if ($jdep eq "EMPTY_DO_NEXT" || $inputFileSizeMB{$curSmpl} < $MFconfig{skipSmallSmplsMB} ){
+		if ($inputFileSizeMB{$curSmpl} < $MFconfig{skipSmallSmplsMB}){
+			print "Skipping sample $curSmpl due to $inputFileSizeMB{$curSmpl} < $MFconfig{skipSmallSmplsMB} MB\n";
+		} else {
+			print "Sample empty.. next\n";
+		}
+		push(@EmptySample,$curSmpl);
+		reduceProgStats(); #reduce counters for riboFind etc.. no find in this sample!
+		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+		loop2C_check($cAssGrp,\@sampleDeps);next;
+	}
 	if($scaffTarExtLibTar eq $curSmpl){
 		@scaffTarExternalOLib1 = @{$seqSet{"pa1"}}; @scaffTarExternalOLib2 = @{$seqSet{"pa2"}};
-		next unless ($map{$curSmpl}{"SupportReads"} =~ /mate/i );
+		unless ($map{$curSmpl}{"SupportReads"} =~ /mate/i ){
+			MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
+			loop2C_check($cAssGrp,\@sampleDeps);next;
+		}
 		#print "@scaffTarExternalOLib1\n";
 		#die;
 	}
+	push(@inputRawFQs,$seqSet{"rawReads"});
 	
 	
 	#$mmpuOutTab .= $dir2rd."\t".$seqSet{"mmpu"}."\n";
@@ -1190,6 +1179,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	} 
 	
 	
+	#-----------------------------------------------------------------
+	#------------------------  MAPPING -------------------------------
+	#-----------------------------------------------------------------
 	
 	#-----------------   secondary mapping -----------------
 	#2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd
@@ -1229,9 +1221,10 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		$delaySubmCmd .= "\n".$delaySubmCmd_2;
 		$AsGrps{$cAssGrp}{MapDeps} .= $map2Ctgs_2.";";
 		$AsGrps{$cAssGrp}{BinDeps} .= $map2Ctgs_2.";";
-		my $cpyStrm = "MapCopies";$cpyStrm = "MapCopiesNoDel" if ($mapSuppAssFlag || $eFinSupMapCovGZ);
+		my $cpyStrm = "MapCopies";
+		$cpyStrm = "MapCopiesNoDel" if ($mapSuppAssFlag || $eFinSupMapCovGZ);
 		$cpyStrm = "nothing" if ($map2Ctgs_2 eq "" );# deactivate copying if no job was submitted..
-		if (!${$mapOptHr}{immediateSubm} ){#$map2Ctgs_2 ne ""){
+		if (!$moveMappings && !${$mapOptHr}{immediateSubm} ){#$map2Ctgs_2 ne ""){
 			#store command for later..
 			$AsGrps{$cAssGrp}{PostAssemblCmd} .= $delaySubmCmd;
 			push(@{$AsGrps{$cAssGrp}{$cpyStrm}},$mapOut."/*",$finalMapDir);
@@ -1240,8 +1233,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			#this part is checking only if files were not copied..
 			#just do it.. 
 			print "Moving mappings from globaltmp to finaldir\n";
-			system "mkdir -p $finalMapDir;" unless (-d $finalMapDir);
-			systemW "rsync -r   --remove-source-files $mapOut/* $finalMapDir/";
+			system "mkdir -p $finalMapDir;sleep 1;" unless (-d $finalMapDir);
+			systemW "rsync -r --remove-source-files $mapOut/* $finalMapDir/";
+			#systemW "mv $mapOut/* $finalMapDir/";
 		} elsif ($map2Ctgs_2 ne "") { #make sure files get copied
 			push(@{$AsGrps{$cAssGrp}{$cpyStrm}},$mapOut."/*",$finalMapDir);
 		}
@@ -1250,25 +1244,27 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($mapSuppAssFlag){ #supplementary mappings (eg PacBio in hybrid assemblies)
 		print "mapping support reads\n";
 		my $mapNow = 1;
-		my $unAlDir = "$mapOut/unaligned_supp/";$unAlDir = "" if (!$MFopt{SaveUnalignedReads});
+		my $unAlDir = "$mapOutSup/unaligned_supp/";$unAlDir = "" if (!$MFopt{SaveUnalignedReads});
 		my %dirset = 	(nodeTmp=>$nodeSpTmpD,outDir => "$finalMapDir/", unalDir => $unAlDir,
 						sbj => $metaGassembly, assGrp => $cAssGrp,  smplName => $SmplName,
-						glbTmp => $smplTmpDir."/toMGctgsSupp/",glbMapDir => $mapOut, mapSupport => 1,
+						glbTmp => $smplTmpDir."/toMGctgsSupp/",glbMapDir => $mapOutSup, mapSupport => 1,
 						readTec => "", submit => 1,submNow => $mapNow,
 						sortCores => $MFopt{bamSortCores}, mapCores => $MFopt{MapperCores}, cramAlig => $cramthebam);
 		# primary mapping of support reads (onto de novo assembly)
-		my ($map2Ctgs,$delaySubmCmd,$mapOptHr) = mapReadsToRef(\%dirset, \%AsGrps,
+		my ($mapSup2Ctgs,$delaySubmCmd,$mapOptHr) = mapReadsToRef(\%dirset, \%AsGrps,
 			$AsGrps{$cAssGrp}{AssemblJobName}.";$jdep");#\@libsCFP);
-		my ($mapSup2Ctgs_2,$delaySubmCmd_2,$mapStat)  = bamDepth(\%dirset,$map2Ctgs,$mapOptHr);
+		my ($mapSup2Ctgs_2,$delaySubmCmd_2,$mapStat)  = bamDepth(\%dirset,$mapSup2Ctgs,$mapOptHr);
 			$delaySubmCmd .= "\n".$delaySubmCmd_2;
 		$AsGrps{$cAssGrp}{MapDeps} .= $mapSup2Ctgs_2.";";
 		$AsGrps{$cAssGrp}{BinDeps} .= $mapSup2Ctgs_2.";";
-		if ($mapSup2Ctgs_2 eq "" && !$eFinSupMapCovGZ && -e "$mapOut/$SmplName.sup-smd.bam.coverage.gz"){  # just copy over..
+		if (#$mapSup2Ctgs eq "" && $mapSup2Ctgs_2 eq "" 
+			$AsGrps{$cAssGrp}{MapDeps} =~  m/[^;\s]/ && !$eFinSupMapCovGZ && -e "$mapOutSup/$SmplName.sup-smd.bam.coverage.gz"){  # just copy over..
 			print "Moving supplementary mappings from globaltmp to finaldir\n";
-			system "mkdir -p $finalMapDir;" unless (-d $finalMapDir);
-			systemW "rsync -r --remove-source-files $mapOut/* $finalMapDir/";
+			system "mkdir -p $finalMapDir;sleep 1;" unless (-d $finalMapDir);
+			systemW "rsync -r --remove-source-files $mapOutSup/* $finalMapDir/";
+			#systemW "mv $mapOutSup/* $finalMapDir/";
 		} else {
-			push(@{$AsGrps{$cAssGrp}{MapSupCopies}},$mapOut."/*",$finalMapDir);
+			push(@{$AsGrps{$cAssGrp}{MapSupCopies}},$mapOutSup."/*",$finalMapDir);
 		}
 #		die;
 	}
@@ -1531,7 +1527,7 @@ sub postprocess{
 	
 	print "Estimated scratch use: " . int($totalScratchUse/1024)."G\n";
 		if (@EmptySample>0){
-		print "Found Empty samples:\n".join(",",@EmptySample) ."\n\n";
+		print "Found Empty/too small (<". $MFconfig{skipSmallSmplsMB} ."MB) samples (N=". scalar(@EmptySample) . "):\n".join(",",@EmptySample) ."\n\n";
 	}
 
 
@@ -1736,15 +1732,15 @@ sub DiaPostProcess(){
 	my $mrgDiScr = getProgPaths("mrgDia_scr");
 	my @DBS = split/,/,$MFopt{reqDiaDB};
 	foreach my $DB (@DBS){
-		$progStats{$DB}{SearchCompl} =0 unless (exists($progStats{$DB}{SearchCompl}));
-		$progStats{$DB}{SearchIncomplete}=0 unless (exists($progStats{$DB}{SearchIncomplete}));
+		$progStats{$DB}{DiaDBSearchCompl} =0 unless (exists($progStats{$DB}{DiaDBSearchCompl}));
+		$progStats{$DB}{DiaDBSearchIncomplete}=0 unless (exists($progStats{$DB}{DiaDBSearchIncomplete}));
 		my $countFile = "$baseOut/pseudoGC/FUNCT/$DB.compl";
 		my $refDone = 0; $refDone = int(getFileStr($countFile)) if (-e $countFile);
-		next if (!exists($progStats{$DB}{SearchCompl}) || $progStats{$DB}{SearchCompl} <= $refDone );
-		print "$DB :: $progStats{$DB}{SearchCompl} ($refDone previously done)\n";
-		$cmd .= "$mrgDiScr $baseOut $DB\necho $progStats{$DB}{SearchCompl} > $countFile\n" if ($progStats{$DB}{SearchCompl}>= 1 );
-		#`echo $progStats{$DB}{SearchCompl} > $countFile`;
-		#print "$DB: complete $progStats{$DB}{SearchCompl} >= incomplete $progStats{$DB}{SearchIncomplete}\n"
+		next if (!exists($progStats{$DB}{DiaDBSearchCompl}) || $progStats{$DB}{DiaDBSearchCompl} <= $refDone );
+		print "$DB :: $progStats{$DB}{DiaDBSearchCompl} ($refDone previously done)\n";
+		$cmd .= "$mrgDiScr $baseOut $DB\necho $progStats{$DB}{DiaDBSearchCompl} > $countFile\n" if ($progStats{$DB}{DiaDBSearchCompl}>= 1 );
+		#`echo $progStats{$DB}{DiaDBSearchCompl} > $countFile`;
+		#print "$DB: complete $progStats{$DB}{DiaDBSearchCompl} >= incomplete $progStats{$DB}{DiaDBSearchIncomplete}\n"
 	}
 	$cmd .= $AsGrps{global}{DiamCln};
 	print "\nMerg diamond:$cmd\n\n";
@@ -1847,6 +1843,9 @@ sub postSubmQsub(){#("$logDir/MultiMapper.sh",$AsGrps{$cAssGrp}{PostAssemblCmd},
 }
 
 
+
+
+
 sub RiboMeta($ $ $ $){
 	my ($calcRibofind,$calcRiboAssign,$curOutDir,$SmplName) = @_;
 	if ($calcRibofind || $calcRiboAssign){
@@ -1890,9 +1889,106 @@ sub RiboMeta($ $ $ $){
 		$progStats{riboFindComplCnts} ++; #completed already
 	} 
 }
+
+
+sub IsDiaRunFinished($){
+	my ($curOutDir) = @_;
+	my @alldbs = split /,/,$MFopt{reqDiaDB};
+	if (!$MFopt{DoDiamond}){return (0,0);}
+	my $secCogBin = getProgPaths("secCogBin_scr");
+	if ($MFopt{rewriteDiamond} && @alldbs == $MFopt{maxReqDiaDB}){ 
+		system "rm -r $curOutDir/diamond/" if (-d "$curOutDir/diamond/");
+	}
+	my $cD = 0; my $pD = 0; #dia_calc, dia_parse
+	if ($MFopt{rewriteDiamond}){$MFopt{redoDiamondParse} = 1;}
+	if ($MFopt{redoDiamondParse} && @alldbs == $MFopt{maxReqDiaDB}){
+		system "rm -r $curOutDir/diamond/CNT*";
+	}
+	foreach my $term (@alldbs){
+		#print $term."   $cD, $pD\n";
+		if ($MFopt{redoDiamondParse} ){#&& ( -e "$curOutDir/diamond/dia.$term.blast.gz.stone" || -e "$curOutDir/diamond/dia.$term.blast.srt.gz.stone") ){ 
+			system "rm -f $curOutDir/diamond/dia.$term.blast.*.stone" ;
+			system "$secCogBin -i $curOutDir/diamond/XX -DB $term -eval $MFopt{diaEVal} -mode 4";
+			system "rm -fr $curOutDir/diamond/ABR/" if ($term eq "ABR");
+		}
+		if ($MFopt{rewriteDiamond} ){system "rm -f $curOutDir/diamond/dia.$term.blast*" ;$pD=1; $cD=1;}
+		#die "$MFopt{rewriteDiamond}\n";
+#print "$curOutDir/diamond/dia.$term.blast.gz\n";
+		#die "$curOutDir/diamond/dia.$term.blast.gz\n$curOutDir/diamond/dia.$term.blast.srt.gz";
+		#|| !-e "$curOutDir/diamond/dia.$term.blast.srt.gz"
+		if (!$cD && (!-e "$curOutDir/diamond/dia.$term.blast.gz" && !-e "$curOutDir/diamond/dia.$term.blast.srt.gz" )){$cD = 1; }#system "rm $curOutDir/diamond/dia.$term.blas*.gz";}
+		$pD = 1 if (!-e "$curOutDir/diamond/dia.$term.blast.srt.gz.stone");#  <- last version always requires .srt.gz
+		#print "$cD, $pD  $curOutDir/diamond/dia.$term.blast.gz\n";
+	}
+	#die "$cD, $pD\n";
+	$cD = 0 if ($pD==0);
+	
+	if ($MFopt{rewriteAllIfAnyDiamond} && ($cD  || $pD)){ #just delete everything..
+		system "rm -r $curOutDir/diamond/" if (-d "$curOutDir/diamond/"); $cD=1; $pD=1;
+	}
+	if (!$cD && !$pD){
+		foreach my $curDB (@alldbs){$progStats{$curDB}{DiaDBSearchCompl}++;}
+	}
+	
+	return ($cD,$pD);
+}
+
+
+#called in case sample "is empty", reduce some counters
+sub reduceProgStats{
+	if ($MFopt{DoMetaPhlan}){
+		$progStats{metaPhl2FailCnts}--;
+	}
+	if ($MFopt{DoMOTU2}){
+		$progStats{mOTU2FailCnts}--;
+	}
+	if ($MFopt{DoTaxaTarget}){
+		$progStats{taxTarFailCnts}--;
+	}
+	if ($MFopt{DoRibofind}){
+		$progStats{riboFindFailCnts} -- ;
+	}
+}
+
+#check if programes have finished, that rely only on raw reads
+sub checkRawProgsFin{
+	my ($curOutDir,$SmplName) = @_;
+	my ($calcDiamond,$calcDiaParse) = IsDiaRunFinished($curOutDir);
+	
+	my $calcRibofind = 0; my $calcRiboAssign = 0;my $calcGenoSize=0; 
+	my $calcMetaPhlan=0;	my $calcMOTU2=0;	my $calcTaxaTar = 0;
+	
+	$calcGenoSize=1 if ($MFopt{DoGenoSizeEst} && 	!-e "$curOutDir/MicroCens/MC.0.result");
+	$calcRibofind = 1 if ($MFopt{DoRibofind} && (!-e "$curOutDir/ribos//SSU_pull.sto"|| !-e "$curOutDir/ribos//LSU_pull.sto" || ($MFopt{doRiboAssembl} && !-e "$curOutDir/ribos/Ass/allAss.sto" ))); #!-e "$curOutDir/ribos//ITS_pull.sto"|| 
+	$calcRiboAssign = 1 if ($MFopt{DoRibofind} && ( !-e "$curOutDir/ribos//ltsLCA/Assigned.sto"  || !-e "$curOutDir/ribos//ltsLCA/SSU_ass.sto") );		#!-e "$curOutDir/ribos//ltsLCA/ITS_ass.sto"||  #ITS no longer required.. unreliable imo
+	RiboMeta($calcRibofind,$calcRiboAssign,$curOutDir,$SmplName);
+
+	#die $dir_MP2."$SmplName.MP2.sto";
+	if ($MFopt{DoMetaPhlan}){
+		if (!-e $dir_MP2."$SmplName.MP2.sto"){
+			$calcMetaPhlan=1 ;
+			$progStats{metaPhl2FailCnts}++;
+		} else { $progStats{metaPhl2ComplCnts}++;}
+	}
+	if ($MFopt{DoMOTU2}){
+		if (!-e $dir_mOTU2."$SmplName.Motu2.sto"){
+			$calcMOTU2=1;
+			$progStats{mOTU2FailCnts}++;
+		} else { $progStats{mOTU2ComplCnts}++;}
+	}
+	if ($MFopt{DoTaxaTarget}){
+		if (!-e $dir_TaxTar."$SmplName.TaxTar.sto"){
+			$calcTaxaTar=1 ;
+			$progStats{taxTarFailCnts}++;
+		} else { $progStats{taxTarComplCnts}++;}
+	}
+	return ($calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
+			$calcMetaPhlan, $calcMOTU2,$calcTaxaTar) ;
+}
+
 sub riboSummary{
 	return if (!$MFopt{DoRibofind} );
-	if( $progStats{riboFindFailCnts}){
+	if( $progStats{riboFindFailCnts}>0){
 		print "$progStats{riboFindFailCnts} / $progStats{riboFindComplCnts} samples with incomplete RiboFind\n";
 		return;
 	} 
@@ -2113,12 +2209,12 @@ sub detectRibo(){
 			$jobName = "_RF$JNUM"; 
 			#die "RIBOFIND\n$outP/SSU_pull.sto\n"; 
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};
-			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*11)+10  ;
+			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*14)+10  ;
 			my $predefSHDD = $HDDspace{Ribos}; $predefSHDD =~ s/G$//;
 			if ($QSBoptHR->{tmpSpace} < $predefSHDD){ $QSBoptHR->{tmpSpace} = $HDDspace{Ribos};}#overwrite with larger val
 			$QSBoptHR->{tmpSpace}= $curSHFF . "G";
 			
-			#die "SPACE:: $QSBoptHR->{tmpSpace} $jobd\n$outP\n$re1[0]\n";
+			#die "SPACE:: $QSBoptHR->{tmpSpace} $jobd\n$outP\n$re1[0]\n$SMPN\n$inputFileSizeMB{$SMPN}\n";
 
 			($jobName, $tmpCmd) = qsubSystem($logDir."RiboFinder.sh",$cmd,$numCore,$mem,$jobName,$jobd,"",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} = $tmpSHDD; 
@@ -2140,48 +2236,6 @@ sub detectRibo(){
 
 
 
-
-sub IsDiaRunFinished($){
-	my ($curOutDir) = @_;
-	my @alldbs = split /,/,$MFopt{reqDiaDB};
-	if (!$MFopt{DoDiamond}){return (0,0);}
-	my $secCogBin = getProgPaths("secCogBin_scr");
-	if ($MFopt{rewriteDiamond} && @alldbs == $MFopt{maxReqDiaDB}){ 
-		system "rm -r $curOutDir/diamond/" if (-d "$curOutDir/diamond/");
-	}
-	my $cD = 0; my $pD = 0; #dia_calc, dia_parse
-	if ($MFopt{rewriteDiamond}){$MFopt{redoDiamondParse} = 1;}
-	if ($MFopt{redoDiamondParse} && @alldbs == $MFopt{maxReqDiaDB}){
-		system "rm -r $curOutDir/diamond/CNT*";
-	}
-	foreach my $term (@alldbs){
-		#print $term."   $cD, $pD\n";
-		if ($MFopt{redoDiamondParse} ){#&& ( -e "$curOutDir/diamond/dia.$term.blast.gz.stone" || -e "$curOutDir/diamond/dia.$term.blast.srt.gz.stone") ){ 
-			system "rm -f $curOutDir/diamond/dia.$term.blast.*.stone" ;
-			system "$secCogBin -i $curOutDir/diamond/XX -DB $term -eval $MFopt{diaEVal} -mode 4";
-			system "rm -fr $curOutDir/diamond/ABR/" if ($term eq "ABR");
-		}
-		if ($MFopt{rewriteDiamond} ){system "rm -f $curOutDir/diamond/dia.$term.blast*" ;$pD=1; $cD=1;}
-		#die "$MFopt{rewriteDiamond}\n";
-#print "$curOutDir/diamond/dia.$term.blast.gz\n";
-		#die "$curOutDir/diamond/dia.$term.blast.gz\n$curOutDir/diamond/dia.$term.blast.srt.gz";
-		#|| !-e "$curOutDir/diamond/dia.$term.blast.srt.gz"
-		if (!$cD && (!-e "$curOutDir/diamond/dia.$term.blast.gz" && !-e "$curOutDir/diamond/dia.$term.blast.srt.gz" )){$cD = 1; }#system "rm $curOutDir/diamond/dia.$term.blas*.gz";}
-		$pD = 1 if (!-e "$curOutDir/diamond/dia.$term.blast.srt.gz.stone");#  <- last version always requires .srt.gz
-		#print "$cD, $pD  $curOutDir/diamond/dia.$term.blast.gz\n";
-	}
-	#die "$cD, $pD\n";
-	$cD = 0 if ($pD==0);
-	
-	if ($MFopt{rewriteAllIfAnyDiamond} && ($cD  || $pD)){ #just delete everything..
-		system "rm -r $curOutDir/diamond/" if (-d "$curOutDir/diamond/"); $cD=1; $pD=1;
-	}
-	if (!$cD && !$pD){
-		foreach my $curDB (@alldbs){$progStats{$curDB}{SearchCompl}++;}
-	}
-	
-	return ($cD,$pD);
-}
 
 sub prepDiamondDB($ $ $ $){#takes care of copying the respective DB over to scratch
 	my ($curDB,$CLrefDBD,$ncore, $searchMode) = @_;
@@ -2707,8 +2761,8 @@ sub runDiamond(){
 	my $ncore = $MFopt{diaCores}; my $sensBlast = "";
 	$sensBlast = " --sensitive " if ($MFopt{diaRunSensitive});
 	foreach my $curDB (split /,/,$curDB_o){
-		$progStats{$curDB}{SearchCompl} = 0 unless (defined($progStats{$curDB}{SearchCompl}));
-		$progStats{$curDB}{SearchIncomplete} = 0 unless (defined($progStats{$curDB}{SearchIncomplete}));
+		$progStats{$curDB}{DiaDBSearchCompl} = 0 unless (defined($progStats{$curDB}{DiaDBSearchCompl}));
+		$progStats{$curDB}{DiaDBSearchIncomplete} = 0 unless (defined($progStats{$curDB}{DiaDBSearchIncomplete}));
 		#print "$curDB";
 		my ($refDB,$shrtDB,$clnCmd) = prepDiamondDB($curDB,$CLrefDBD,$ncore,$searchMode);
 		my $doInterpret = 1;
@@ -2799,9 +2853,9 @@ sub runDiamond(){
 			$memu = "30G";
 			($jobName, $tmpCmd) = qsubSystem($logDir."Diamo_parse$shrtDB.sh",$cmd2,1,$memu,$jobName2,$jobName,"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 			#die "bo";
-			$progStats{$curDB}{SearchIncomplete}++;#this needs to be done first..
+			$progStats{$curDB}{DiaDBSearchIncomplete}++;#this needs to be done first..
 		} else {
-			$progStats{$curDB}{SearchCompl}++;
+			$progStats{$curDB}{DiaDBSearchCompl}++;
 		}
 		if ($jobN2 eq ""){ $jobN2 = $jobName; } else {$jobN2 .= ";".$jobName;}
 	}
@@ -4734,7 +4788,7 @@ sub check_depth_done{
 sub getRgStr{ 
 	my ($smpl,$libsOri,$libsOriX,$usePairs,$mapper) = @_;
 	my $rgStr ="noReg";
-	if ($mapper > 1){ #bwa/minimap2 have same format..
+	if ($mapper > 1 || $mapper == -2){ #bwa/minimap2 have same format..
 		$rgStr = "'\@RG\\tID:$1\\tSM:$smpl\\tPL:ILLUMINA";$rgStr .= "\\tLB:lib1'";
 	}
 	if ($mapper==1){ #bowtie2
@@ -5389,15 +5443,20 @@ sub bamDepth{
 		print " ".$cramSTO."\n";
 	}
 	my $nodeCln = "\nrm -rf $nodeTmp;\necho \"DONE map2\"\n";
+	my $locSrtMem = $MFopt{mapSortMemGb};
+	if ($locSrtMem <0){
+		$locSrtMem = 20+ ($inputFileSizeMB{$curSmpl}/1024); #default mme usage..
+		$locSrtMem += 20 if ($MFopt{largeMapperDB});
+	}
+	
 	#die "$cmd\n$covCmd\n$CRAMcmd\n";
 	if ( ($doCram && !-e $cramSTO) || ( !-s "$nxtBAM.coverage.gz") ){#|| $bamFresh){
-		my $baseMem = 1; $baseMem=20 if ($MFopt{largeMapperDB});
 		my $preHDDspace=$QSBoptHR->{tmpSpace};		my $baseMapHDD = $HDDspace{mapping} ;  $baseMapHDD =~ s/G$//;
 		$QSBoptHR->{tmpSpace} = int($inputFileSizeMB{$curSmpl}*$baseMapHDD/1024)+15  ."G";		if (${$dirsHr}{submit}){
 			
 		($jobN2,$retCmds) = qsubSystem($qdir.$bashN."map2$supTag.sh",
 				$cmd."\n".$covCmd."\n".$CRAMcmd."\n$nodeCln\n"#.$covCmd2
-				,$numCore,  int($baseMem +$MFopt{mapSortMemGb}/$numCore)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
+				,$numCore,  (int($locSrtMem/$numCore)+1)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
 		$QSBoptHR->{tmpSpace}=$preHDDspace;
 		} else {
 			$cmd =~ s/sleep \d+//;
@@ -5613,13 +5672,21 @@ sub clean_tmp{#routine moves output from temp dirs to final dirs (that are IO li
 	#die "@cps ==0 && @clDa ==0 && @cpsND\n";
 	if (@cps ==0 && @clDa ==0 && @cpsND==0){return $jDepe;}
 	my $cmd = "";
+	die "MGTK.pl::clean_tmp: something wrong with \@cps, length % 2 (". scalar(@cps) .")\n"  if (scalar(@cps) % 2 != 0);
 	for (my $i=0;$i<@cps;$i+=2){
 		next if (length($cps[$i+1] ) < 5);
-		$cmd .= "rm -r -f $cps[$i+1]\nmkdir -p $cps[$i+1]\nrsync -r --remove-source-files $cps[$i] $cps[$i+1]\n" if (@cps > 1);
+		if ($i == 0){$cmd .= "mkdir -p $cps[$i+1]\n";} #rm -r -f $cps[$i+1]\n
+		$cmd .= "rsync -r --remove-source-files $cps[$i] $cps[$i+1]\n" ;
+		#$cmd .= "mv $cps[$i] $cps[$i+1]\n" ;
+		
 	}
+	die "MGTK.pl::clean_tmp: something wrong with \@cpsND, length % 2 (". scalar(@cpsND) .")\n"  if (scalar(@cpsND) % 2 != 0);
 	for (my $i=0;$i<@cpsND;$i+=2){
 		next if (length($cpsND[$i+1] ) < 5);
-		$cmd .= "mkdir -p $cpsND[$i+1]\nrsync -r  --remove-source-files $cpsND[$i] $cpsND[$i+1]\n"  if (@cpsND > 1);
+		if ($i == 0){$cmd .= "mkdir -p $cpsND[$i+1]\n";}
+		$cmd .= "rsync -r  --remove-source-files $cpsND[$i] $cpsND[$i+1]\n" ;
+		#$cmd .= "mv $cpsND[$i] $cpsND[$i+1]\n" ;
+		
 	}
 	$cmd .= "rm -f -r ".join(" ",@clDa)."\n" if (@clDa > 0  );
 	$cmd .= "echo $tag >> $collectFinished\n" unless ($tag eq "");
@@ -5659,7 +5726,6 @@ sub manageFiles{
 	
 	my @copiesNoDels=();
 	push(@copiesNoDels , @{$AsGrps{$cAssGrp}{PsAssCopies}}) if (exists($AsGrps{$cAssGrp}{PsAssCopies}));
-	push(@copiesNoDels , @{$AsGrps{$cAssGrp}{MapSupCopies}} ) if (exists($AsGrps{$cAssGrp}{MapSupCopies}));
 	push(@copiesNoDels , @{$AsGrps{$cAssGrp}{MapCopiesNoDel}} ) if (exists($AsGrps{$cAssGrp}{MapCopiesNoDel}));
 	my @cleans = ();
 	#if ($MappingGo && @bwt2outD==0){ #sync clean of tmp with scnd mapping..
@@ -5684,13 +5750,15 @@ sub manageFiles{
 	#die "\n@cleans\n$totJdeps\n";
 	
 	my @moves = (@{$AsGrps{$cAssGrp}{MapCopies}},@{$AsGrps{$cAssGrp}{AssCopies}});
+	push(@moves , @{$AsGrps{$cAssGrp}{MapSupCopies}} ) if (exists($AsGrps{$cAssGrp}{MapSupCopies}));
+
 	#die "@copies\n";
 	#print "@cleans\n@moves\n@copiesNoDels\n";
 	my $cln1="";
 	#if ($MFopt{DoAssembly} && $boolAssemblyOK || (!$MFopt{DoAssembly}) ){
 	if (!$MFconfig{remove_reads_tmpDir} || $doPreAssmFlag == 1){@cleans =();}
 	my $finishedClnDir = $curOutDir;  $finishedClnDir = "" if ($doPreAssmFlag);
-	#die "XXYZ\n@cleans\n @moves\n @copiesNoDels\n";
+	#die "XXYZ\n@cleans\nTTTT\n@moves\nUUUUU\n@copiesNoDels\n";
 	$cln1 = clean_tmp(\@cleans,\@moves, \@copiesNoDels,$totJdeps,$finishedClnDir,"");#$AsGrps{$cAssGrp}{CSfinJobName}); #.";".$contRun
 	
 	$AsGrps{$cAssGrp}{BinDeps} .= ";$cln1" if ($AsGrps{$cAssGrp}{MapDeps} ne "");
@@ -7182,6 +7250,7 @@ sub setDefaultMFconfig{
 	$MFopt{DoMetaPhlan}=0;#$MFopt{DoMetaPhlan3}=0;
 	$MFopt{DoMOTU2}=0;$MFopt{DoTaxaTarget}=0;
 	$MFopt{PABtaxChk} =0;
+	$MFconfig{skipSmallSmplsMB} = 1; #skips samples with less MB in input  files
 
 
 	#my $DoRibofind = 0; my $doRiboAssembl = 0; my $RedoRiboFind = 0; #ITS/SSU/LSU detection
@@ -7224,7 +7293,7 @@ sub setDefaultMFconfig{
 
 	#mapping related options
 	$MFopt{MapperProg} = -1;#1=bowtie2, 2=bwa, 3=minimap2, 4=kma, 5=strobealign, -1=auto (bowtie2 short, minimap2 long reads)
-	$MFopt{map2Assembly} = 1; $MFopt{mapSortMemGb} = 20; #in Gb
+	$MFopt{map2Assembly} = 1; $MFopt{mapSortMemGb} = -1; #in Gb
 	$MFopt{SaveUnalignedReads} =0; $MFopt{useUnmapped} = 0;
 	$MFopt{mapSupport2Assembly} = 0;
 	$MFopt{bwtIdxAssMem} = 40; #total mem in GB, not core adjusted, for building index from assembly
@@ -7379,7 +7448,7 @@ sub getCmdLineOptions{
 		#"rmRawRds=i" => \$MFconfig{DoFreeGlbTmp}, #rm raw sequences, once all jobs have finished <-- redundant with reduceScratchUse
 		"silent" => \$MFconfig{silent},
 		"maxUnzpJobs=i" => \$MFconfig{maxUnzpJobs}, #how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
-		
+		"skipSmallSmplsMB=i" => \$MFconfig{skipSmallSmplsMB},  #skip samples with a combined input smaller than this in MB (raw file size, independent of compressed or raw)
 	#input FQ related
 
 	#file strucuture

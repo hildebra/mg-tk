@@ -427,9 +427,13 @@ sub SNPconsensus_vcf{
 		if ($SNPsuppStone ne "" ){
 			$vcfFileS .= ".gz" unless ($vcfFileS =~ m/\.gz$/);
 			$postcmd .= "cat `ls $tmpOut2.*.gz $sortedFileList` >$vcfFileS ;\nrm -f $tmpOut2.*.gz;\n";
-			$postcmd .= "$bcftBin index -f $vcfFileS; $bcftBin index -f $vcfFile;\n";
+			$postcmd .= "sleep 1;\n$bcftBin index -f $vcfFileS; $bcftBin index -f $vcfFile;\n";
 			$vcfSuff = ".mrg.gz";
+			$postcmd .= "\n\n#sync sample names..\n";
 			#-d all 
+			#ensure smplname is the same..
+			$postcmd .= "$bcftBin head $vcfFile | tail -n1 | cut -f10 > $vcfFile.name\n$bcftBin reheader -s $vcfFile.name $vcfFileS > $vcfFileS.2;\nrm -f $vcfFileS; mv $vcfFileS.2 $vcfFileS;\n";
+			$postcmd .= "\n#Merge short- and long-read SNP calls\n";
 			$postcmd .= "$bcftBin concat -a --threads $samcores -O z -o $vcfFile$vcfSuff $vcfFile $vcfFileS;\n\n";				
 		}
 		$postcmd .= "zcat $vcfFile$vcfSuff | $vcfcnsScr $ofasCons.depStat $minDepth $minCallQual | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai

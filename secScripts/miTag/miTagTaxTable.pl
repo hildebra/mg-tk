@@ -16,6 +16,7 @@ opendir(DIR, $inDir) || die "can't opendir $inDir: $!";
 my @files = grep { /\.hiera\.txt\.gz/ && -f "$inDir/$_" } readdir(DIR);
 closedir DIR;
 
+
 print "Detected ".@files." input files in dir $inDir\n";
 exit(0) if (@files ==0);
 my %column ;
@@ -66,6 +67,10 @@ foreach my $file (@files) {
 		}
 		close $FHANDLE;
 }
+
+print "removing any old merge files\n";
+system "rm -f $outF*";
+
 print "Read input files..\n";
 foreach my $l (@tlvls){
 	my $ii = $column{$l};
