@@ -2209,7 +2209,7 @@ sub detectRibo(){
 			$jobName = "_RF$JNUM"; 
 			#die "RIBOFIND\n$outP/SSU_pull.sto\n"; 
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};
-			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*14)+10  ;
+			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*20)+5  ;
 			my $predefSHDD = $HDDspace{Ribos}; $predefSHDD =~ s/G$//;
 			if ($QSBoptHR->{tmpSpace} < $predefSHDD){ $QSBoptHR->{tmpSpace} = $HDDspace{Ribos};}#overwrite with larger val
 			$QSBoptHR->{tmpSpace}= $curSHFF . "G";
