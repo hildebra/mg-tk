@@ -4,10 +4,10 @@ srtMRNA_path	[BINDir]/sortmerna-2.0/
 srtMRNA_DBs	silva-euk-18s-id95.fasta,silva-bac-16s-id90.fasta,silva-arc-16s-id95.fasta,silva-euk-28s-id98.fasta,silva-bac-23s-id98.fasta,silva-arc-23s-id98.fasta
 FMGdir	[MFLRDir]/bin/fetchMG/
 
-LSUdbFA	[DBDir]/MarkerG/SILVA/128//SLV_128_LSU.fasta
-LSUtax	[DBDir]/MarkerG/SILVA/128/SLV_128_LSU.tax
-SSUdbFA	[DBDir]/MarkerG/SILVA/128/SLV_128_SSU.fasta
-SSUtax	[DBDir]/MarkerG/SILVA/128/SLV_128_SSU.tax
+LSUdbFA	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_LSU.fasta
+LSUtax	[DBDir]/MarkerG/SILVA/138.1/LV_138.1_LSU.tax
+SSUdbFA	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_SSU.fasta
+SSUtax	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_SSU.tax
 ITSdbFA	[DBDir]/MarkerG/ITS_combi/ITS_comb.fa
 ITStax	[DBDir]/MarkerG/ITS_combi/ITS_comb.tax
 PR2dbFA	

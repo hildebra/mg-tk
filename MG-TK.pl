@@ -23,7 +23,7 @@ use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp lcp readFastHD prefixFAhd p
 			getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp);
 use Mods::IO_Tamoc_progs qw(getProgPaths setConfigFile jgi_depth_cmd inputFmtSpades inputFmtMegahit createGapFillopt  
 			buildMapperIdx mapperDBbuilt decideMapper  checkMapsDoneSH greaterComputeSpace);
-use Mods::SNP qw(SNPconsensus_vcf );
+use Mods::SNP qw(SNPconsensus_vcf SVcall_vcf);
 use Mods::TamocFunc qw (cram2bsam getSpecificDBpaths getFileStr displayPOTUS bam2cram checkMF checkMFFInstall);
 use Mods::phyloTools qw(fixHDs4Phylo);
 #use Mods::Binning qw (runMetaBat runCheckM runSemiBin runMetaDecoder );
@@ -71,6 +71,8 @@ sub setDefaultMFconfig;
 sub getCmdLineOptions;
 sub setupHPC;
 
+sub createConsSNPandSVs;
+
 
 #------- version history MATAFILER / MG-TK --------
 #.22: fixing of assembly.txt paths, if output folders were later copied around
@@ -115,7 +117,9 @@ sub setupHPC;
 #.61: 19.3.25: metaPhlan4 more stable support
 #.62: 26.3.25: hybrid assembly  enabled for mixed SR, SR+LR samples in same assembly group
 #.63: 28.3.25: added -skipSmallSmplsMB option, that will skip samples with too little input read file size
-my $MATFILER_ver = 0.63;
+#.64: 26.4.25: changed filtering of read mappings, including clip-filtering and pid calculation algo
+#.65:27.4.25: added SV caller delly, gridss
+my $MATFILER_ver = 0.65;
 
 
 #operation mode?
@@ -498,6 +502,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $genePredAASNP = "$SNPdir/proteins.shrtHD.SNPc.$MFopt{SNPcallerFlag}.faa.gz";
 	my $vcfSNP = "$SNPdir/allSNP.$MFopt{SNPcallerFlag}.vcf";	$vcfSNP = "" if (!$MFopt{saveVCF});
 	my $vcfSNPsupp = "$SNPdir/allSNP.$MFopt{SNPcallerFlag}-sup.vcf";	$vcfSNPsupp = "" if (!$MFopt{saveVCF});
+	my $SVdir = "$curOutDir/SV/";
+	my $vcfSV = "$SVdir/allSV.$MFopt{SVcallerFlag}.bcf"; my $vscSVsupp  = "$SVdir/allSV-sup.$MFopt{SVcallerFlag}.bcf";
 	my $CRAMmap = "$finalMapDir/$SmplName-smd.cram";
 	my $SupCRAMmap = "$finalMapDir/$SmplName.sup-smd.cram";
 	my $inputRawFile = "$curOutDir/input_raw.txt";
@@ -568,6 +574,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	
 	my $locRedoSNPcalling =0; 
+	my $locRedoSVs = 0;
 	my $locRedoAssMapping = $MFopt{redoAssMapping};
 
 	#check if current assembly group is the same as before!
@@ -592,7 +599,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($efinAssLoc && $finAssLoc ne "$finalCommAssDirSingle/scaffolds.fasta.filt" && -s "$finalCommAssDirSingle/scaffolds.fasta.filt"){
 		print "Something wrong.. assembly group assembly and single assembly present:\n$finAssLoc\n$finalCommAssDirSingle/scaffolds.fasta.filt\n";
 		#die;
-		$locRedoAssMapping=1;$locRedoSNPcalling=1;
+		$locRedoAssMapping=1;$locRedoSNPcalling=1;$locRedoSVs=1;
 		system "rm -fr $finalCommAssDirSingle; mkdir -p $finalCommAssDirSingle;\n";
 		$eCovAsssembly=0;$eFinMapCovGZ=0;$eFinalMapDir=0;$eFinSupMapCovGZ=0;$eSuppCovAsssembly=0;$eSuppCovAsssembly=0;
 	}
@@ -648,7 +655,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#delete assembly
 	if ($MFopt{redoAssembly} || $locRedoAssembl){
 		print "Removing assembly ... \n" if ($emetaGassembly);
-		system "rm -fr $finalCommAssDir";
+		system "rm -fr $finalCommAssDir $mapOut $mapOutSup";
 		$efinAssLoc = 0;	
 		$locRedoAssMapping=1;
 	}
@@ -661,7 +668,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		$eFinMapCovGZ = 0;	$emetaGassembly =  0;
 		$eCovAsssembly = 0; $eSuppCovAsssembly=0; $eFinSupMapCovGZ=0; $eFinalMapDir = 0;
 		#are there SNPs called? remove as well..
-		$locRedoSNPcalling=1; 
+		$locRedoSNPcalling=1; $locRedoSVs=1;
 	}
 	#Case: primary assembly mapping was done, support reads were not yet mapped.. need to redo binning 
 	#print "$locMapSup2Assembly && !$eFinSupMapCovGZ) && ($MFopt{map2Assembly} && $eFinMapCovGZ \n";
@@ -690,6 +697,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#if ($LCAetxt =~ m/ParseError thrown: Unexpected character .\@. found/){system "rm -rf $curOutDir/ribos";}
 	}
 	if ($locRedoSNPcalling){system "rm -fr $SNPdir";}
+	
+	if ($locRedoSVs){system "rm -fr $SVdir";}
 	if ($MFopt{redoSNPcons}){		system "rm -rf $genePredSNP* $contigsSNP* $genePredAASNP* $smplTmpDir/SNP $logDir/SNP";
 	} elsif ($MFopt{redoSNPgene}){		system "rm -rf $genePredSNP* $genePredAASNP* ";
 	}
@@ -827,6 +836,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
+	#structural variants calcs
+	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{calcSVs} && !-e $vcfSV );
+	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ( $MFopt{callSVsSupp} && !-e $vscSVsupp );
 	
 	#die "genePredSNP $genePredSNP\n";
 	my $calc2ndMapSNP = 0; $calc2ndMapSNP = 1 if ($MFopt{Do2ndMapSNP});
@@ -859,7 +871,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 	#some more flow control..
 	if ( !$DoUploadRawReads && $boolScndMappingOK && !$MFopt{DoCalcD2s} &&
-		!$calcConsSNP && !$calcSuppConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
+		!$calcConsSNP && !$calcSuppConsSNP && !$calcSVs && !$calcSVsSupp &&
+		!$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK 
 		 && !$calcCoverage && !$calcSuppCoverage && !$dowstreamAnalysisFlag
 		#&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && 
 		#!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq ""
@@ -882,7 +895,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 				
 			}
 			if ($MFopt{map2Assembly} && !$MFopt{mapSaveCram} && -s $BinningOut && (-s "$BinningOut.cm2" || -e "$BinningOut.cm") &&
-				!$calcBinning && !$calcConsSNP && !$calcSuppConsSNP && $eFinMapCovGZ && $efinAssLoc && $eFinalMapDir && -s $CRAMmap){
+				!$calcBinning && !$calcConsSNP && !$calcSuppConsSNP && !$calcSVs && !$calcSVsSupp && $eFinMapCovGZ && $efinAssLoc && $eFinalMapDir && -s $CRAMmap){
 #				die;
 				print "deleting $CRAMmap to save space..\n";
 				system "rm -rf $CRAMmap";
@@ -1309,7 +1322,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#die "@{$AsGrps{$cAssGrp}{MapCopies}}\n";
 	
-	if ( ($calcConsSNP || $calcSuppConsSNP) && $allMapDone){
+	if ( ($calcConsSNP || $calcSuppConsSNP || $calcSVs || $calcSVsSupp ) && $allMapDone){
 		#die "conssnp:: $calcConsSNP $allMapDone $finalMapDir\n";
 		#my $ofas = "$curOutDir/SNP/genePred/genes.shrtHD.SNPc.fna";
 		my %SNPinfo = (gff => "$finalCommAssDir/genePred/genes.gff",
@@ -1318,9 +1331,10 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						SNPcaller => $MFopt{SNPcallerFlag},
 						ofas => $contigsSNP, #primary file of contigs
 						genefna => $genePredSNP,genefaa => $genePredAASNP,
-						vcfFile => $vcfSNP,vcfFileSupp => "$vcfSNPsupp",gffFile => "$finalCommAssDir/genePred/genes.gff",
+						vcfFile => $vcfSNP,vcfFileSupp => $vcfSNPsupp,gffFile => "$finalCommAssDir/genePred/genes.gff",
 						nodeTmpD => $nodeSpTmpD,scratch => "$smplTmpDir/SNP/",
 						smpl => $SmplName,bamcram => $bamcramMap,minDepth => $MFopt{consSNPminDepth},
+						callSVs => $MFopt{callSVs}, vcfSVfile => $vcfSV, vcfSVfileS => $vscSVsupp, callSVsSupp => $MFopt{callSVsSupp},
 						depthF => $coveragePerCtg,firstInSample => 1, #($i == 0 ? 1 : 0)
 						bpSplit => 1e6,runLocal => 1,SeqTech => $map{$curSmpl}{SeqTech},SeqTechSuppl => "",
 						cmdFileTag => "ConsAssem",maxCores => $MFopt{maxSNPcores},memReq => $MFopt{memSNPcall},
@@ -1329,12 +1343,14 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						STOconSNP => $STOsnpCons, STOconSNPsupp => "",
 						minCallQual => $MFopt{SNPminCallQual},
 					);
-		$SNPinfo{SeqTechSuppl} = "PB" if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/);
+		if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/){$SNPinfo{SeqTechSuppl} = "PB" ;
+		} elsif (  $map{$curSmpl}{"SupportReads"} =~ m/ONT:/) {$SNPinfo{SeqTechSuppl} = "ONT" ;
+		}
 		
 		if ($calcSuppConsSNP){
 			$SNPinfo{STOconSNPsupp} = $STOsnpSuppCons   ; #trigger for also looking at cons SNP for support reads
 		}
-		my $consSNPdep = createConsSNP(\%SNPinfo); #SNP calls on assembly
+		my $consSNPdep = createConsSNPandSVs(\%SNPinfo); #SNP calls on assembly
 		add2SampleDeps(\@sampleDeps, [$consSNPdep]);
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
 	}
@@ -1683,7 +1699,8 @@ sub submitGenomeBinner{
 	return $jobName2;
 }
 
-sub createConsSNP{
+
+sub createConsSNPandSVs{
 	my ($SNPinfohr) = @_;
 	my %SNPinfo = %{$SNPinfohr};
 	my $preHDDspace=${$QSBoptHR}{tmpSpace};
@@ -1713,10 +1730,18 @@ sub createConsSNP{
 		
 	} 
 #	my ($ovcf,$jdep) = SNPconsensus_vcf2(\%SNPinfo);
-	my ($ovcf,$jdep) = SNPconsensus_vcf(\%SNPinfo);
+	my ($jdep) = SNPconsensus_vcf(\%SNPinfo);
 
 	${$QSBoptHR}{tmpSpace} = $preHDDspace;
 	#SNPconsensus_fasta($ovcf,\%SNPinfo,$jdep,$QSBoptHR);
+	
+	
+	
+	#2nd part: call SVs
+	if ($SNPinfo{callSVs}){
+		my ($jdep2) = SVcall_vcf(\%SNPinfo);
+		$jdep .= ";$jdep2" if ($jdep2 ne "");
+	}
 	
 	return $jdep;
 }
@@ -2209,7 +2234,7 @@ sub detectRibo(){
 			$jobName = "_RF$JNUM"; 
 			#die "RIBOFIND\n$outP/SSU_pull.sto\n"; 
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};
-			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*20)+5  ;
+			my $curSHFF = int($inputFileSizeMB{$SMPN}/1024*17)+5  ;
 			my $predefSHDD = $HDDspace{Ribos}; $predefSHDD =~ s/G$//;
 			if ($QSBoptHR->{tmpSpace} < $predefSHDD){ $QSBoptHR->{tmpSpace} = $HDDspace{Ribos};}#overwrite with larger val
 			$QSBoptHR->{tmpSpace}= $curSHFF . "G";
@@ -4911,7 +4936,11 @@ sub alignPostTreat{
 	my $bamfilter = getProgPaths("bamFilter_scr");
 		#my $filterStep="";
 	if ( ($MapperProg==3 || $MapperProg==5 ) && ($readTec eq "ONT" || $readTec eq "PB")){ #low id long reads...
-		$algCmd .= " | $bamfilter $MFopt{bamfilterPB}  ";
+		if ($readTec eq "PB" ){
+			$algCmd .= " | $bamfilter $MFopt{bamfilterPB}  ";
+		} else {
+			$algCmd .= " | $bamfilter $MFopt{bamfilterONT}  "; #defaults to ONT (safer parameters)
+		}
 	} else { #illumina parameters
 		$algCmd .= " | $bamfilter $MFopt{bamfilterIll} ";
 	}
@@ -5962,7 +5991,7 @@ sub optiDups{
 	my $inFi = "$inP/map2.sh.etxt"; 
 	$inFi = "$inP/bwtMap2.sh.etxt" if (!-e $inFi); #old MF file names..
 	#my $outStrDesc = "";
-	#novocraft sort
+	$locStats{duplOptic}=0; $locStats{duplPCR}=0;$locStats{duplPass}=0; $locStats{EstLibSize} = 0;
 	my $doDup = 0;my $alignStats2 = getFileStr($inFi,0);
 	if ($alignStats2 ne "" ){if (defined ($alignStats2)){$doDup=1;}}
 	if ($doDup){
@@ -6435,13 +6464,15 @@ sub scndMap2Genos{
 				scratch => $dirset{glbTmp}, #"$smplTmpDir/SNP/",
 				qsubDir => $dirset{qsubDir}, jdeps => $map2CtgsY.";$bwt2ndMapDep",
 				cmdFileTag => $bwt2ndMapNmds[$i], minDepth => $MFopt{consSNPminDepth},
+				
+				callSVs => $MFopt{callSVs}, vcfSVfile => "$bwt2outD[$i]/$bamBaseNameS[$i]-smd.SV.vcf", vcfSVfileS => "", callSVsSupp => 0,
 				smpl => $bamBaseNameS[$i], maxCores => $MFopt{maxSNPcores}, memReq => $MFopt{memSNPcall},
 				bpSplit => 4e5,	runLocal => 1, split_jobs => $MFopt{SNPconsJobsPsmpl}, overwrite => $MFopt{redoSNPcons},
 				minCallQual => $MFopt{SNPminCallQual},
 				);
 				
 
-			my $consSNPdep = createConsSNP(\%SNPinfo);
+			my $consSNPdep = createConsSNPandSVs(\%SNPinfo);
 			add2SampleDeps($sampleDepsAR, [$consSNPdep]);
 			#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
 			#die if ($i==2);
@@ -7299,7 +7330,7 @@ sub setDefaultMFconfig{
 	$MFopt{bwtIdxAssMem} = 40; #total mem in GB, not core adjusted, for building index from assembly
 	$MFopt{doBam2Cram} = 1; $MFopt{redoAssMapping} =0;
 	$MFopt{DoJGIcoverage} = 0; #only required for metabat binning, not required any longer..
-	$MFopt{bamfilterIll} = "0.05 0.75 20"; $MFopt{bamfilterPB} = "0.15 0.75 10";
+	$MFopt{bamfilterIll} = "0.05 0.75 20 3"; $MFopt{bamfilterPB} = "0.05 0.5 30 0"; $MFopt{bamfilterONT} = "0.15 0.5 10 0";
 	$MFopt{mapSaveCram} = 1; #by default, keep the back-mapping bams/crams 
 	$MFopt{MapperCores} = 8;  $MFopt{MapperRmDup} = 1; #mapping cores; ??? ; remove Dups (can be costly if many ref seqs present)
 	$MFopt{bamSortCores} = -1;
@@ -7339,6 +7370,10 @@ sub setDefaultMFconfig{
 	$MFopt{SNPminCallQual} = 20;
 	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
+	$MFopt{callSVs} = 0; #0=not, 1=delly, 2=gridss
+	$MFopt{callSVsSupp} = 0; #same as "callSVs" but for supplemental reads
+	$MFopt{SVcallerFlag} = "DL"; #DL for delly, or GR for gridss
+
 
 	#Func annotation
 	$MFopt{DoDiamond} = 0; $MFopt{rewriteDiamond} =0; $MFopt{redoDiamondParse} = 0; #redoes matching of reads; redoes interpretation
@@ -7522,8 +7557,9 @@ sub getCmdLineOptions{
 		"mapSortMem=i" => \$MFopt{mapSortMemGb}, #total mem for samtools sort in GB
 		"rmDuplicates=i" => \$MFopt{MapperRmDup},
 		"mappingCores=i" => \$MFopt{MapperCores},
-		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality
+		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20 1", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality, rm clipped alignments
 		"mapperFilterPB=s" => \$MFopt{bamfilterPB},
+		"mapperFilterONT=s" => \$MFopt{bamfilterONT},
 		"mapSaveCRAM=i" => \$MFopt{mapSaveCram},
 		#"redoMapping=i" =>\$MFopt{redoMapping},
 	#mapping related (2) (assembly)
@@ -7552,7 +7588,7 @@ sub getCmdLineOptions{
 		"SNPcores=i" => \$MFopt{maxSNPcores},
 		"SNPmem=i" => \$MFopt{memSNPcall}, #memory for consensus SNP job in Gb
 		"SNPconsMinDepth=i" => \$MFopt{consSNPminDepth}, #how many reads coverage to include position for consensus call?
-		
+		"SVcaller=i"  => \$MFopt{callSVs}, #calling structural variants: 1=delly, 2=gridss. Default (0).
 	#functional profiling (diamond)
 		"profileFunct=i"=> \$MFopt{DoDiamond},
 		"reParseFunct=i" => \$MFopt{redoDiamondParse},
@@ -7622,7 +7658,16 @@ sub getCmdLineOptions{
 	if ($MFopt{bamSortCores} == -1){$MFopt{bamSortCores} = $MFopt{MapperCores};}
 	$MFconfig{filterFromSource}=1 if ($MFconfig{unpackZip} );
 	@filterHostDB = split /,/,$MFopt{filterHostDB1};
+	
 	die "SNPcaller argument invalid, has to be \"MPI\" or \"FB\"\n" if ($MFopt{SNPcallerFlag} ne "MPI" && $MFopt{SNPcallerFlag} ne "FB");
+	
+	#structural variants..
+	if ($MFopt{callSVs} == 0){ ;
+	}elsif ($MFopt{callSVs} == 1){	$MFopt{SVcallerFlag} = "DL"; #delly
+	}elsif ($MFopt{callSVs} == 2){	$MFopt{SVcallerFlag} = "GY"; # gridss
+	}else {die"Invalid callSVs option: $MFopt{callSVs}\n";}
+	
+	#check HDDspace format
 	foreach my $k (keys (%HDDspace)){
 		$HDDspace{$k} .= "G" unless ($HDDspace{$k} =~ m/G$/);
 	}
@@ -7631,6 +7676,8 @@ sub getCmdLineOptions{
 		print "deactivating \"-mapSaveCram\", not supported for hybrid assemblies\n";
 		$MFopt{mapSaveCram} = 1;
 	}
+	
+	$MFopt{callSVsSupp} = $MFopt{callSVs}; #for now it just enforces doing both suppl and main SVs, if SVs requested at all..
 	
 	
 	print "Done. ";

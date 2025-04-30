@@ -133,7 +133,6 @@ MGS_strain1_scr	perl [MFLRDir]/secScripts/MGS/strain_within.pl
 MGS_strain2_scr	perl [MFLRDir]/secScripts/MGS/strain_within_2.2.pl
 MGSPhyloBetween_scr	perl [MFLRDir]/secScripts/MGS/phylo_MGS_between.pl
 
-
 #MAGs
 cmpBinScr	[MFLRDir]/secScripts/MGS/compoundBinning.pl
 
@@ -230,6 +229,10 @@ codeml	codeml	env:MGTKphylo
 phyml	phyml	env:MGTKphylo
 modeltest	modeltest-ng	env:MGTKphylo
 treeshrink	run_treeshrink.py	env:MGTKphylo
+
+#Structural variants
+delly	delly
+gridss	gridss
 
 
 #     experimental

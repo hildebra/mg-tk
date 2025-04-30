@@ -101,3 +101,9 @@ dependencies:
 #  - vsearch=2.22
   - eggnog-mapper=2.1.12
   - bioconda::hostile>=2.0
+  
+  
+# structural variants
+  - bioconda/label/cf201901::delly>=1.3.3
+  - bioconda/label/cf201901::gridss>=2.13
+

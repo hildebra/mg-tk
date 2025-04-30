@@ -690,7 +690,8 @@ The final column, *other_genes*, gives a comma separated list of all the other g
 	-SNPcores [#]				number of cores ‘#’ used for SNP calling
 	-SNPmem [#]				Memory allocated for consensus SNP calling process in Gb (Default: 23)
 	-SNPconsMinDepth [#]			how many reads coverage to include position for consensus call? (Default: 0)
-	SNPminCallQual [#]				min Quality of a SNP call to be accepted (Default: 20)
+	-SNPminCallQual [#]				min Quality of a SNP call to be accepted (Default: 20)
+	-SVcaller [0|1]					call structural variants in assembly. 1=delly, 2=gridss. (Default: 0).
 
 # functional profiling (raw reads without assemblies)
 	-profileFunct [0|1]				1: do diamond functional profiling (Default: 0)

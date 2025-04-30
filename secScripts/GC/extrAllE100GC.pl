@@ -288,9 +288,9 @@ sub processSubGenes{
 	#%gene2cl = ();
 	my $pigzBin = getProgPaths("pigz");
 	my $cores = 6;
-	my $cmdX= "$rarBin lineExtr -i $GCd/Matrix.mat.gz -o $GCd/Matrix.$tag.mat -reference $GCd/$tag.lines -t $cores\n "; #-checkRowName2Idx 
-	$cmdX .= "$rarBin lineExtr -i $GCd/Mat.cov.mat.gz -o $GCd/Mat.cov.$tag.mat -reference $GCd/$tag.lines -t $cores\n ";
-	$cmdX .= "$rarBin lineExtr -i $GCd/Mat.med.mat.gz -o $GCd/Mat.med.$tag.mat  -reference $GCd/$tag.lines -t $cores\n ";
+	my $cmdX= "$rarBin lineExtr -i $GCd/Matrix.mat.gz -o $GCd/Matrix.$tag.mat -reference $GCd/$tag.lines -t $cores -checkRowName2Idx\n "; #-checkRowName2Idx 
+	$cmdX .= "$rarBin lineExtr -i $GCd/Mat.cov.mat.gz -o $GCd/Mat.cov.$tag.mat -reference $GCd/$tag.lines -t $cores -checkRowName2Idx\n ";
+	$cmdX .= "$rarBin lineExtr -i $GCd/Mat.med.mat.gz -o $GCd/Mat.med.$tag.mat  -reference $GCd/$tag.lines -t $cores -checkRowName2Idx\n ";
 	$cmdX .= "$pigzBin -p 6 $GCd/Mat.cov.$tag.mat $GCd/Mat.med.$tag.mat\n";
 	$cmdX .= "rm $GCd/$tag.lines\n";
 	print $cmdX."\n";

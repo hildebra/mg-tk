@@ -5,12 +5,13 @@ use strict;
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Mods::GenoMetaAss qw( gzipopen systemW readFasta readGFF writeFasta reverse_complement_IUPAC );
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystem2);
+use Mods::TamocFunc qw (cram2bsam);
 
 use List::Util qw/shuffle/;
 
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(SNPconsensus_vcf SNPconsensus_fasta );
+our @EXPORT_OK = qw(SNPconsensus_vcf SNPconsensus_fasta SVcall_vcf);
 
 sub regionsFromFAI($){
 	my ($inF ) =@_;
@@ -179,7 +180,6 @@ sub pileupcall{
 	my @curReg = @{$crAR};
 	
 	#die "@curReg\n";
-	my $frbBin = getProgPaths("freebayes");
 	my $bcftBin = getProgPaths("bcftools");
 	my $refFA = $SNPIHR->{assembly};
 	my $tmpdir = $SNPIHR->{nodeTmpD};
@@ -220,6 +220,7 @@ sub pileupcall{
 	my $cmdAll2 = "";
 	$cmdAll2 .= "echo \"Processing bams - mpileup $tag\"\n";
 	if ($useFB){
+		my $frbBin = getProgPaths("freebayes");
 		$cmd = "ulimit -s unlimited\n$frbBin -f $refFA  $frAllOpts ";
 	} else {
 		$cmd = "$bcftBin mpileup --fasta-ref $refFA $bcfAllOpts ";
@@ -279,7 +280,7 @@ sub SNPconsensus_vcf{
 
 	#get parameteres
 	my $samcores = 12;
-	my %SNPinfo = %{$SNPIHR};
+	#my %SNPinfo = %{$SNPIHR};
 	my $QSBoptHR = $SNPIHR->{QSHR};
 	my $x = $SNPIHR->{JNUM};
 	my $jdep = ""; $jdep = $SNPIHR->{jdeps} if (exists($SNPIHR->{jdeps}));
@@ -337,7 +338,7 @@ sub SNPconsensus_vcf{
 		}
 		@curReg = @{$refAR}; 
 		@regOrd = @{$refAR2};  #use .fai instead for this..
-		if (@curReg == 0){return($SNPIHR,"");}
+		if (@curReg == 0){return("");}
 		
 		#open O,">$refFA.reg" or die "can't open region file $refFA.reg\n";		print O join("\n",@regOrd);		close O;
 		#die "$refFA.reg\n@curReg\n";
@@ -357,9 +358,9 @@ sub SNPconsensus_vcf{
 	#$xtra .= "cp $refFA $refFA.fai $scrDir;\n";$refFA =~ m/\/([^\/]+$)/;$refFA = "$scrDir/$1";
 	#my $preTar = 
 	
-	my @tar = ("");
 	$xtra .= "echo \"Creating c/bams indexes primary reads\"\n";
-	$tar[0] = ${$SNPIHR->{MAR}}[0]; #$preTar;
+	#my @tar = ("");$tar[0] = ${$SNPIHR->{MAR}}[0]; #$preTar;
+	my @tar = @{$SNPIHR->{MAR}}[0]; 
 	if ($bamcram eq "cram"){ #create index for bam/cram
 		$xtra .= "if [ ! -e $tar[0].crai ] || [ ! -s $tar[0].crai ]; then rm -f $tar[0].crai; $smtBin index -@ $samcores  $tar[0]; fi\n";
 	} else {
@@ -479,9 +480,134 @@ sub SNPconsensus_vcf{
 	#$SNPIHR->{intermedVCF} = $oVcfCons;
 	$SNPIHR->{cleanCmd} = $cleanCmd;
 	#die;
-	return ($SNPIHR,$rdep);
+	return ($rdep);
 }
 
+
+
+
+
+
+sub SVcall_vcf{
+	my ($SNPIHR) = @_;
+	my $mode = $SNPIHR->{callSVs};
+	if ($mode ==0 ){return ("");}
+	
+	my $SVcallerFlag = "";
+	if ($mode == 1){	$SVcallerFlag = "DL"; #delly
+	}elsif ($mode == 2){	$SVcallerFlag = "GY"; # gridss
+	}else {die"Invalid callSVs option: $mode\n";}
+	my $bcftBin = getProgPaths("bcftools");
+
+	
+	#my $QSBoptHR = $SNPIHR->{QSHR};
+	#my $x = $SNPIHR->{JNUM};
+	my $jdep = ""; $jdep = $SNPIHR->{jdeps} if (exists($SNPIHR->{jdeps}));
+	my $tmpdir = $SNPIHR->{nodeTmpD};
+	#my $smplNm = $SNPIHR->{smpl};
+	my $refFA = $SNPIHR->{assembly};
+	#my $qsubDirE = $SNPIHR->{qsubDir};
+	#my $scrDir = $SNPIHR->{scratch};
+	#my $bamcram = $SNPIHR->{bamcram};
+	#my $splitFAsize = $SNPIHR->{bpSplit};
+	#my $overwrite = $SNPIHR->{overwrite};
+	#my $runLocalTmp = $SNPIHR->{runLocal};
+	#my $SVout= $SNPIHR->{vcfSVfile};
+	#my $cmdFTag = $SNPIHR->{cmdFileTag};
+	my $maxSNPcores= $SNPIHR->{maxCores};
+	my $actualCores = $maxSNPcores;
+	my $samCores = $maxSNPcores;
+	#infer outdir
+	my $outD = $SNPIHR->{vcfSVfile};$outD =~ s/\/[^\/]+$/\//;
+
+#path to tmp files
+	my $bamTmp = "$tmpdir/$SNPIHR->{smpl}-smd.bam";
+	my $tmpVCF = "$tmpdir/SV.$SNPIHR->{smpl}.bcf";
+	my $bamTmpS = "";
+	my $tmpVCFS = ""; 
+	my @tar = @{$SNPIHR->{MAR}}[0]; 
+#	$tar[0] = ${$SNPIHR->{MAR}}[0]; #$preTar;
+	my @tarS = ();
+	if ($SNPIHR->{STOconSNPsupp} ne "" && exists ($SNPIHR->{MARsupp} )){
+		$bamTmpS = "$tmpdir/$SNPIHR->{smpl}-smd.suppl.bam";
+		$tmpVCFS = "$tmpdir/SV.sup-$SNPIHR->{smpl}.bcf";
+		@tarS = @{$SNPIHR->{MARsupp}}[0];
+	}
+	
+
+	my $smtBin = getProgPaths("samtools");
+
+
+	my $xtra = "";$xtra .= "echo \"Preparing data\"\n";
+	$xtra .= "mkdir -p $tmpdir;\n";#$SNPIHR->{scratch};\n";
+	$xtra .= "$smtBin faidx $refFA;\n" unless (-e "$refFA.fai");
+	$xtra .= "echo \"Creating c/bams indexes primary reads\"\n";
+	
+	if ($SNPIHR->{bamcram} eq "cram"){ #create index for bam/cram
+		#$xtra .= "if [ ! -e $tar[0].crai ] || [ ! -s $tar[0].crai ]; then rm -f $tar[0].crai; $smtBin index -@ $samcores  $tar[0]; fi\n";
+		$xtra .= "#uncramming already stored results..\n" . cram2bsam("$tar[0]",$refFA,$bamTmp,1,$samCores) ."\n" ;
+		#create index..
+		$xtra .= "$smtBin index -@ $samCores  $bamTmp;\n";
+		if (@tarS ){
+			##also consider creating bams for suppl mappings
+			$xtra .= "#uncramming supplemental mappings ..\n" . cram2bsam("$tarS[0]",$refFA,$bamTmpS,1,$samCores) ."\n" ;
+			$xtra .= "$smtBin index -@ $samCores  $bamTmpS;\n";
+		}
+
+	}  else {
+		$xtra .= "ln -s $tar[0] $bamTmp;\n";
+		$xtra .= "$smtBin index -@ $samCores  $bamTmp;\n";
+		if (@tarS ){
+			$xtra .= "ln -s $tarS[0] $bamTmpS;\n";
+			$xtra .= "$smtBin index -@ $samCores  $bamTmpS;\n";
+		}
+	}
+	
+	
+		
+
+	my $cmd = "";
+	if ($mode == 1){ #delly..
+		my $dellyBin = getProgPaths("delly");
+		#delly call -g hg38.fa input.bam > delly.vcf
+		my $dmode = "call"; $dmode = "lr" if ($SNPIHR->{SeqTech} eq "PB" || $SNPIHR->{SeqTech} eq "ONT");
+		$cmd .= "echo \"main delly2 call\";\n$dellyBin $dmode -g $refFA $bamTmp | $bcftBin view -O b -o $tmpVCF -\n";#> $tmpVCF\n ";
+		
+		if (@tarS){#suppl mappings..
+			$dmode = "call"; $dmode = "lr" if ($SNPIHR->{SeqTechSuppl} eq "PB" || $SNPIHR->{SeqTechSuppl} eq "ONT");
+			$cmd .= "echo \"supplemental delly call\";\n$dellyBin $dmode -g $refFA $bamTmp | $bcftBin view -O b -o $tmpVCFS -\n ";
+		}
+
+	} else{ #gridss..
+		my $gridssBin = getProgPaths("gridss");
+		die "Gridss not implemented yet";
+	}
+
+
+	#cleanup..
+	$cmd .= "if [ ! -d $outD ] ; then mkdir -p $outD; fi\n"; #create final outdir..
+	$cmd .= "\n#Finalize by moving to final location\nmv $tmpVCF $SNPIHR->{vcfSVfile}\n";
+	if (@tarS){
+		$cmd .= "mv $tmpVCFS $SNPIHR->{vcfSVfileS}\n";
+	}
+	
+	$cmd .= "#cleanup..\nrm -rf $tmpdir\n";
+	
+	my $cmdAll = $xtra ."\n\n".$cmd;
+	print $cmdAll;
+
+	my ($dep,$qcmd) = qsubSystem($SNPIHR->{qsubDir} . "$SNPIHR->{cmdFileTag}.SV.sh",$cmdAll,int($actualCores),"5G","SV$SNPIHR->{JNUM}",$jdep,"",1,[],$SNPIHR->{QSHR});
+	
+	return $dep;
+}
+
+
+
+
+
+#################################################################
+#outdated functions
+#################################################################
 
 sub SNPconsensus_vcf2{
 	die"not used after all..\n";
@@ -641,11 +767,6 @@ sub SNPconsensus_fasta{
 	#if (system "$fix\n"){system "rm $oVcfCons*"; print "RM\n";}
 	my ($dep,$qcmd) = qsubSystem($qsubDirE."CallFasta.sh",$postcmd,1,"40G","Cons$x",$jdep,"",1,[],$QSBoptHR);
 }
-
-
-
-
-
 
 
 
