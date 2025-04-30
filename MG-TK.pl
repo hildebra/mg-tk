@@ -838,7 +838,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#structural variants calcs
 	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{calcSVs} && !-e $vcfSV );
-	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ( $MFopt{callSVsSupp} && !-e $vscSVsupp );
+	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ($locMapSup2Assembly && $MFopt{callSVsSupp} && !-e $vscSVsupp );
 	
 	#die "genePredSNP $genePredSNP\n";
 	my $calc2ndMapSNP = 0; $calc2ndMapSNP = 1 if ($MFopt{Do2ndMapSNP});
