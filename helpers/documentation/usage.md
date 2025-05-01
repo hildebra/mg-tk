@@ -1,10 +1,6 @@
 
 ## Running MG-TK
 
-<details>
-  <summary> Expand Installation section </summary>
-
-
 MG-TK is programmed for HPC environments (Linux) and was conceptualized to process 1000's of metagenomes. It relies therefore on job schedulers (slurm, SGE and LSF are supported) and multiple safeguards to resume failed jobs. Please see examples below for specific runs.
 
 ### Temporary and output files
@@ -13,12 +9,9 @@ The output path for storing non-temporary files (like assemblies, binnings, gene
 
 Since the pipeline is expected to run on a compute cluster, temporary directories are of enormous importance for a) performance and b) file exchange between compute nodes that are usually physically separated clusters.
 The pipeline expects a path to a storage that is globally available on all nodes and a tmp dir that is locally available on each node (given by arguments "globalTmpDir" and "nodeTmpDir" in the config file). 
-</details>
 
 ### Mapping file for MG-TK
 
-<details>
-  <summary>Expand section</summary>
 
 Most importantly you need a mapping file to your files. See 'examples' dir for some map examples (also explaining how to do compound assemblies, compound mapping). These column names (headers) are reserved key words in the mapping file (other columns can be eg. metadata per sample etc):
 - **#SmplID** [STRING] MG-TK maps always need to have the first column names *#SmplID*. The string in this column will used in all subsequent analysis, intermediary files, sequence heads etc to uniquely identify samples, therefore choose with extreme care! Good practice would be to include some basic information about the sample in the SMPLID, but should be as short and descriptive as possible. *DO NOT USE SPECIAL CHARACTERS IN THE SMPLID, keep it basic*!  
@@ -163,4 +156,3 @@ Explanation: $inD is an input dir with complete genomes, the script will extract
 
 3. you can do many additional phylogeny / pogen related analysis with the `buildTree5.pl` script ([see flags](#buildtree5.pl-flags)) 
 
-</details>
