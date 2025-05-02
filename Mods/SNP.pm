@@ -515,6 +515,7 @@ sub SVcall_vcf{
 	#my $SVout= $SNPIHR->{vcfSVfile};
 	#my $cmdFTag = $SNPIHR->{cmdFileTag};
 	my $maxSNPcores= $SNPIHR->{maxCores};
+	$maxSNPcores=1 if ($mode ==1); #currently limiting SVcalls to 1
 	my $actualCores = $maxSNPcores;
 	my $samCores = $maxSNPcores;
 	#infer outdir
@@ -594,12 +595,44 @@ sub SVcall_vcf{
 	$cmd .= "#cleanup..\nrm -rf $tmpdir\n";
 	
 	my $cmdAll = $xtra ."\n\n".$cmd;
-	print $cmdAll;
+	#print $cmdAll;
 
-	my ($dep,$qcmd) = qsubSystem($SNPIHR->{qsubDir} . "$SNPIHR->{cmdFileTag}.SV.sh",$cmdAll,int($actualCores),"5G","SV$SNPIHR->{JNUM}",$jdep,"",1,[],$SNPIHR->{QSHR});
+	my ($dep,$qcmd) = qsubSystem($SNPIHR->{qsubDir} . "$SNPIHR->{cmdFileTag}.SV.sh",$cmdAll,int($actualCores),int(20/$actualCores)."G","SV$SNPIHR->{JNUM}",$jdep,"",1,[],$SNPIHR->{QSHR});
 	
 	return $dep;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

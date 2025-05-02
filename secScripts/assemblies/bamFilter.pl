@@ -88,16 +88,22 @@ while ($line = <STDIN>){
 	
 	}
 	
+	
+	#reasons for failing mapping:
 	#if ( ($gapL)/$querL > $queryCov){$fail=1;$coverFail++;}
 	if ( (1-($gapIL+$clipL)/$querL) < $queryCovMin){#new algo that looks only at clipped + gaps (I) regions
-		$fail=1;$coverFail++;
+		$fail=1; $coverFail++;
 		#print STDERR "(1-($gapIL+$clipL)/$querL) < $queryCovMin          ";
 	}
 	if ($pid > $id){
-		$fail=1;$idFail++;
+		$fail=1; $idFail++;
 		#print STDERR "$sam[5] $pid $mismatches/($querL-$clipL)     ";
 	}
-	if ($sam[4] < $MAQ){$mapscoreFail++;$fail=1;}
+	if ($sam[4] < $MAQ){
+		$fail=1; $mapscoreFail++;
+	}
+	
+	
 	#print $sam[4]." $pid\n";
 	if ($fail){
 		#set field to unmapped (4)

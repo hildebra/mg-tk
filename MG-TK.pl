@@ -7589,6 +7589,7 @@ sub getCmdLineOptions{
 		"SNPmem=i" => \$MFopt{memSNPcall}, #memory for consensus SNP job in Gb
 		"SNPconsMinDepth=i" => \$MFopt{consSNPminDepth}, #how many reads coverage to include position for consensus call?
 		"SVcaller=i"  => \$MFopt{callSVs}, #calling structural variants: 1=delly, 2=gridss. Default (0).
+
 	#functional profiling (diamond)
 		"profileFunct=i"=> \$MFopt{DoDiamond},
 		"reParseFunct=i" => \$MFopt{redoDiamondParse},
