@@ -7557,7 +7557,7 @@ sub getCmdLineOptions{
 		"mapSortMem=i" => \$MFopt{mapSortMemGb}, #total mem for samtools sort in GB
 		"rmDuplicates=i" => \$MFopt{MapperRmDup},
 		"mappingCores=i" => \$MFopt{MapperCores},
-		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20 1", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality, rm clipped alignments
+		"mapperFilterIll=s" => \$MFopt{bamfilterIll}, #defaults to "0.05 0.75 20 3", meaning: <=5% ANI, >=75% of read aligned, >=20 mapping quality, rm clipped (by 3 nt) alignments 
 		"mapperFilterPB=s" => \$MFopt{bamfilterPB},
 		"mapperFilterONT=s" => \$MFopt{bamfilterONT},
 		"mapSaveCRAM=i" => \$MFopt{mapSaveCram},

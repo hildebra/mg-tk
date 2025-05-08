@@ -26,13 +26,17 @@ while ($line = <STDIN>){
 		my $line2 = <STDIN>; print STDERR "Error:: malformed SAM (L${totalCnt}):\n$prevLine\n ** $line\n$line2\nAborting..\n";
 		last;
 	}
+	$totalCnt++;
 	my $querL = length($sam[9]);
 	my $qualL = length($sam[10]);
 	if ($querL != $qualL){
 		print STDERR "DNA length != QUAL length!! \n(L" . $totalCnt-1 . ")  $prevLine\n(L${totalCnt}) ** $line\nAborting\n";
-		last;
+		next;
 	}
-	$totalCnt++;
+	if ($querL <= 0){
+		print STDERR "DNA length == 0 at :: $line\n";
+		next;
+	}
 	if ($sam[1] & 0x4 ){print "$line\n"; $totalNotMapped++; next;} #fail map
 	my $fail=0; #assumme innocence
 	my $xtrField = join("\t",@sam[11..$#sam]);
@@ -71,7 +75,11 @@ while ($line = <STDIN>){
 			
 			
 			#$pid = $mismatches/($querL-$gapL);
-			$pid = $mismatches/($querL-$clipL); #-$gapIL - $gapDL ?? -> gap counts as mismatch?
+			if (($querL-$clipL) <= 0){ #print STDERR "0000's: $querL - $clipL; \n$line\n";}
+				$pid=1;
+			} else{
+				$pid = $mismatches/($querL-$clipL); #-$gapIL - $gapDL ?? -> gap counts as mismatch?
+			}
 		} 
 		#$queryCov = $matchL/$querL;
 		#die "$gapL\n\n$cig\n\n".scalar(@len)."  ".scalar(@ops)." $ops[0] $len[0]\n"; #ops emtpy
