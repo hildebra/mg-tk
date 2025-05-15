@@ -119,6 +119,7 @@ sub createConsSNPandSVs;
 #.63: 28.3.25: added -skipSmallSmplsMB option, that will skip samples with too little input read file size
 #.64: 26.4.25: changed filtering of read mappings, including clip-filtering and pid calculation algo
 #.65:27.4.25: added SV caller delly, gridss
+#.66:15.5.25: completely new way of creating consensus SNPs contgis/genes via vcf2fasta
 my $MATFILER_ver = 0.65;
 
 
@@ -5206,8 +5207,8 @@ sub mapReadsToRef{
 		my @accR1=(); my @accR2=(); my @accRS=();
 		for (my $i=0; $i< $numLib; $i++){
 			my $usePairs=1;
-			$anyUsedPairs =1 if ($usePairs);
 			if ($i >= scalar @pa1){$usePairs=0;}
+			$anyUsedPairs =1 if ($usePairs);
 			my $iS = $i - scalar @pa1;
 			
 			#test if more reads can be accummulated in the next round...
@@ -5349,7 +5350,7 @@ sub bamDepth{
 	my ($dirsHr, $jDep,$mapparhr) = @_;
 	#die "bamdep\n";
 	my $readCov_Bin = getProgPaths("readCov");
-	my $outName = $dirsHr->{smplName};
+	my $outName = $dirsHr->{smplName};my $ASG = $dirsHr->{assGrp};
 	my $doCram =  $dirsHr->{cramAlig};
 	my $mappDir = ${$dirsHr}{glbMapDir};	my $nodeTmp = ${$dirsHr}{nodeTmp}."_bamDep/$outName/";
 	my $tmpOut = ${$dirsHr}{glbTmp};	my $finalD = ${$dirsHr}{outDir};
@@ -5360,9 +5361,14 @@ sub bamDepth{
 	#my $bedCovBin = getProgPaths("bedCov");#"/g/bork5/hildebra/bin/bedtools2-2.21.0/bin/genomeCoverageBed";
 	#my $mosDepBin = getProgPaths("mosdepth");
 	my $allowDeleteMap = 1;
+	#my ($par1,$par2,$parS,$liar,$rear) = getRawSeqsAssmGrp($AsgHR,$ASG,$supportRds,$outName);
+	#my @libsOri = @{$liar};
+	
+	#readTec
 
 	my %params = %{$mapparhr};
 	my ($isSorted , $bamFresh,$is2ndMap, $usePairs) =($params{sortedbam},$params{bamIsNew},$params{is2ndMap},$params{usePairs});
+	print "UP: $usePairs\n";
 	#recreate base pars from map2tar sub
 	my $locDoRmDup = $MFopt{MapperRmDup};
 	$locDoRmDup = 0 if (!$usePairs);
@@ -5373,7 +5379,7 @@ sub bamDepth{
 	my $bashN = "";	if ($is2ndMap){$bashN = "$outName"; $bashN =~ s/,/./;}
 	my $mappingRes = $tmpOut."/$baseN.iniAlignment.bam"; #this is the input, result of previous mapping steps
 	my $cramSTO = "$mappDir/$baseN-smd.cram.sto";
-	my $nxtBAM = "$tmpOut/$baseN-smd.bam";
+	my $nxtBAM = "$nodeTmp/$baseN-smd.bam";
 	my $sortTMP = $nodeTmp."/$baseN.srt";
 	my $sortTMP2 = $nodeTmp."/$baseN.2.srt";
  
@@ -5408,8 +5414,13 @@ sub bamDepth{
 	if ($locDoRmDup){
 	#bit complicated in samtools now: first sort by name, then fixmate (samtools 1.8)
 	#".int($MFopt{mapSortMemGb}/$numCore)."G
-		$cmd .= "echo \"Sorting .bam and removing duplicates...\"\n";
-		$cmd .= "$smtBin sort -n -m 768M -T $sortTMP -@ $numCore $mappingRes | $smtBin fixmate -m -@ $numCore - - | $smtBin sort -T $sortTMP2 -m 768M -@ $numCore - | $smtBin markdup -s -r -@ $numCore - $nxtBAM\n";
+		$cmd .= "echo \"Sorting .bam and fixing mates ...\"\n";
+		#$cmd .= "$smtBin sort -n -m 768M -T $sortTMP -@ $numCore $mappingRes | $smtBin fixmate -m -@ $numCore - - | $smtBin sort -T $sortTMP2 -m 768M -@ $numCore - | $smtBin markdup -s -r -@ $numCore - $nxtBAM\n";
+		#split in two, as it requires too much mem..
+		$cmd .= "$smtBin sort -n -m 768M -u -T $sortTMP -@ $numCore $mappingRes | $smtBin fixmate -m -@ $numCore -u - - | $smtBin sort -T $sortTMP2 -m 768M -@ $numCore -o $nxtBAM.nf;\n";
+		$cmd .= "echo \"marking duplicates ...\"\n";
+		$cmd .= "$smtBin markdup --use-read-groups --no-multi-dup -d 1000 -T $sortTMP -s -r -O BAM -@ $numCore $nxtBAM.nf $nxtBAM;\n";
+		$cmd .= "rm -f $nxtBAM.nf;\n";
 	} else {
 		if ($isSorted ){
 			$cmd .= "mv $mappingRes $nxtBAM\n";
@@ -5473,15 +5484,16 @@ sub bamDepth{
 	}
 	my $nodeCln = "\nrm -rf $nodeTmp;\necho \"DONE map2\"\n";
 	my $locSrtMem = $MFopt{mapSortMemGb};
+	my $baseMem=20; 
 	if ($locSrtMem <0){
-		$locSrtMem = 20+ ($inputFileSizeMB{$curSmpl}/1024); #default mme usage..
-		$locSrtMem += 20 if ($MFopt{largeMapperDB});
+		$locSrtMem = $baseMem+ (2 * $inputFileSizeMB{$curSmpl}/1024); #default mme usage..
+		$locSrtMem += $baseMem if ($MFopt{largeMapperDB});
 	}
 	
 	#die "$cmd\n$covCmd\n$CRAMcmd\n";
 	if ( ($doCram && !-e $cramSTO) || ( !-s "$nxtBAM.coverage.gz") ){#|| $bamFresh){
 		my $preHDDspace=$QSBoptHR->{tmpSpace};		my $baseMapHDD = $HDDspace{mapping} ;  $baseMapHDD =~ s/G$//;
-		$QSBoptHR->{tmpSpace} = int($inputFileSizeMB{$curSmpl}*$baseMapHDD/1024)+15  ."G";		if (${$dirsHr}{submit}){
+		$QSBoptHR->{tmpSpace} = int((1.6 * $inputFileSizeMB{$curSmpl}*$baseMapHDD) /1024)+15  ."G";		if (${$dirsHr}{submit}){
 			
 		($jobN2,$retCmds) = qsubSystem($qdir.$bashN."map2$supTag.sh",
 				$cmd."\n".$covCmd."\n".$CRAMcmd."\n$nodeCln\n"#.$covCmd2
@@ -7368,7 +7380,7 @@ sub setDefaultMFconfig{
 	#SNPs
 	$MFopt{DoConsSNP}=0; $MFopt{DoSuppConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
 	$MFopt{SNPminCallQual} = 20;
-	$MFopt{saveVCF} = 0; $MFopt{maxSNPcores} = 5; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
+	$MFopt{saveVCF} = 1; $MFopt{maxSNPcores} = 10; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
 	$MFopt{callSVs} = 0; #0=not, 1=delly, 2=gridss
 	$MFopt{callSVsSupp} = 0; #same as "callSVs" but for supplemental reads
