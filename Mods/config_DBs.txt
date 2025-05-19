@@ -5,7 +5,7 @@ srtMRNA_DBs	silva-euk-18s-id95.fasta,silva-bac-16s-id90.fasta,silva-arc-16s-id95
 FMGdir	[MFLRDir]/bin/fetchMG/
 
 LSUdbFA	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_LSU.fasta
-LSUtax	[DBDir]/MarkerG/SILVA/138.1/LV_138.1_LSU.tax
+LSUtax	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_LSU.tax
 SSUdbFA	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_SSU.fasta
 SSUtax	[DBDir]/MarkerG/SILVA/138.1/SLV_138.1_SSU.tax
 ITSdbFA	[DBDir]/MarkerG/ITS_combi/ITS_comb.fa
