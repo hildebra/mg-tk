@@ -121,7 +121,7 @@ sub createConsSNPandSVs;
 #.65: 27.4.25: added SV caller delly, gridss
 #.66: 15.5.25: completely new way of creating consensus SNPs contgis/genes via vcf2fasta
 #.67: 16.5.25: integrated multi-map reading for MG-TK
-my $MATFILER_ver = 0.65;
+my $MATFILER_ver = 0.67;
 
 
 #operation mode?
