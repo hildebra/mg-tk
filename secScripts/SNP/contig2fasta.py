@@ -95,6 +95,8 @@ def main():
 	for rec in contig_dict:
 		prob=0
 		contig_conta[rec] = prob
+		#	refreq = re.compile(r" COV=(\d+) .* FREQT=(.*) CONFL=")
+
 		freReg = refreq.search(contig_dict[rec].description)
 		freqs = np.array(freReg.group(2).split(","))
 		freqs[freqs=='']='0'
@@ -137,6 +139,8 @@ def main():
 				geneXtra = " P=[] F=[] oCSP=" + str(contig_conta[line[0]]) +" CSP=0"
 				
 				#print(contig_dict[line[0]].description )
+				#	posfreq = re.compile(r"POS=(.*) FR=(.*) FREQT")
+
 				posReg = posfreq.search(contig_dict[line[0]].description )
 				dna = contig_dict[line[0]].seq[start-1:end]
 				DNAchars = dna.count("A") + dna.count("T") + dna.count("C") + dna.count("G")

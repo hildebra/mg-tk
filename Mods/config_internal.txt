@@ -10,6 +10,7 @@ readCov	[MFLRDir]/bin/./rdCover
 MSAfix	[MFLRDir]/bin/./MSAfix
 canopy	cc.bin	env:MGTKbinners
 clusterMAGs	[MFLRDir]/bin/./clusterMAGs
+vcf2fna	[MFLRDir]/bin/./vcf2fna
 
 
 #elevated MF3 scripts (main routines)

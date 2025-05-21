@@ -165,7 +165,7 @@ sub emptyQsubOpt{
 		tmpSpace => 15, #default was 15G; unit is G
 		tmpSpaceTag => getProgPaths("nodeTmpDirTAG",0),
 		LOCKfile => "",
-		tmpMinG => 10,
+		#tmpMinG => 10,
 		afterAny => 0,
 		excludeNodes => "",
 		xtraNodeCmds => $xtraNodeCmds,
