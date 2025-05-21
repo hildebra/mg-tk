@@ -947,9 +947,9 @@ sub readMapS{
 	foreach my $map (@spl){
 		($hr1,$hr2) = readMap($map,$cnt,$hr1,$hr2,$folderStrClassical,$xtraCols);
 		#%ret = %{$hr1};
-		$cnt = $hr1->{totSmpls};
+		$cnt = $hr1->{opt}{totSmpls};
 		push(@outDirs,$hr1->{opt}{outDir});
-		#print $cnt."\n";
+		#print "\n".$cnt."\n";
 	}
 	#%ret = %{$hr1};
 	#print keys %ret;
@@ -1069,6 +1069,7 @@ sub readMap{
 	
 	my $DOWARN = 1;
 	my $warnDeactivateMsg = "In case you want to continue, insert \"#WARNING OFF\" underneath the header of your map file.\n";
+	
 	#print $inF."\n";
 	open I,"<$inF" or die "Can't open map: $inF\n";
 	#AssGrps
@@ -1078,7 +1079,9 @@ sub readMap{
 		next if (length($line) <= 1);
 		if ($line =~ m/^#/ && $cnt > 0 ){#check for ssome global parameters
 			if ($line =~ m/^#DirPath\s(\S+).*$/){$dir2dirs = resolve_path($1); $dir2dirs.="/" unless ($dir2dirs=~m/\/$/); push(@dir2dirsA,$dir2dirs);}
-			if ($line =~ m/^#OutPath\s+(\S+)/){$dir2out = resolve_path($1); $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);}
+			if ($line =~ m/^#OutPath\s+(\S+)/){
+				$dir2out = resolve_path($1); $inDirSet=0;$dir2out .= "/" if ($dir2out !~ m/\/$/);
+			}
 			if ($line =~ m/^#RunID\s+(\S+)/){$baseID = $1; $inDirSet=0;}
 			if ($line =~ m/^#mocatFiltPath\s+(\S+)/){$mocatFiltPath = resolve_path($1);}
 			if ($line =~ m/^#illuminaClip\s+(\S+)/){$illuminaClip = resolve_path($1);}
@@ -1090,7 +1093,6 @@ sub readMap{
 				$dir2out.=$baseID unless ($dir2out =~ m/$baseID[\/]*$/); $inDirSet =1;
 				$dir2out .= "/" if ($dir2out !~ m/\/$/);
 			}
-			$dir2out .= "/" if ($dir2out !~ m/\/$/);
 			next;
 		}
 		my @spl = split(/\t/,$line,-1);
@@ -1128,9 +1130,12 @@ sub readMap{
 		#die $spl[0]." ".$spl[1]."\n";
 		die "inPath has to be set in mapping file!\n" if ($dir2dirs eq "");
 		#die "$dir2out\n";
+		die "Provide tag \"#OutPath\" in map!\n" if ($dir2out eq "");
+		die "Provide tag \"#RunID\" in map!\n" if ($baseID eq "");
+		die "Provide tag \"#DirPath\" in map!\n" if ($dir2dirs eq "");
 		my $curSmp = $spl[$smplCol];
 		
-		die"Error in .map, found empty sample id on line $Scnt,: \"$line\"\n" if ($curSmp eq "");
+		die"Error in .map, found empty sample id on line $cnt,: \"$line\"\n" if ($curSmp eq "");
 		my $altCurSmp = "";
 		#print $curSmp." ";
 		die "\"opt\" is reserved keyword and can't be used as sample name (.map line $cnt)\n" if ($curSmp eq "opt");
@@ -1233,6 +1238,7 @@ sub readMap{
 		if ($EstCovCol >= 0){$ret{$curSmp}{DoEstCoverage} = $spl[$EstCovCol];} else {$ret{$curSmp}{DoEstCoverage} = 0;}
 		#create artifical assmblgrp based on counts..
 		my $curAG = $Scnt;
+		#print "$curAG ";
 		if ($AssGroupCol >= 0 && $spl[$AssGroupCol] ne ""){
 			$curAG = $spl[$AssGroupCol];
 			if ($DOWARN && $curAG !~ /\D/){die "Error in .map, sample $curSmp: AssmblGrps are not allowed to be purely numeric characters!\ncurrent AssmblGrps: $curAG\n\n";}
