@@ -210,7 +210,7 @@ sub qsubSystemJobAlive{
 		my $waitCnt = 0;
 		while ( $num =~ m/$_/){
 			print "Waiting for $jobsCheckd/".scalar @jobs ." jobs to finish\n" if ($waitCnt==0);
-			sleep (30);
+			sleep (60);
 			$num = `$cmd`; #chomp $num;
 			$waitCnt++;
 			if ($killFailedJobs){

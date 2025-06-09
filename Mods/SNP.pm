@@ -315,6 +315,8 @@ sub SNPconsensus_vcf{
 	if ($runLocalTmp){
 		$scrDir = $tmpdir;
 	}
+	
+	#return if (-e $SNPstone && 
 
 
 	my $saveVCF=1;
@@ -502,11 +504,13 @@ sub SNPconsensus_vcf{
 		#requires python3 environment
 		$cmdAll .= "echo \"converting fasta to FNA and AA genes\"\n";
 		$cmdAll .= "\n$ctg2fas --gff $SNPIHR->{gffFile} --contig $ofasCons.gz --outFNA $SNPIHR->{genefna} --outFAA $SNPIHR->{genefaa};\n";
+		$cmdAll .= "\necho \"Finished contig to fasta\"\n\n";
 		#die $cmdAll."\n";
 	}
-	$cmdAll .= "touch $SNPstone\n";
+	if ($cmdAll ne ""){
+	$cmdAll .= "touch $SNPstone\n" ;# unless (-e $SNPstone);
 	$cmdAll .= "touch $SNPsuppStone\n" if ($SNPsuppStone ne "");
-	$cmdAll .= "\necho \"Finished contig to fasta\"\n\n";
+	}
 	
 	#die "$run2ctg\n$cmdAll\n";
 	if ($myParL && !$runLocalTmp && $cmdAll ne ""){
