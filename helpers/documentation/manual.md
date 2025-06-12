@@ -71,6 +71,7 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-mocatFiltered [0|1]			??
 	-filterHostKr2Conf [#]                      set host kraken2 confidence parameter (e.g. 0.05) 
 	-filterHostKr2Quick ["--quick"]             set quick option for kraken2 (should be "--quick")
+	-upload2EBI [dir]			copy reads after host read removal to this directory, ready for upload to standard repositories
 
 # sdm (read filtering) related
 	-gzipSDMout [0|1] 			gzip sdm output
