@@ -1,7 +1,7 @@
 name: MGTK
 channels:
-- https://conda.anaconda.org/conda-forge
-- https://conda.anaconda.org/bioconda
+- conda-forge
+- bioconda
 dependencies:
 #MF specific programs
   - sdm>=3.08
@@ -13,7 +13,7 @@ dependencies:
   - perl=5.32.1
   - vim
   - wget=1.21.4
-  - xz=5.2.6
+  - xz>5.2.6
 #  - zlib>=1.3
   - zstd>=1.5.2
   - bzip2=1.0.8

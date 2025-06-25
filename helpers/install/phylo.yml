@@ -1,7 +1,7 @@
 name: MGTKphylo
 channels:
-- https://conda.anaconda.org/conda-forge
-- https://conda.anaconda.org/bioconda
+- conda-forge
+- bioconda
 dependencies:
   - bcftools=1.20
   - modeltest-ng=0.1.7

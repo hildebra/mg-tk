@@ -1,8 +1,8 @@
 name: motus
 channels:
 - https://conda.anaconda.org/anaconda
-- https://conda.anaconda.org/bioconda
-- https://conda.anaconda.org/conda-forge
+- bioconda
+- conda-forge
 - https://repo.anaconda.com/pkgs/main
 dependencies:
   - motus>=3
