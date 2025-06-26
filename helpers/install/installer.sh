@@ -277,10 +277,22 @@ fi
 
 rm -f $MFdir/helpers/install/runningInstall.sto
 
+echo ""
+echo ""
+echo "How to download GTDB & GTDBtk databases"
+echo ""
+echo "The database for GTDB and GTDBtk are needed for MAG classification."
+echo "These can be downloaded using the script 'helpers/install/get_gtdb.py' i.e."
+echo "    ./get_gtdb.py all -v 226 -t /path/to/download -d /path/to/extract/to --tk split"
+echo "will download and extract these databases, and configure MG-TK to use them."
+echo "See script help (./get_gtdb.py -h) for more information on usage."
+echo ""
+echo ""
 
 echo "Finished MG-TK install"
 echo ""
 echo "To run MG-TK, make sure you are in the MGTK environment (micromamba activate MGTK)."
 echo "You can rerun the installer.sh anytime, to ensure package were installed or are being updated."
 echo "Run \"MG-TK.pl -checkInstall\" to ensure that the installation was successful."
+
 exit 

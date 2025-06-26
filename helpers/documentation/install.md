@@ -70,6 +70,26 @@ bash helpers/install/installer.sh
 
 - follow either example runs, assembly-dependent or assembly-independent tutorial (Examples section below)
 
+### Download databases
+
+#### GTDB & GTDBtk
+
+GTDB and the GTDBtk database are used for MAG classification in the gene catalog step.
+
+After installing MG-TK, there is a utility script `helpers/install/get_gtdb.py` provided to download these databases and format them appropriately for MG-TK.
+
+To download and extract the r226 databases, and configure MG-TK to use them, run
+
+```
+./get_gtdb.py all -v 226 -t /path/to/download/to -d /path/to/extract/to --tk split
+```
+
+You can delete the download directory (`-t`) after everything is correctly
+configured.
+
+If the system you run MG-TK on does not have internet access, the download process can be done separately.
+See `./get_gtdb.py -h` for help on running these steps separately.
+
 ### Useful configurations to track and check on MG-TK jobs
 
 The most common reason why MG-TK jobs fail are related to node configurations (available ram, hdd space, CPUs). There are several alias' that are usful in checking on slurm jobs that are running on your local HPC, understanding how MG-TK processes your samples and fixing errors. Thus following up jobs and checking their error logs is essential in understanding limitations in your current environment and get your metagenomes processed effectively, as listed below:
@@ -130,7 +150,6 @@ To take advantage of this, I strongly recommend to ask your sysadmin where the l
 
 This is a beta release of MG-TK. Some parts of the pipeline will currently not run, because we have not started yet linking in the various databases being used. Known DBs missing: 
 - LSU/SSU DBs ((needed for miTag approaches, flag -profileRibosome )
-- GTDB, for MAG classification (needed in gene catalog step)
 - all functional annotation databases (needed in gene catalog step or flag -profileFunct )
 </details>
 
