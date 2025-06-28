@@ -121,7 +121,8 @@ sub createConsSNPandSVs;
 #.65: 27.4.25: added SV caller delly, gridss
 #.66: 15.5.25: completely new way of creating consensus SNPs contgis/genes via vcf2fasta
 #.67: 16.5.25: integrated multi-map reading for MG-TK
-my $MATFILER_ver = 0.67;
+#.68: 28.6.25: -upload2EBI adapted to also include xtra reads.. streamlined functions that deal with host removal
+my $MATFILER_ver = 0.68;
 
 
 #operation mode?
@@ -304,10 +305,10 @@ my $emptCmd = "sleep 333";
 
 #set up kraken human filter
 my $krakDeps = ""; my $krakenDBDirGlobal = $runTmpDirGlobal;
-if ($MFopt{DoKraken} && $MFopt{globalKraTaxkDB} eq ""){die "Kraken tax specified, but no DB specified\n";}
-$krakDeps = prepKraken() if ( ($MFopt{humanFilter}>0 && $MFopt{humanFilter}<3) || ($MFopt{DoKraken}) || $MFopt{DoEukGenePred});
+$krakDeps = prepKraken();
 #profiling prep
-my $mOTU2Deps = prepMOTU2(); prepMetaphlan();
+my $mOTU2Deps = prepMOTU2(); 
+prepMetaphlan();
 #redo d2s intersample distance?
 #if ($MFopt{DoCalcD2s}) {$MFopt{DoCalcD2s} = !-e "$baseOut/d2StarComp/d2meta.stone";}
 
@@ -335,7 +336,7 @@ if ($loop2c_winsize > 0){
 #die $to."\n";
 #for loop that goes over every single sample in the .map
 for ($JNUM=$from; $JNUM<$to;$JNUM++){
-	
+	#print "$MFconfig{checkMaxNumJobs}";
 	qsubSystemWaitMaxJobs($MFconfig{checkMaxNumJobs}, $MFconfig{killDepNever});
 	
 	$curSmpl = $samples[$JNUM];
@@ -867,7 +868,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$porechopFlag = 1 if ($MFopt{usePorechop} && $dowstreamAnalysisFlag && !-e "$smplTmpDir/rawRds/poreChopped.stone");
 	#die "$assemblyFlag\t$seqCleanFlag\t$boolScndMappingOK\n";
 	my $calcUnzip=0;
-	$calcUnzip=1 if ($calcDiamond || $porechopFlag || $seqCleanFlag  || $mapAssFlag || $mapSuppAssFlag || (!$MFopt{useUnmapped} && !$boolScndMappingOK)); 
+	$calcUnzip=1 if ($calcDiamond || $porechopFlag || $seqCleanFlag  || $mapAssFlag || $mapSuppAssFlag || (!$MFopt{useUnmapped} && !$boolScndMappingOK) || $MFconfig{uploadRawRds} ne ""); 
 	#print "chk1 $mapSuppAssFlag $calcSuppCoverage $eSuppCovAsssembly\n" ;
 
 	if ($scaffTarExternal ne "" &&  $map{$curSmpl}{"SupportReads"} !~ /mate/i && $scaffTarExtLibTar ne $curSmpl ){print"scNxt\n";loop2C_check($cAssGrp,\@sampleDeps);next;}
@@ -955,9 +956,10 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			seedUnzip2tmp($curDir,$curSmpl,$curUnzipDep,$nodeSpTmpD,
 			$smplTmpDir,$waitTime,$AsGrps{$cMapGrp}{CntMap},$calcUnzip,$finalMapDir,
 			$porechopFlag,$inputRawFile);
-	my %seqSet = %{$hrefSeqSet};
+	#my %seqSet = %{$hrefSeqSet};
+	#print "$seqSet{pa1}   $seqSet{seqTech}   $seqSet{seqTechX}\n";
 	push (@unzipjobs,$jdep) unless ($jdep eq "");
-	$seqSet{samplReadLength} = $samplReadLength; $seqSet{samplReadLengthX} = $samplReadLengthX;
+	$hrefSeqSet->{samplReadLength} = $samplReadLength; $hrefSeqSet->{samplReadLengthX} = $samplReadLengthX;
 	
 	if (-e "$curOutDir/SMPL.empty" && $inputFileSizeMB{$curSmpl} > $MFconfig{skipSmallSmplsMB}){
 		system "rm -f $curOutDir/SMPL.empty";
@@ -982,7 +984,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		loop2C_check($cAssGrp,\@sampleDeps);next;
 	}
 	if($scaffTarExtLibTar eq $curSmpl){
-		@scaffTarExternalOLib1 = @{$seqSet{"pa1"}}; @scaffTarExternalOLib2 = @{$seqSet{"pa2"}};
+		@scaffTarExternalOLib1 = @{$hrefSeqSet->{"pa1"}}; @scaffTarExternalOLib2 = @{$hrefSeqSet->{"pa2"}};
 		unless ($map{$curSmpl}{"SupportReads"} =~ /mate/i ){
 			MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
 			loop2C_check($cAssGrp,\@sampleDeps);next;
@@ -990,41 +992,44 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		#print "@scaffTarExternalOLib1\n";
 		#die;
 	}
-	push(@inputRawFQs,$seqSet{"rawReads"});
+	push(@inputRawFQs,$hrefSeqSet->{"rawReads"});
 	
 	
 	#$mmpuOutTab .= $dir2rd."\t".$seqSet{"mmpu"}."\n";
-	$waitTime = $seqSet{"WT"};
+	$waitTime = $hrefSeqSet->{"WT"};
 	$AsGrps{$cMapGrp}{SeqUnZDeps} .= $jdep.";";$AsGrps{$cAssGrp}{UnzpDeps} .= $jdep.";";$AsGrps{$cAssGrp}{readDeps} = $AsGrps{$cAssGrp}{UnzpDeps};
 	my $UZdep = $jdep;
-	#my @cfp1 = @{$seqSet{"pa1"}}; my @cfp2 = @{$seqSet{"pa2"}}; #stores the read files used plus which library they come from
-	#if (@cfp1!=@cfp2){print "Fastap path not of equal length:\n@@cfp1\n@@cfp2\n"; die();}
-	#push(@{$AsGrps{$cMapGrp}{RawSeq1}},@{$seqSet{"pa1"}}); push(@{$AsGrps{$cMapGrp}{RawSeq2}},@{$seqSet{"pa2"}});
-	#push(@{$AsGrps{$cMapGrp}{RawSeqS}},@{$seqSet{"pas"}});push(@{$AsGrps{$cMapGrp}{Libs}},@{$seqSet{"libInfo"}});
 	
 	
 	#empty links for assembler and nonpareil
 	#my($arp1,$arp2,$singAr,$matAr,$sdmjN) = ([],[],[],[],"");
 	my $sdmjN = ""; #job on main  reads
-	my $cleanSeqSetHR = iniCleanSeqSetHR(\%seqSet);	
+	my $cleanSeqSetHR = iniCleanSeqSetHR($hrefSeqSet);	
+	
+	
+	#upload2EBI?? -> this has to happen before sdm etc, ensuring raw reads are being processed, in the same files as initially used...
+	my $uplJob = uploadRawFilePrep($smplTmpDir."uploadPrep/",$hrefSeqSet,$curSmpl,$jdep,0);
+	my $uplJobX = uploadRawFilePrep($smplTmpDir."uploadPrep/",$hrefSeqSet,$curSmpl,$jdep,1);
+	
+	push (@EBIjobs, $uplJob,$uplJobX);
 
-	#my($arp1,$arp2,$singAr,$matAr,$sdmjN) = ($seqSet{"pa1"},$seqSet{"pa2"},$seqSet{"pas"},[],$jdep);
+
 	#empty links and objects for merging of reads
 	my($mergJbN) = ("");
 	# punsh the whole thing through sdm.. 
 	if ( (!$boolAssemblyOK||$calcContamination) && $MFopt{useSDM}!=0 ){#&& !$is3rdGen) {
 		#$ifastp
 		#($cleanSeqSet{arp1},$cleanSeqSet{arp2},$cleanSeqSet{singAr},$cleanSeqSet{matAr},$sdmjN) = sdmClean($curOutDir,\%seqSet, 
-		($cleanSeqSetHR,$sdmjN)  = sdmClean($curOutDir,\%seqSet, $cleanSeqSetHR, 
+		($cleanSeqSetHR,$sdmjN)  = sdmClean($curOutDir,$hrefSeqSet, $cleanSeqSetHR, 
 				$smplTmpDir."mateCln/",$smplTmpDir."seqClean/",$jdep,$dowstreamAnalysisFlag,0) ;
 		# check for support reads as well..
 		my $sdmjN2 = ""; #job on support  reads
-		($cleanSeqSetHR,$sdmjN2) = sdmClean($curOutDir,\%seqSet, $cleanSeqSetHR,
+		($cleanSeqSetHR,$sdmjN2) = sdmClean($curOutDir,$hrefSeqSet, $cleanSeqSetHR,
 				$smplTmpDir."mateCln/",$smplTmpDir."seqClean/",$jdep,$dowstreamAnalysisFlag,1) ;
 		$sdmjN .= ";$sdmjN2" if ($sdmjN2 ne "");
 	}  
 	#adds raw and cleaned read file location to the whole assembly group
-	my $assGrpHR = addFileLocs2AssmGrp(\%AsGrps, $cAssGrp,$SmplName, $cleanSeqSetHR, \%seqSet);   %AsGrps = %{$assGrpHR};
+	my $assGrpHR = addFileLocs2AssmGrp(\%AsGrps, $cAssGrp,$SmplName, $cleanSeqSetHR, $hrefSeqSet);   %AsGrps = %{$assGrpHR};
 	
 	
 	
@@ -1052,7 +1057,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	#raw files only required for mapping reads to assemblies, so delete o/w
 	#$cfp1ar,$cfp2ar,
-	if (!$MFopt{DoAssembly} && $MFconfig{importMocat}==0 && $MFconfig{removeInputAgain} && !$requireRawReadsFlag){ $sdmjN = cleanInput(\%seqSet, $sdmjN,$smplTmpDir);}
+	if (!$MFopt{DoAssembly} && $MFconfig{importMocat}==0 && $MFconfig{removeInputAgain} && !$requireRawReadsFlag){ $sdmjN = cleanInput($hrefSeqSet, $sdmjN,$smplTmpDir);}
 	$AsGrps{$cAssGrp}{readDeps} .= ";$mergJbN";
 
 	#keeps track of all sdm jobs
@@ -1311,7 +1316,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#moves finished assemblies & mappings, deletes temp dirs, logic for when to do that:
 	my $rmRdsFlag=0; $rmRdsFlag=1 if ($MappingGo && ( $AssemblyGo || $efinAssLoc) );
 	#die "$rmRdsFlag ($MappingGo && ( $AssemblyGo || $efinAssLoc) )\n";
-	my $cln1 = manageFiles($cAssGrp, $cMapGrp, $rmRdsFlag,  $doPreAssmFlag, $curOutDir, $jdep, $smplTmpDir, $AssemblyGo);
+	my $cln1 = manageFiles($cAssGrp, $cMapGrp, $rmRdsFlag,  $doPreAssmFlag, $curOutDir, $jdep, $smplTmpDir, $AssemblyGo,$uplJob);
 	add2SampleDeps(\@sampleDeps, [$jdep , $AsGrps{$cAssGrp}{MapDeps} , $AsGrps{$cAssGrp}{scndMapping},$AsGrps{$cAssGrp}{prodRun} ]);
 	
 	#die;
@@ -1380,9 +1385,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		add2SampleDeps(\@sampleDeps, [$consSNPdep]);
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
 	}
-
 	MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
-	
 	### loop2complete functionality
 	loop2C_check($cAssGrp,\@sampleDeps);
 
@@ -1465,17 +1468,19 @@ sub loop2C_check(){
 	if ($loop2completion ){
 		push (@grandDeps, @{$sampleDeps_AR});
 		if ($JNUM == ($to-1)){
+			
+			#$totalChecked -= ($JNUM - $from);
+			$JNUM=($from-1);$loop2completion--;
+			print "\n\n-------------------------------------------\n-------------------------------------------\n";
+			print "Repeating samples loop: going into iteration  - $loop2completion: \n";
+
 			#print "L2C:: $loop2completion  @{$sampleDeps_AR}\n";
 			qsubSystemJobAlive( \@grandDeps,$QSBoptHR ,1 );
 			#reset some key params...
 			@grandDeps = ();
 			resetAsGrps(\%AsGrps);
 			%inputFileSizeMB = ();
-			
-			#$totalChecked -= ($JNUM - $from);
-			$JNUM=($from-1);$loop2completion--;
-			print "\n\n-------------------------------------------\n-------------------------------------------\n";
-			print "Repeating samples loop: going into iteration  - $loop2completion: \n";
+
 			print "Reanalyzing samples $from till $to\n";
 			if ($loop2c_winsize > 0 && !$loop2completion){
 				my $tmpStr = "Changing sample window from $from -> $to to ";
@@ -3553,10 +3558,7 @@ sub sdmClean(){
 	my ($curOutDir,$seqSetHR,$cleanSeqSetHR,$mateD,$finD,$jobd,$runThis, $useXtras ) = @_;
 	#create ifasta path
 	#die "cllll\n";
-	my %seqSet = %{$seqSetHR};
-	#sdm options..
-	#my $sdmO = $seqSet{"curSDMopt"}; my $sdmS = $seqSet{"curSDMoptSingl"};
-	
+	my %seqSet = %{$seqSetHR};	
 	my ($ar1,$ar2,$ars,$libInfoAr,$seqTec) = ($seqSet{"pa1"},$seqSet{"pa2"},$seqSet{"pas"},$seqSet{"libInfo"},$seqSet{"seqTech"});
 	my $samplReadLength = $seqSet{"samplReadLength"};
 	#my ($ar1X,$ar2X,$arsX,$libInfoArX) = ($seqSet{"paX1"},$seqSet{"paX2"},$seqSet{"paXs"},$seqSet{"libInfoX"})
@@ -3684,31 +3686,6 @@ sub sdmClean(){
 			$cmd .= $cmdSA . ">>  $sret[1]; rm -f $tmpTar; fi\n" ;
 		}
 	}
-	#die $cmd."\n";
-#	if ($useLocalTmp){
-#		if ($MFconfig{unpackZip} || $MFopt{gzipSDMOut}){#zip output
-#			foreach my $of (split(/,/,$ofiles)){
-#				$of =~ m/\/([^\/]+$)/; my $fname = $1;
-#				$cmd .= "$pigzBin -p $comprCores -c $of > $finD/$fname.gz\n";
-#			}
-#			if (!$singlReadMode){
-#				$sret[-1] =~ m/\/([^\/]+$)/; my $fname = $1;
-#				#$cmd .= "$pigzBin -p $comprCores -c ".$sret[-1]." > $finD/$fname.gz\n" ;
-#			}
-#		} else {
-#			$cmd .= "mv -f ".join(" ",(split(/,/,$ofiles),split(/,/,$mi_ofiles)))." $finD\n";
-#			$cmd .= "rm -rf $tmpD\n";
-#		}
-#	} elsif ($MFconfig{unpackZip} || $MFopt{gzipSDMOut}){#zip output
-#		foreach my $of (split(/,/,$ofiles)){
-#			$of =~ m/\/([^\/]+$)/; my $fname = $1;
-#			$cmd .= "$pigzBin -p $comprCores $of \n";
-#		}
-#		if (!$singlReadMode){
-#			$sret[-1] =~ m/\/([^\/]+$)/; my $fname = $1;
-#			#$cmd .= "$pigzBin -p $comprCores ".$sret[-1]." \n" ;
-#		}
-#	}
 	if (!$singlReadMode){
 		$sret[-1] =~ m/\/([^\/]+$)/; my $fname = $1;
 		#$cmd .= "$pigzBin -p $comprCores ".$sret[-1]." \n" ;
@@ -3776,7 +3753,7 @@ sub mocat_reorder(){
 }
 sub SEEECER(){
 	my ($p1ar,$p2ar,$tmpD) = @_;
-	die("SEECER deactive\n");
+	die("SEECER deactived\n");
 	my @p1 = @{$p1ar}; my @p2 = @{$p2ar};
 	if ( $p1[0] =~ m/.*\.gz/){
 		system("gunzip -c ".join(" ",@p1)." > $tmpD/pair.1.fastq");	system("gunzip -c ".join(" ",@p2)." > $tmpD/pair.2.fastq");
@@ -3802,17 +3779,41 @@ sub unploadRawFilePostprocess{
 	if (-e "$MFconfig{uploadRawRds}/R1.md5"){return;}
 	print "Postprocess upload postprocess\n";
 	#md5sum --version
-	my $cmd = "md5sum $MFconfig{uploadRawRds}/*.R2.fq.gz > $MFconfig{uploadRawRds}/R2.md5\n";
-	$cmd .= "md5sum $MFconfig{uploadRawRds}/*.R1.fq.gz > $MFconfig{uploadRawRds}/R1.md5\n";
-	my ($jobN, $tmpCmd) = qsubSystem("$globalLogDir/postEBI.sh",$cmd,1,"20G","_PP",join(";",@EBIjobs),"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
+	my $cmd = "md5sum $MFconfig{uploadRawRds}/*.R2.fq.gz > $MFconfig{uploadRawRds}/R2.md5 & \n";
+	$cmd .= "md5sum $MFconfig{uploadRawRds}/*.R1.fq.gz > $MFconfig{uploadRawRds}/R1.md5 & \n";
+	$cmd .= "md5sum $MFconfig{uploadRawRds}/*.Rsingl.fq.gz > $MFconfig{uploadRawRds}/Rsingl.md5\n";
+	my ($jobN, $tmpCmd) = qsubSystem("$globalLogDir/postEBI.sh",$cmd,3,"20G","_PP",join(";",@EBIjobs),"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 }
 
 #cleans raw fastqs fastq's (human DNA) to prepare upload to EBI/SRA
 sub uploadRawFilePrep{
 	if ($MFconfig{uploadRawRds} eq ""){return "" ;}
-	my ($inD,$tmpD,$cfp1ar,$cfp2ar,$cfpsar,$smplID,$libInfoAr,$totalInputSizeMB) = @_;
-	my @pa1 = @{$cfp1ar}; my @pa2 = @{$cfp2ar}; my @sa = @{$cfpsar};
+	
+	#my ($inD,$tmpD,$cfp1ar,$cfp2ar,$cfpsar,$smplID,$libInfoAr,$totalInputSizeMB) = @_;
+	#my @pa1 = @{$cfp1ar}; my @pa2 = @{$cfp2ar}; my @sa = @{$cfpsar};
+	
+	my ($tmpD,$seqSetHR,$smplID, $jdep, $useXtras) = @_;
+	
+	my $totalInputSizeMB = $inputFileSizeMB{$smplID} ;
+
+	my %seqSet = %{$seqSetHR};	
+	my ($ar1,$ar2,$ars,$libInfoAr,$seqTec) = ($seqSet{"pa1"},$seqSet{"pa2"},$seqSet{"pas"},$seqSet{"libInfo"},$seqSet{"seqTech"});
+	my $samplReadLength = $seqSet{"samplReadLength"};
+	#print "XX $seqTec XX";
+	#my ($ar1X,$ar2X,$arsX,$libInfoArX) = ($seqSet{"paX1"},$seqSet{"paX2"},$seqSet{"paXs"},$seqSet{"libInfoX"})
+	if ($useXtras){
+		#if useXtras flag set, only consider "xtra" defined input reads (eg scaffoling reads, 3rd gen in supplement of main reads etc)
+		($ar1,$ar2,$ars,$libInfoAr,$seqTec) = ($seqSet{"paX1"},$seqSet{"paX2"},$seqSet{"paXs"},$seqSet{"libInfoX"},$seqSet{"seqTechX"});
+		$samplReadLength = $seqSet{"samplReadLengthX"};
+		if (!@{$ar1} && !@{$ars}) { return ""; }#nope, no additional reads are requested..
+	}
 	my @libInfo = @{$libInfoAr};
+	my $tag = ""; $tag = "X." if ($useXtras);
+	if ($useXtras){
+		print "preparing xtra raw fastq upload for EBI/SRA (hostfilter $MFopt{humanFilter}).. ";
+	} else {
+		print "preparing raw fastq upload for EBI/SRA (hostfilter $MFopt{humanFilter}).. ";
+	}
 
 	my $unsplBin = getProgPaths("unsplitKrak_scr"); #unsplitting merged reads..
 	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
@@ -3842,17 +3843,20 @@ sub uploadRawFilePrep{
 	my $cmd = "";#"rm -rf $outD/tmp/;mkdir -p $outD/tmp/\n";
 	for (my $i=0;$i<3;$i++){
 		next if ($i==1); #read2 will be dealt with read1
-		if ($i==0){$rd="1";@rds=@pa1;}
+		if ($i==0){$rd="1";@rds=@{$ar1};}
 		#if ($i==1){$rd="2";@rds=@pa2;}
-		my @rds2= @pa2;
-		if ($i==2){$rd="single";@rds=@sa;}
+		my @rds2= @{$ar2};
+		if ($i==2){$rd="single";@rds=@{$ars};}
 		my $idx=0;
 		foreach (my $x=0;$x<@rds;$x++){
 			my $f =$rds[$x];
 			my $rd2=$rds2[$x];
-			my $xtra="";
-			if ($libInfo[$idx] =~ m/.*mate.*/i){$xtra = "mate.";}
-			if ($libInfo[$idx] =~ m/.*miseq.*/i){$xtra = "miSeq.";}
+			my $xtra=$tag;
+			if ($libInfo[$idx] =~ m/.*mate.*/i){$xtra = "mate.${tag}";}
+			if ($libInfo[$idx] =~ m/.*miseq.*/i){$xtra = "miSeq.${tag}";}
+			if ($seqTec eq "PB"){$xtra = "PB.${tag}";}
+			if ($seqTec eq "ONT"){$xtra = "ONT.${tag}";}
+			#die "$seqTec\n$libInfo[0]\n";
 			my $of = "$tmpD/$smplID.$xtra$idx.R$rd.fq";  
 			my $of2 = "$tmpD/$smplID.$xtra$idx.R2.fq";  
 			my $tmpF = "$tmpD/$smplID.$xtra$idx.R1R2.fq";  
@@ -3866,33 +3870,22 @@ sub uploadRawFilePrep{
 			next if (-e $ff);
 			$cmd .= "rm -fr $tmpD;\nmkdir -p $tmpD/tmp/ $outD\n";
 			#$cmd .= "rm -f $ofT;cp $inD$f $ofT\n" unless (-e $of);
-			$cmd .= "rm -f $ofT;ln -s $inD$f $ofT\n" unless (-e $of);
-			if ($i==2){
-				$cmd .= krakHSapSingl("$ofT",$of,$numThr)."\n" unless (-e $of.".gz");
+			$cmd .= "rm -f $ofT;ln -s $f $ofT\n" unless (-e $of);
+			
+			
+			if ($i==2){ #single read pair... 
+				#$cmd .= krakHSapSingl("$ofT",$of,$numThr)."\n" unless (-e $of.".gz");
+				$cmd .= hostRmBase($ofT,"",$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[0]");
+				#and move cleaned up file to final locations...
+				$cmd .= "rm -f $of; mv $ofT $of;\n";
 				$ofT2="";$of2="";
 			}
 			if ($i==0){
-				my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($ofT =~ m/\.gz$/);
-				my $gzEnd = ""; $gzEnd = ".gz" if ($gzFlag ne "");
-
-				$cmd .= "rm -f $ofT2;cp $inD$rd2 $ofT2\n" unless (-e $of);
-				if ($krak1){
-					$cmd .= "$krkBin --preload --threads $numThr --paired --fastq-input $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[0]  $ofT $ofT2 > /dev/null\n";
-					#overwrites input files
-					$of =~ s/\.gz$//;$of2 =~ s/\.gz$//;
-					$cmd .= "$unsplBin $tmpF $of $of2\nrm -f $tmpF*\n";
-					if ($gzFlag ne ""){
-						$cmd .= "$pigzBin -f -p $numThr $of $of2\n";
-						$of .= ".gz";$of2 .= ".gz";
-					}
-				} else {
-					
-					$tmpF ="$tmpD/krak.tmp#.fq"; my $tmpF1 = "$tmpD/krak.tmp_1.fq";my $tmpF2 = "$tmpD/krak.tmp_2.fq";
-					$cmd .= "$krk2Bin --threads $numThr $gzFlag --paired --unclassified-out $tmpF --db $DBdir$DBname[0] --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $ofT $ofT2 \n";
-					$cmd .= "$pigzBin -f -p $numThr $tmpF1 $tmpF2\n" unless ($gzFlag eq "");
-					$cmd .= "mv $tmpF1$gzEnd $of; mv $tmpF2$gzEnd $of2\n";
-				}
-				
+				$cmd .= "rm -f $ofT2;ln -s $rd2 $ofT2\n" unless (-e $of);
+				my $tmpF1 = "$tmpD/krak.tmp_1.fq";my $tmpF2 = "$tmpD/krak.tmp_2.fq";
+				$cmd .= hostRmBase($ofT, $ofT2,$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[0]");
+				$cmd .= "rm -f $of; mv $ofT $of;\n";
+				$cmd .= "rm -f $of2; mv $ofT2 $of2;\n";
 				#die "$cmd";
 			}
 			$cmd .= "rm -f $ofT $ofT2\n";
@@ -3911,9 +3904,11 @@ sub uploadRawFilePrep{
 		$QSBoptHR->{tmpSpace} = int($totalInputSizeMB/1024*6)+30  ."G";
 #		$QSBoptHR->{tmpSpace} = $HDDspace{prepPub}; #increase local space..  # use $totalInputSizeMB ??
 		#print "$QSBoptHR->{tmpSpace}\n";
-		my ($jobN, $tmpCmd) = qsubSystem("$logDir/prepEBI.sh",$cmd,$numThr,int(50/$numThr) . "G","_PP$JNUM",$krakDeps,"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
+		my ($jobN, $tmpCmd) = qsubSystem("$logDir/prepEBI$tag.sh",$cmd,$numThr,int(50/$numThr) . "G","EBI$tag$JNUM","$jdep;$krakDeps","",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 		$QSBoptHR->{tmpSpace} = $preHDDspace;
 		$retJob = $jobN;
+	} else {
+		print "all done\n";
 	}
 	return $retJob;
 }
@@ -4056,7 +4051,7 @@ sub seedUnzip2tmp{
 	#information on libraries (name of library)
 	my @libInfo= (); my @libInfoX= ();
 	#information on seq tech
-	my $seqTech = ""; my $seqTechX = "";
+	my $seqTech = "ill"; my $seqTechX = ""; #assume by defauly illumina as read tec
 	#store bam formated input..
 	my @paBam; my @paBamX;
 	
@@ -4070,7 +4065,7 @@ sub seedUnzip2tmp{
 			checkSeqTech($xtraRdsTech,"MATFILER.pl::Support Reads");
 			$seqTechX = $xtraRdsTech;
 		}
-		#die $fastp2."\n".$xtraRdsTech."\n";
+		#die @fastp2."\n".$xtraRdsTech."\n";
 	}
 	my $is3rdGen = is3rdGenSeqTech($seqTech);
 	my $is3rdGenX = is3rdGenSeqTech($seqTechX);
@@ -4276,19 +4271,20 @@ sub seedUnzip2tmp{
 	
 	
 	#relinking in mocat file structure, if requested ## not used any longer
-	my $mocatFCDone = mocatFileCpy($fastp,\@pa1,\@pa2,\@pas,$curSmpl);
+	#my $mocatFCDone = mocatFileCpy($fastp,\@pa1,\@pa2,\@pas,$curSmpl);
 	
 	#prepare files to be uploaded to EBI etc, if requested
-	my $uplDone = uploadRawFilePrep($fastp,$tmpPath,\@pa1,\@pa2,\@pas,$curSmpl,\@libInfo,$totalInputSizeMB);
-	push (@EBIjobs, $uplDone);
+	#my $uplDone = uploadRawFilePrep($fastp,$tmpPath,\@pa1,\@pa2,\@pas,$curSmpl,\@libInfo,$totalInputSizeMB);
+	#push (@EBIjobs, $uplDone);
 
-	if ($mocatFCDone || $uplDone ne ""){ $totalInputSizeMB=0;$inputFileSizeMB{$curSmpl}=0;
+	#no longer used.. just process files as if real files, even if upload2EBI flag used..
+#	if (0 ||                              $mocatFCDone || $uplDone ne ""){ 
+#		$totalInputSizeMB=0;$inputFileSizeMB{$curSmpl}=0;
 		#return ("EMPTY_DO_NEXT",\@pa1,\@pa2, \@pas, 0, "", "",\@libInfo, "",$totalInputSizeMB);
-		$seqSet{pa1} = \@pa1;$seqSet{pa2} = \@pa2;$seqSet{pas} = \@pas;
-		$seqSet{libInfo} = \@libInfo;
-		return ("EMPTY_DO_NEXT", \%seqSet);
-
-	}
+#		$seqSet{pa1} = \@pa1;$seqSet{pa2} = \@pa2;$seqSet{pas} = \@pas;
+#		$seqSet{libInfo} = \@libInfo;
+#		return ("EMPTY_DO_NEXT", \%seqSet);
+#	}
 	die "tmpPath empty: $tmpPath" if ($tmpPath eq "");
 	$tmpPath.="/rawRds/";
 	my $unzipcmd = "";
@@ -4509,6 +4505,8 @@ sub seedUnzip2tmp{
 	if (!-e $inputRawFile || -s $inputRawFile == 0){
 		open O,">$inputRawFile"; print O $seqSet{"rawReads"}; close O;
 	}
+	
+	#print "$seqSet{pa1}   $seqSet{seqTech}   $seqSet{seqTechX}\n";
 
 	#return ($jobN,\@pa1,\@pa2, \@pas, $WT, $rawReads, $mmpu,\@libInfo, $totalInputSizeMB);
 	return ($jobN, \%seqSet);
@@ -4576,6 +4574,15 @@ sub prepMOTU2(){
 }
 sub prepKraken(){
 	#my ($DBdir) = @_;
+	
+	if ( ($MFopt{humanFilter}>0 && $MFopt{humanFilter}<3) && ($MFopt{DoKraken} || $MFopt{DoEukGenePred}  || $MFconfig{uploadRawRds} ne "" ) ){
+		if ($MFopt{globalKraTaxkDB} eq ""){die "Kraken tax specified, but no DB specified\n";}
+	} else {
+		return "";
+	}
+
+	
+	
 	my %DBname;
 	if ($MFopt{humanFilter} && $MFopt{filterHostDB1} eq ""){
 		$DBname{"hum1stTry"} = 1;
@@ -4604,6 +4611,59 @@ sub prepKraken(){
 	return $jobN;
 }
 
+
+sub hostRmBase{
+	my ($r1,$r2,$hostRMVer,$numThr,$tmpD,$krRefDB) = @_;
+	my $cmd = "";
+	return $cmd if ($r1 eq "");
+	my $tmpF ="$tmpD/krak.tmp.fq";
+	my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($r1 =~ m/\.gz$/);
+	my $gzEnd = ""; $gzEnd = ".gz" if ($gzFlag ne "");
+	if ($hostRMVer==2){
+		die "kraken 1 no longer suported for host removal\n";
+		my $unsplBin = getProgPaths("unsplitKrak_scr");
+		my $krkBin = getProgPaths("kraken");
+		$cmd .= "$krkBin --preload --threads $numThr --fastq-input $gzFlag --unclassified-out $tmpF --db $krRefDB  $r1 $r2 > /dev/null\n";
+		#overwrites input files
+		$r1 =~ s/\.gz$//; $r2 =~ s/\.gz$//;
+		$cmd .= "$unsplBin $tmpF $r1 $r2\nrm -f $tmpF*\n";
+		if ($gzFlag ne ""){
+			$cmd .= "$pigzBin -f -p $numThr $r1 $r2\n";
+		}
+	} elsif($hostRMVer==1) { #kraken2
+		my $krk2Bin = getProgPaths("kraken2");my $tmpF1 ;my $tmpF2 ; my $kr2flags= "";
+		if ($r2 eq ""){
+			$tmpF2=""; $tmpF1 = $tmpF;
+		} else {
+			$tmpF ="$tmpD/krak.tmp#.fq";  $tmpF1 = "$tmpD/krak.tmp_1.fq"; $tmpF2 = "$tmpD/krak.tmp_2.fq"; $kr2flags = "--paired ";
+		}
+		$cmd .= "$krk2Bin --threads $numThr $gzFlag $kr2flags --unclassified-out $tmpF --db $krRefDB --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $r1 $r2 \n";
+		$cmd .= "$pigzBin -f -p $numThr $tmpF1 $tmpF2\n" unless ($gzFlag eq "");
+		$cmd .= "rm -f $r1 $r2; \n";
+		$cmd .= "mv $tmpF1$gzEnd $r1;\n ";
+		$cmd .= "mv $tmpF2$gzEnd $r2;\n" if ($r2 ne "");
+	} elsif($hostRMVer==3) { #hostile
+		my $hostileBin = getProgPaths("hostile");
+		my $hostileDB = getProgPaths("hostileDB");
+		#	$MFopt{hostileIndex} = "human-t2t-hla";
+		system "rm $hostileDB/$MFopt{hostileIndex}.mmi" if (-z "$hostileDB/$MFopt{hostileIndex}.mmi");
+		$cmd .= "export HOSTILE_CACHE_DIR=$hostileDB\n";
+		my $input = "--fastq1 $r1 "; $input .= "--fastq2 $r2 " if ($r2 ne "");
+		$cmd .= "$hostileBin clean $input --index $hostileDB/$MFopt{hostileIndex} --aligner auto --output $tmpD/ --threads $numThr --airplane --force\n";
+		if ($r2 ne ""){
+			my $newR1 = $r1; $newR1 =~ s/.*\///; $newR1 =~ s/\.fq([\.gz])?/\.clean_1\.fastq$1/;#remove path
+			$cmd .= "rm -f $r1 \nmv $tmpD/$newR1 $r1;\n";
+			my $newR2 = $r2; $newR2 =~ s/.*\///; $newR2 =~ s/\.fq([\.gz])?/\.clean_2\.fastq$1/;
+			$cmd .= " rm -f $r2; mv $tmpD/$newR2 $r2\n";
+		} else {
+			my $newR1 = $r1; $newR1 =~ s/.*\///;$newR1 =~ s/\.fq([\.gz])?/\.clean\.fastq$1/;
+			$cmd .= "rm -f $r1 \nmv $tmpD/$newR1 $r1;\n";
+		}
+	}
+	return $cmd;
+}
+
+
 sub removeHostSeqs($ $ $ $){
 	my ($cleanSeqSetHR,$tmpD,$jDep,$checkIfExists) = @_;
 	return $jDep unless ($MFopt{humanFilter});
@@ -4618,26 +4678,17 @@ sub removeHostSeqs($ $ $ $){
 			$pas[0] =~ m/(.*\/)[^\/]+$/; $fileDir= $1 ;
 		}
 	}
-	my $hostRMVer=$MFopt{humanFilter}; #0: no, 1:kraken2, 2: kraken1, 3:hostile
+	#my $hostRMVer=$MFopt{humanFilter}; #0: no, 1:kraken2, 2: kraken1, 3:hostile
 	#files don't need to be checked.. it's in any case just sdm files..
 	$outputExists = 0 if (!-e "$fileDir/krak.stone");
 	#die "$outputExists && $checkIfExists\n";
 	return $jDep if ($outputExists && $checkIfExists);
 	
-	#flag whether to use kraken v1 or v2
-	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
-	my $krkBin = "";
-	my $hostileBin = getProgPaths("hostile");
-	my $hostileDB = getProgPaths("hostileDB");
-	#my $krak1= 1;	if ($krk2Bin ne ""){ $krak1=0; }
-	if ($hostRMVer==2){
-		$krkBin = getProgPaths("kraken");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
-	}
 
 	#my ($DBdir,$DBname) = @_;
 	
 	my $DBdir = $krakenDBDirGlobal."/";
-	my $unsplBin = getProgPaths("unsplitKrak_scr");#"perl /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/secScripts/unsplit_krak.pl ";
+	
 	my @DBname = ("hum1stTry"); my $numThr = 4;
 	if (@filterHostDB > 0){
 		@DBname = (); my $cnt=0;
@@ -4646,65 +4697,16 @@ sub removeHostSeqs($ $ $ $){
 			$DBname[$cnt] = $fhdb; $DBdir=""; $cnt++;
 		}
 	}
-	my $cmd = "\n\nmkdir -p $tmpD\n\n"; my $tmpF ="$tmpD/krak.tmp.fq";
+	my $cmd = "\n\nmkdir -p $tmpD\n\n"; 
 	
 	#loop around different DBs..
 	
 	for (my $j=0;$j<@DBname ; $j++){
 		for (my $i=0;$i<@pa1;$i++){
-			my $r1 = $pa1[$i]; my $r2 = $pa2[$i];
-			#if ($fileDir eq ""){
-			#	$pa1[$i] =~ m/(.*\/)[^\/]+$/; $fileDir= $1 ;
-			#	$cmd .= "\n\nrm -f $fileDir/krak.stone\n\n";
-			#}
-			my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($pa1[$i] =~ m/\.gz$/);
-			my $gzEnd = ""; $gzEnd = ".gz" if ($gzFlag ne "");
-
-			if ($hostRMVer==2){
-				$cmd .= "$krkBin --preload --threads $numThr --fastq-input $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j]  $r1 $r2 > /dev/null\n";
-				#overwrites input files
-				$r1 =~ s/\.gz$//; $r2 =~ s/\.gz$//;
-				$cmd .= "$unsplBin $tmpF $r1 $r2\nrm -f $tmpF*\n";
-				if ($gzFlag ne ""){
-					$cmd .= "$pigzBin -f -p $numThr $r1 $r2\n";
-				}
-			} elsif($hostRMVer==1) { #kraken2
-				$tmpF ="$tmpD/krak.tmp#.fq"; my $tmpF1 = "$tmpD/krak.tmp_1.fq";my $tmpF2 = "$tmpD/krak.tmp_2.fq";
-				$cmd .= "$krk2Bin --threads $numThr $gzFlag --paired --unclassified-out $tmpF --db $DBdir$DBname[$j] --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $r1 $r2 \n";
-				$cmd .= "$pigzBin -f -p $numThr $tmpF1 $tmpF2\n" unless ($gzFlag eq "");
-				$cmd .= "rm -f $r1 $r2; \n";
-				$cmd .= "mv $tmpF1$gzEnd $r1; mv $tmpF2$gzEnd $r2\n";
-			} elsif($hostRMVer==3) { #hostile
-				system "rm $hostileDB/human-t2t-hla.mmi" if (-z "$hostileDB/human-t2t-hla.mmi");
-			
-				$cmd .= "export HOSTILE_CACHE_DIR=$hostileDB\n";
-				$cmd .= "$hostileBin clean --fastq1 $r1 --fastq2 $r2 --index $hostileDB/$MFopt{hostileIndex} --aligner auto --output $tmpD/ --threads $numThr --airplane --force\n";
-				my $newR1 = $r1; my $newR2 = $r2; 
-				$newR1 =~ s/.*\///; $newR2 =~ s/.*\///; #remove path
-				$newR1 =~ s/\.fq([\.gz])?/\.clean_1\.fastq$1/;$newR2 =~ s/\.fq([\.gz])?/\.clean_2\.fastq$1/;
-				$cmd .= "rm $r1 $r2\nmv $tmpD/$newR1 $r1;\nmv $tmpD/$newR2 $r2\n";
-				
-				#die $cmd."\n";
-			}
+			$cmd .= hostRmBase($pa1[$i],$pa2[$i],$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[$j]");
 		}
 		for (my $i=0;$i<@pas;$i++){
-			my $rs = $pas[$i]; 
-			my $gzFlag = "";$gzFlag =  "--gzip-compressed" if ($pas[$i] =~ m/\.gz$/);
-			if ($hostRMVer==2){
-				$cmd .= "$krkBin --preload --threads $numThr --fastq-input $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j]  $rs > /dev/null\n";
-			} elsif ($hostRMVer==1) {
-				$cmd .= "$krk2Bin --threads $numThr $gzFlag --unclassified-out $tmpF --db $DBdir$DBname[$j] --output - $MFopt{filterHostKr2QuickMode} --confidence $MFopt{krakHostConf} $rs \n";
-				if ($gzFlag eq ""){$cmd .= "rm -f $rs; mv $tmpF $rs\n";
-				} else{$cmd .= "rm -f $rs; $pigzBin -f -p $numThr -c $tmpF > $rs\nrm -f $tmpF\n";}
-			} elsif($hostRMVer==3) {#hostile
-				system "rm $hostileDB/human-t2t-hla.mmi" if (-z "$hostileDB/human-t2t-hla.mmi");
-				$cmd .= "export HOSTILE_CACHE_DIR=$hostileDB\n";
-				$cmd .= "$hostileBin clean --fastq1 $rs --index $MFopt{hostileIndex} --aligner auto --output $tmpD/ --threads $numThr --airplane --force\n";
-				my $newR1 = $rs;
-				$newR1 =~ s/.*\///;$newR1 =~ s/\.fq([\.gz])?/\.clean\.fastq$1/;
-				$cmd .= "rm $rs \nmv $tmpD/$newR1 $rs;\n";
-			}
-			#overwrites input files
+			$cmd .= hostRmBase($pas[$i],"",$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[$j]");
 		}
 	}
 	$cmd .= "\n\n";
@@ -4729,6 +4731,7 @@ sub removeHostSeqs($ $ $ $){
 }
 
 sub krakHSapSingl($ $){ #just on single file..
+	die "Deprecated.. replaced with hostRmBase()\n";
 	my ($inF, $outF,$numThr) = @_;
 	return "" if ( -e $outF);
 	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
@@ -5805,7 +5808,7 @@ sub clean_tmp{#routine moves output from temp dirs to final dirs (that are IO li
 
 	
 sub manageFiles{
-	my ($cAssGrp, $cMapGrp, $rmRdsFlag, $doPreAssmFlag, $curOutDir , $jdep, $smplTmpDir,$AssemblyGo) = @_;
+	my ($cAssGrp, $cMapGrp, $rmRdsFlag, $doPreAssmFlag, $curOutDir , $jdep, $smplTmpDir,$AssemblyGo,$uplJob) = @_;
 	#cleaning of filtered reads & copying of assembly / mapping files
 	#$AsGrps{$cAssGrp}{ClSeqsRm} .= $smplTmpDir."seqClean/".";";
 	
@@ -5822,6 +5825,7 @@ sub manageFiles{
 	my $totJdeps = $jdep . ";" . "$AsGrps{$cAssGrp}{SeqClnDeps}" . ";" . $AsGrps{$cAssGrp}{MapDeps} . ";". 
 				$AsGrps{$cAssGrp}{scndMapping}.";".$AsGrps{$cAssGrp}{readDeps}.";".$AsGrps{$cAssGrp}{prodRun}. 
 				";" . $AsGrps{$cAssGrp}{AssemblJobName};
+	$totJdeps .= ";" . $uplJob if ($uplJob ne "");
 	
 #	for ( ($jdep , $AsGrps{$cAssGrp}{MapDeps} , $AsGrps{$cAssGrp}{scndMapping},$AsGrps{$cAssGrp}{prodRun}) ){
 #		push(@sampleDeps, $_ ) if (defined $_ && $_ ne "");
