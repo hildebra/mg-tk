@@ -19,6 +19,7 @@ MAGpipe	perl [MFLRDir]/secScripts/MGS.pl
 
 
 #local scripts 	ESSENTIAL
+fastHdChkENA	perl [MFLRDir]/secScripts/composition/checkFQhds4ENA.pl
 cLSUSSU_scr	perl [MFLRDir]/secScripts/miTag/catchLSUSSU.pl
 lotusLCA_cLSU_scr	[MFLRDir]/secScripts/miTag/lotus_LCA_blast3.pl
 krakCnts_scr	[MFLRDir]/secScripts/GC/krak_count_tax.pl

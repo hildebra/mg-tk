@@ -80,7 +80,8 @@ sub prefixFAhd{
 sub gzipwrite{
 	my ($outF,$descr) = @_;
 	$outF .= ".gz" if ( $outF !~ m/\.gz$/);
-	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!";
+	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!\n\n";
+	#open my $O, ':>gzip', $outF or die "error starting gzip pipe $outF\n$!\n\n";
 	#my $pigzBin = getProgPaths("piz");
 	#open (my $O, "| $pigzBin -c > $outF") or die "error starting gzip pipe $outF\n$!";
 	return $O;

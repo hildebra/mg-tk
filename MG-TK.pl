@@ -3810,19 +3810,12 @@ sub uploadRawFilePrep{
 	my @libInfo = @{$libInfoAr};
 	my $tag = ""; $tag = "X." if ($useXtras);
 	if ($useXtras){
-		print "preparing xtra raw fastq upload for EBI/SRA (hostfilter $MFopt{humanFilter}).. ";
+		print "preparing xtra raw fastq upload for ENA/SRA (hostfilter $MFopt{humanFilter}).. ";
 	} else {
-		print "preparing raw fastq upload for EBI/SRA (hostfilter $MFopt{humanFilter}).. ";
+		print "preparing raw fastq upload for ENA/SRA (hostfilter $MFopt{humanFilter}).. ";
 	}
-
-	my $unsplBin = getProgPaths("unsplitKrak_scr"); #unsplitting merged reads..
-	my $krk2Bin = getProgPaths("kraken2");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
-	#flag whether to use kraken v1 or v2
-	my $krkBin = "";
-	my $krak1= 1;	if ($krk2Bin ne ""){ $krak1=0; }
-	if ($krak1){
-		$krkBin = getProgPaths("kraken");#"/g/scb/bork/hildebra/DB/kraken/./kraken";
-	}
+	
+	my $fastqhdsChk = getProgPaths("fastHdChkENA");
 
 	#prepare databases
 	my $DBdir = $krakenDBDirGlobal."/";
@@ -3840,6 +3833,7 @@ sub uploadRawFilePrep{
 	my $numThr = 4;
 	system "mkdir -p $outD/tmp/ " unless (-d "$outD/tmp");
 	my $rd;my @rds;
+	$tmpD = "$tmpD/tmp$tag/";
 	my $cmd = "";#"rm -rf $outD/tmp/;mkdir -p $outD/tmp/\n";
 	for (my $i=0;$i<3;$i++){
 		next if ($i==1); #read2 will be dealt with read1
@@ -3876,6 +3870,7 @@ sub uploadRawFilePrep{
 			if ($i==2){ #single read pair... 
 				#$cmd .= krakHSapSingl("$ofT",$of,$numThr)."\n" unless (-e $of.".gz");
 				$cmd .= hostRmBase($ofT,"",$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[0]");
+				$cmd .= "$fastqhdsChk $ofT 3;\n";
 				#and move cleaned up file to final locations...
 				$cmd .= "rm -f $of; mv $ofT $of;\n";
 				$ofT2="";$of2="";
@@ -3884,12 +3879,13 @@ sub uploadRawFilePrep{
 				$cmd .= "rm -f $ofT2;ln -s $rd2 $ofT2\n" unless (-e $of);
 				my $tmpF1 = "$tmpD/krak.tmp_1.fq";my $tmpF2 = "$tmpD/krak.tmp_2.fq";
 				$cmd .= hostRmBase($ofT, $ofT2,$MFopt{humanFilter},$numThr,$tmpD,"$DBdir$DBname[0]");
+				$cmd .= "$fastqhdsChk $ofT 1;     $fastqhdsChk $ofT2 2;\n";
 				$cmd .= "rm -f $of; mv $ofT $of;\n";
 				$cmd .= "rm -f $of2; mv $ofT2 $of2;\n";
 				#die "$cmd";
 			}
 			$cmd .= "rm -f $ofT $ofT2\n";
-			$cmd .= "mv $of $of2 $outD\n";
+			$cmd .= "mv $of $of2 $outD\n\n";
 		}
 	}
 	$cmd .= "rm -rf $tmpD\n" if ($cmd ne "");
