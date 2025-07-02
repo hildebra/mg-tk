@@ -4570,19 +4570,18 @@ sub prepMOTU2(){
 }
 sub prepKraken(){
 	#my ($DBdir) = @_;
-	
-	if ( ($MFopt{humanFilter}>0 && $MFopt{humanFilter}<3) && ($MFopt{DoKraken} || $MFopt{DoEukGenePred}  || $MFconfig{uploadRawRds} ne "" ) ){
-		if ($MFopt{globalKraTaxkDB} eq ""){die "Kraken tax specified, but no DB specified\n";}
+	if ( ($MFopt{humanFilter}>0 && $MFopt{humanFilter}<3) && ($MFopt{DoKraken} || $MFopt{DoEukGenePred}   ) ){
+		if (( $MFopt{DoKraken} || $MFopt{DoEukGenePred}) && $MFopt{globalKraTaxkDB} eq ""){die "Kraken tax specified, but no DB specified\n";}
 	} else {
 		return "";
 	}
 
-	
-	
 	my %DBname;
 	if ($MFopt{humanFilter} && $MFopt{filterHostDB1} eq ""){
 		$DBname{"hum1stTry"} = 1;
 	}
+	
+	
 	#die "$MFopt{humanFilter} && $MFopt{filterHostDB1}\n";
 	$DBname{"minikraken_2015"} = 1 if ($MFopt{DoEukGenePred});
 	$DBname{$MFopt{globalKraTaxkDB}} = 1 if ($MFopt{globalKraTaxkDB} ne "");
@@ -7368,7 +7367,7 @@ sub setDefaultMFconfig{
 
 	#Assembly related options
 	$MFopt{doReadMerge} = 0;
-	$MFopt{DoAssembly} = 1;  #1=Spades, 2=MegaHIT, 3= flye, 4=metaMDBG, 5=hybrid ill-PB (megahit, metaMDBG)
+	$MFopt{DoAssembly} = 0;  #1=Spades, 2=MegaHIT, 3= flye, 4=metaMDBG, 5=hybrid ill-PB (megahit, metaMDBG), 0=deactivated
 	$MFopt{SpadesAlwaysHDDnode} = 1;$MFopt{spadesBayHam} = 0; 
 	$MFopt{spadesMisMatCor} = 0; $MFopt{redoAssembly} =0 ; $MFopt{SpadesLongtime} = 0;
 	$MFopt{pseudoAssembly} = 0; #in case no assembly is possible (soil single reads), just filter for reads X long 
