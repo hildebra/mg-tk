@@ -4047,7 +4047,7 @@ sub seedUnzip2tmp{
 	#information on libraries (name of library)
 	my @libInfo= (); my @libInfoX= ();
 	#information on seq tech
-	my $seqTech = "ill"; my $seqTechX = ""; #assume by defauly illumina as read tec
+	my $seqTech = "hiSeq"; my $seqTechX = ""; #assume by defauly illumina as read tec
 	#store bam formated input..
 	my @paBam; my @paBamX;
 	
