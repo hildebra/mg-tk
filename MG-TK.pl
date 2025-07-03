@@ -3832,39 +3832,43 @@ sub uploadRawFilePrep{
 	my $outD  ="$MFconfig{uploadRawRds}"; 
 	my $numThr = 4;
 	system "mkdir -p $outD/tmp/ " unless (-d "$outD/tmp");
-	my $rd;my @rds;
+	my $rd;
 	$tmpD = "$tmpD/tmp$tag/";
 	my $cmd = "";#"rm -rf $outD/tmp/;mkdir -p $outD/tmp/\n";
 	for (my $i=0;$i<3;$i++){
 		next if ($i==1); #read2 will be dealt with read1
-		if ($i==0){$rd="1";@rds=@{$ar1};}
+		my @rds;
+		if ($i==0){
+			@rds=@{$ar1};$rd="1";
+		}
 		#if ($i==1){$rd="2";@rds=@pa2;}
 		my @rds2= @{$ar2};
 		if ($i==2){$rd="single";@rds=@{$ars};}
 		my $idx=0;
-		foreach (my $x=0;$x<@rds;$x++){
-			my $f =$rds[$x];
-			my $rd2=$rds2[$x];
-			my $xtra=$tag;
-			if ($libInfo[$idx] =~ m/.*mate.*/i){$xtra = "mate.${tag}";}
-			if ($libInfo[$idx] =~ m/.*miseq.*/i){$xtra = "miSeq.${tag}";}
-			if ($seqTec eq "PB"){$xtra = "PB.${tag}";}
-			if ($seqTec eq "ONT"){$xtra = "ONT.${tag}";}
+		#print "$i : rd1: @rds\nrd2: @rds2\n". @libInfo . " : @libInfo\n";
+		foreach (my $idx=0;$idx<@rds;$idx++){
+			my $f =$rds[$idx];
+			my $rd2=$rds2[$idx];
+			my $xtra=$tag."$idx.";
+			if ( ($idx < @libInfo ) && $libInfo[$idx] =~ m/.*mate.*/i){$xtra = "mate.${xtra}";}
+			if ( (@libInfo > $idx) && $libInfo[$idx] =~ m/.*miseq.*/i){$xtra = "miSeq.${xtra}";}
+			if ($seqTec eq "PB"){$xtra = "PB.${xtra}";}
+			if ($seqTec eq "ONT"){$xtra = "ONT.${xtra}";}
 			#die "$seqTec\n$libInfo[0]\n";
-			my $of = "$tmpD/$smplID.$xtra$idx.R$rd.fq";  
-			my $of2 = "$tmpD/$smplID.$xtra$idx.R2.fq";  
-			my $tmpF = "$tmpD/$smplID.$xtra$idx.R1R2.fq";  
-			my $ff = "$outD/$smplID.$xtra$idx.R$rd.fq";  
+			my $of = "$tmpD/$smplID.$xtra.R$rd.fq";  
+			my $of2 = "$tmpD/$smplID.$xtra.R2.fq";  
+			my $tmpF = "$tmpD/$smplID.$xtra.R1R2.fq";  
+			my $ff = "$outD/$smplID.$xtra.R$rd.fq";  
 			my $ff2 = "$outD/$smplID.$xtra$idx.R2.fq";  
-			my $ofT = "$tmpD/tmp/$smplID.$xtra$idx.TEMP.R$rd.fq";
-			my $ofT2 = "$tmpD/tmp/$smplID.$xtra$idx.TEMP.R2.fq";
+			my $ofT = "$tmpD/tmp/$smplID.$xtra.TEMP.R$rd.fq";
+			my $ofT2 = "$tmpD/tmp/$smplID.$xtra.TEMP.R2.fq";
 			if ($f =~ m/\.gz$/){$of .= ".gz";$ff .= ".gz";$ofT .= ".gz";$of2 .= ".gz";$ff2 .= ".gz";$ofT2 .= ".gz";}
-			$idx++;
+			#$idx++;
 			#print "$ff\n";
 			next if (-e $ff);
 			$cmd .= "rm -fr $tmpD;\nmkdir -p $tmpD/tmp/ $outD\n";
 			#$cmd .= "rm -f $ofT;cp $inD$f $ofT\n" unless (-e $of);
-			$cmd .= "rm -f $ofT;ln -s $f $ofT\n" unless (-e $of);
+			$cmd .= "rm -f $ofT $of;ln -s $f $ofT\n";#unless (-e $of);
 			
 			
 			if ($i==2){ #single read pair... 

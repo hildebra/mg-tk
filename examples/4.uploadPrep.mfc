@@ -18,20 +18,23 @@ if [ ! -e $MGTKDIR/examples/data/SRR8797713_2.fq.gz ]; then
 	exit
 fi 
 
+RAWOUT=$MGTKDIR//examples/output/4.cleanedRawRds/
+
 echo ""
 echo ""
 echo "This example will prepare the illumina & PacBio files for upload to a databases such as ENA or SRA"
 echo "Raw fastqs will be cleaned against the chosen reference database"
-echo "cleaned reads will be deposited in \"$MGTKDIR//examples/output/3.cleanedRawRds/\""
+echo "cleaned reads will be deposited in \"$RAWOUT\""
 echo ""
 echo ""
 
 MAP=$MGTKDIR//examples/maps/testPB.map
+
 perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' \
 -inputBAMregex '.*\.bam$' \
 -filterHostKrak2DB /hpc-home/hildebra/DB/kraken2/hsap/ -filterHostRds 1 \
--upload2EBI $MGTKDIR//examples/output/4.cleanedRawRds/ \
--rmSmplLocks 1 -submit 1 -from 3 -to 8
+-upload2EBI $RAWOUT \
+-rmSmplLocks 1 -submit 1 -from 0 -to 12
 
 
 #-filterHostRds 3 -hostileIndex human-t2t-hla \
