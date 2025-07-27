@@ -402,16 +402,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 	push (@allSmplNames,$SmplName);
 	
-	my $samplReadLength = $MFconfig{defaultReadLength}; #some default value
-	if (exists $map{$curSmpl}{readLength} && $map{$curSmpl}{readLength} != 0){
-		$samplReadLength = $map{$curSmpl}{readLength};
-	}
-	my $samplReadLengthX = $MFconfig{defaultReadLengthX}; #for any supplementary reads (eg PacBio)
-	if (exists $map{$curSmpl}{readLengthX} && $map{$curSmpl}{readLengthX} != 0){
-		$samplReadLengthX = $map{$curSmpl}{readLengthX};
-	}
-	
-	
 	my $contigStatsUsed = 0;
 
 	%locStats = ();
@@ -419,7 +409,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 	$totalChecked++;
 	
-	#die $SmplName."  $samplReadLength\n";
 	print "\n======= $SmplName - $JNUM - $dir2rd =======\n" unless($MFconfig{silent});
 	
 	
@@ -959,8 +948,16 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#my %seqSet = %{$hrefSeqSet};
 	#print "$seqSet{pa1}   $seqSet{seqTech}   $seqSet{seqTechX}\n";
 	push (@unzipjobs,$jdep) unless ($jdep eq "");
-	$hrefSeqSet->{samplReadLength} = $samplReadLength; $hrefSeqSet->{samplReadLengthX} = $samplReadLengthX;
 	
+	$hrefSeqSet->{samplReadLength} = $MFconfig{defaultReadLength}; #some default value for typically short paired reads..
+	if (exists $map{$curSmpl}{readLength} && $map{$curSmpl}{readLength} != 0){
+		$hrefSeqSet->{samplReadLength} = $map{$curSmpl}{readLength};
+	}
+	
+	$hrefSeqSet->{samplReadLengthX} = $MFconfig{defaultReadLengthX};
+	if (exists $map{$curSmpl}{readLengthX} && $map{$curSmpl}{readLengthX} != 0){
+		$hrefSeqSet->{samplReadLengthX} = $MFconfig{defaultReadLengthX}; #for any supplementary reads (eg PacBio)
+	}
 	if (-e "$curOutDir/SMPL.empty" && $inputFileSizeMB{$curSmpl} > $MFconfig{skipSmallSmplsMB}){
 		system "rm -f $curOutDir/SMPL.empty";
 	}
@@ -1233,7 +1230,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	# maps on given reference genome(s)
 	if (@bwt2outD>0 && $MappingGo && (!$boolScndMappingOK || !$boolScndCoverageOK || $calc2ndMapSNP) ){#map reads to specific tar
 		scndMap2Genos($SmplName,$cleanSeqSetHR,$cMapGrp,$cAssGrp,$curOutDir,$nodeSpTmpD,$smplTmpDir,
-			\@sampleDeps,$samplReadLength,$calc2ndMapSNP,$boolScndCoverageOK);
+			\@sampleDeps,$hrefSeqSet->{samplReadLength},$calc2ndMapSNP,$boolScndCoverageOK);
 	} elsif ($MFopt{mapModeActive}) {
 		#still needs delays in cleaning command
 		$AsGrps{$cMapGrp}{ClSeqsRm} .= ";".$smplTmpDir;
@@ -1327,7 +1324,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 				isLastSampleInAssembly($finalCommAssDir,$curOutDir) ) {
 		my $subprts = $MFconfig{defaultContigSubs}."gFG"; $subprts .= "m" if ($MFopt{DoBinning});
 		$subprts .= "k" if ($MFopt{kmerAssembly} );$subprts .= "4" if ($MFopt{kmerPerGene});
-		my ($contRun,$tmp33,$tmpCDd) = runContigStats($curOutDir ,$cln1.";".$AsGrps{$cAssGrp}{prodRun},$finalCommAssDir,$subprts,1,$samplReadLength,$samplReadLengthX, $nodeSpTmpD,1,6, $curSmpl) unless ($contigStatsUsed);
+		my ($contRun,$tmp33,$tmpCDd) = runContigStats($curOutDir ,$cln1.";".$AsGrps{$cAssGrp}{prodRun},$finalCommAssDir,$subprts,1,$hrefSeqSet->{samplReadLength},$hrefSeqSet->{samplReadLengthX}, $nodeSpTmpD,1,6, $curSmpl) unless ($contigStatsUsed);
 		#run contig stats
 		postSubmQsub("$logDir/MultiContigStats.sh",$AsGrps{$cAssGrp}{PostClnCmd},$AsGrps{$cAssGrp}{CSfinJobName},$contRun);
 		$AsGrps{$cAssGrp}{PostClnCmd} = "";$AsGrps{$cAssGrp}{CSfinJobName} = $contRun;
@@ -1335,7 +1332,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	} elsif ( (exists($AsGrps{$cAssGrp}{MapDeps}) && $AsGrps{$cAssGrp}{MapDeps} =~ m/[^;\s]/ && $MappingGo) || ($eFinMapCovGZ) ) {
 		#die "test23  $AsGrps{$cAssGrp}{MapDeps}\n";
 		#calculate solely abundance / gene, has to be run after clean & assembly contigstat step and after mapping has started (at all!)
-		my ($jn,$delaySubmCmd2,$tmpCDd) = runContigStats($curOutDir ,$cln1 . ";".$AsGrps{$cAssGrp}{CSfinJobName},$finalCommAssDir,$MFconfig{defaultContigSubs},1,$samplReadLength,$samplReadLengthX,$nodeSpTmpD,$AssemblyGo,1, $curSmpl);
+		my ($jn,$delaySubmCmd2,$tmpCDd) = runContigStats($curOutDir ,$cln1 . ";".$AsGrps{$cAssGrp}{CSfinJobName},$finalCommAssDir,$MFconfig{defaultContigSubs},1,$hrefSeqSet->{samplReadLength},$hrefSeqSet->{samplReadLengthX},$nodeSpTmpD,$AssemblyGo,1, $curSmpl);
 		$AsGrps{$cAssGrp}{PostClnCmd} .= $delaySubmCmd2;
 		$jdep = $jn;
 		$AsGrps{$cAssGrp}{BinDeps} .= ";$jdep" if ($jdep ne "");
@@ -3529,8 +3526,8 @@ sub sdmOptSet{
 	} elsif ($curReadTec eq "ONT"){ $curSDMopt = getProgPaths("baseSDMoptONT"); 
 	}
 	
-	if (!exists($sampleSDMs{$curReadTec}{$samplReadLength})){
-		#die "wrong";
+	if ($samplReadLength != 0){
+		#die "wrong" if (!exists($sampleSDMs{$curReadTec}{$samplReadLength}));
 		$curSDMopt = adaptSDMopt($curSDMopt,$globalLogDir,$samplReadLength,$curReadTec);
 	}
 	my $curSDMoptSingl = $baseSDMopt;
@@ -3544,12 +3541,14 @@ sub sdmOptSet{
 	} elsif ($curSTech eq "PB"){ $curSDMoptSingl = getProgPaths("baseSDMoptPacBio"); 
 	} elsif ($curReadTec eq "ONT"){ $curSDMopt = getProgPaths("baseSDMoptONT"); 
 	}
-	
-	if ($curSTech eq "PB" && $samplReadLength < 1000){
-		print "WARNING: it seems sequencing technology is PacBio (\"PB\"), but read length is very short: $samplReadLength\nConsider adjusting via \"-inputReadLength\" or  \"-inputReadLengthSuppl\"\n";
-	}
-	if ($curSTech eq "ONT" && $samplReadLength < 1000){
-		print "WARNING: it seems sequencing technology is Oxford Nanopore (\"ONT\"), but read length is very short: $samplReadLength\nConsider adjusting via \"-inputReadLength\" or  \"-inputReadLengthSuppl\"\n";
+	if ($samplReadLength != 0){
+		$curSDMoptSingl = adaptSDMopt($curSDMoptSingl,$globalLogDir,$samplReadLength,$curReadTec);	
+		if ($curSTech eq "PB" && $samplReadLength < 1000 && $samplReadLength != 0){
+			print "WARNING: it seems sequencing technology is PacBio (\"PB\"), but read length is very short: $samplReadLength\nConsider adjusting via \"-inputReadLength\" or  \"-inputReadLengthSuppl\"\n";
+		}
+		if ($curSTech eq "ONT" && $samplReadLength < 1000 && $samplReadLength != 0){
+			print "WARNING: it seems sequencing technology is Oxford Nanopore (\"ONT\"), but read length is very short: $samplReadLength\nConsider adjusting via \"-inputReadLength\" or  \"-inputReadLengthSuppl\"\n";
+		}
 	}
 	#print "$curSDMopt,$curSDMoptSingl\n";
 	return ($curSDMopt,$curSDMoptSingl);
@@ -3560,7 +3559,8 @@ sub sdmClean(){
 	#die "cllll\n";
 	my %seqSet = %{$seqSetHR};	
 	my ($ar1,$ar2,$ars,$libInfoAr,$seqTec) = ($seqSet{"pa1"},$seqSet{"pa2"},$seqSet{"pas"},$seqSet{"libInfo"},$seqSet{"seqTech"});
-	my $samplReadLength = $seqSet{"samplReadLength"};
+	my $samplReadLength = 0;
+	$samplReadLength = $seqSet{"samplReadLength"} if (defined($seqSet{"samplReadLength"}));
 	#my ($ar1X,$ar2X,$arsX,$libInfoArX) = ($seqSet{"paX1"},$seqSet{"paX2"},$seqSet{"paXs"},$seqSet{"libInfoX"})
 	if ($useXtras){
 		#if useXtras flag set, only consider "xtra" defined input reads (eg scaffoling reads, 3rd gen in supplement of main reads etc)
@@ -3673,7 +3673,6 @@ sub sdmClean(){
 				$cmd .= "$catCmd $tmpO >>  $sret[0]\nrm $tmpO\n" ;
 			}
 		}		
-		
 	}
 	if ($mi_ifastas ne ""){ #miSeq specific filtering
 		$mi_ofiles =  $ret1[1].",".$ret2[1];
@@ -4055,6 +4054,9 @@ sub seedUnzip2tmp{
 	#store bam formated input..
 	my @paBam; my @paBamX;
 	
+	if (exists($map{$samples[$JNUM]}{"SeqTech"})){$seqTech = $map{$samples[$JNUM]}{"SeqTech"};}
+	
+	
 		#die "Mapping $pa1 to ref\n";
 	if ( $xtrMapStr ne ""){
 		#die "XX$xtrMapStr\n";
@@ -4070,6 +4072,7 @@ sub seedUnzip2tmp{
 	my $is3rdGen = is3rdGenSeqTech($seqTech);
 	my $is3rdGenX = is3rdGenSeqTech($seqTechX);
 	
+	#die "$seqTech\n$is3rdGen\n";
 	
 	#create empty return object
 	my %seqSet = (pa1 => \@pa1, pa2 => \@pa2, pas => \@pas, seqTech => $seqTech, is3rdGen => $is3rdGen,
@@ -4258,8 +4261,11 @@ sub seedUnzip2tmp{
 	#report on what was found so far..
 	if ($inputFileSizeMB{$curSmpl} > 0){
 		print "Input size raw (Mb): " . int($inputFileSizeMB{$curSmpl}) ;
-		print " Fastq pairs: " . scalar(@pa1) if (@pa1);
-		print " Fastq Singls: " . scalar (@pas) if (@pas);
+		if (@pa1 || @pas){
+			print " Fastq pairs: " . scalar(@pa1) if (@pa1);
+			print " Fastq Singls: " . scalar (@pas) if (@pas);
+			print " tech: $seqTech"; if($is3rdGen){print ", 3rd gen " ;} else {print " ";}
+		}
 		print " Fastq Supports Singls: " . scalar (@paXs) if (@paXs);
 		print " Bam Singls: " . scalar (@paBam) if (@paBam);
 		print " Bam Supports Singls: " . scalar (@paBamX) if (@paBamX);
@@ -4267,7 +4273,6 @@ sub seedUnzip2tmp{
 		
 		print "\n" ;
 	}
-
 	
 	
 	#relinking in mocat file structure, if requested ## not used any longer
@@ -4377,10 +4382,11 @@ sub seedUnzip2tmp{
 			#$lowEffort = 1 if ($allowLinks && $lowEffort == -1);
 		}
 	}
+	
+	
 	#$unzipcmd .= "chmod +w ".join(" ",@pa1)."\n" if (!$MFconfig{filterFromSource} && @pa1>0);
 	#$unzipcmd .= "chmod +w ".join(" ",@pa2)."\n" if (!$MFconfig{filterFromSource} && @pa2>0);
 	#die "$unzipcmd\n";
-	#die "@pa1\n";
 	#for porechop this might be tons of files..
 	
 	for (my $i=0; $i<@pas; $i++){
@@ -4397,17 +4403,6 @@ sub seedUnzip2tmp{
 			my $porechBin = getProgPaths("porechop");
 			$unzipcmd .= "$porechBin -i $pp/$pas[$i] -t $numCore  --adapter_threshold 90 |gzip -c >> $porechopped\n";
 			if (@pa1 > 0 ){die "no paired end reads can be given together with porechopped long reads!\n";}
-		} elsif ($is3rdGen){
-			if ($pas[$i] =~ m/\.gz$/){
-				if (@pas > 1 || !$allowLinks){
-					$unzipcmd .= "cat $pp/$pas[$i] >> $porechopped\n";
-				} else {
-					$unzipcmd .= "ln -s  $pp/$pas[$i] $porechopped\n";
-					$lowEffort = 1 if ($lowEffort != 0);
-				}
-			} else {
-				$unzipcmd .= "$pigzBin -f -p $numCore -c $pp/$pas[$i] >> $porechopped\n";
-			}
 		} else {
 			my ($tmpCmd,$newF) = complexGunzCpMv($pp,$pas[$i],$tmpPath,$finDest."/rawRds/",$numCore,$allowLinks);
 			$unzipcmd .= $tmpCmd."\n";
@@ -4423,6 +4418,8 @@ sub seedUnzip2tmp{
 			$pas[$i] = ($porechopped);
 		}
 	}
+		#die "@pa1\n@pas\n";
+
 	$lowEffort = 0 if ($lowEffort == -1); #FALLBACK option
 	#die "$lowEffort\n";
 
@@ -6780,15 +6777,14 @@ sub spadesAssembly{
 
 
 sub longRdAssembly{
-	my ($asHr,$cAsGrp,$nodeTmp,$finalOut,$helpAssembl,$smplName, $useSupportRds) = @_;
-	
+	my ($asHr,$cAsGrp,$nodeTmp,$finalOut,$helpAssembl,$smplName, $useSupportRds,$LassP) = @_;
 	
 	my ($p1ar,$p2ar,$singlAr,$cReadTecAr) = getCleanSeqsAssmGrp($asHr, $cAsGrp, $useSupportRds);
 	if (@{$p1ar} > 0){print "Paired reads defined (@{$p1ar}), but long read assemblies rely on singleton reads!\nAborting\n";die;}
 	my $numInLibs = scalar @{$singlAr};
 	#print "$numInLibs libs\n";
-	
-	if ($MFopt{DoAssembly} == 5){#hybrid mode.. check that all required files are present or stop here
+		
+	if ($LassP == 5){#hybrid mode.. check that all required files are present or stop here
 		#if (${$cReadTecAr}[0] ne "PB"){print"Expected PacBio (\"PB\") readTech for metaMDBG, found \"${$cReadTecAr}[0]\"\n";die;}
 		my $PBdetected=0; foreach (@{$cReadTecAr}){$PBdetected=1 if (m/PB/);}
 		if (!$PBdetected){
@@ -7070,7 +7066,7 @@ sub metagAssemblyRun{
 		my ($p1ar,$p2ar,$singlAr,$cReadTecAr) = getCleanSeqsAssmGrp(\%AsGrps, $cAssGrp, 0);
 		$LasseP  = 4 if (${$cReadTecAr}[0] eq "PB");
 		$LasseP  = 3 if (${$cReadTecAr}[0] eq "ONT");
-
+		#die "${$cReadTecAr}[0]\nXXXZ\n$LasseP\n";
 	}
 	
 	if ($LasseP == 5){ #hybrid assembly: first megahit(2), then metaMDBG(4)
@@ -7083,7 +7079,7 @@ sub metagAssemblyRun{
 			system "rm -fr $metagAssDir\n"; #just clean up assembly dir..
 			#die;
 			$tmpN = longRdAssembly( \%AsGrps,$cAssGrp,"$nodeTmp",$metagAssDir,
-				"hybridmMDBG",$SmplNameX,1) ; #$metaGpreAssmblDir, 
+				"hybridmMDBG",$SmplNameX,1,$LasseP) ; #$metaGpreAssmblDir, 
 		} elsif ($doPreAssmFlag == 0 ){
 			print "Preassembly: waiting for all samples\n";
 		} else {
@@ -7098,7 +7094,7 @@ sub metagAssemblyRun{
 			$shortAssembly, $SmplNameX,$hostFilter,$scaffoldFlag) ;
 	} elsif( ($LasseP == 3 ||  $LasseP == 4) && ${$cleanSeqSetHR}{is3rdGen} ){
 		$tmpN = longRdAssembly( \%AsGrps,$cAssGrp,"$nodeTmp",$metagAssDir,
-			$shortAssembly, $SmplNameX,0) ;
+		$shortAssembly, $SmplNameX,0,$LasseP) ;
 	}
 	#die ;
 	#if mates available, do them here
@@ -7489,7 +7485,7 @@ sub setDefaultMFconfig{
 	$MFconfig{filterFromSource}=1; #powerful option that skips the unzip step.. use careful
 	$MFconfig{doDateFileCheck} = 0; #very specific option for Moh's reads that were of different dates..
 	$MFconfig{DoFreeGlbTmp} = 0; 
-	$MFconfig{defaultReadLength} = 150; $MFconfig{defaultReadLengthX} = 5000;
+	$MFconfig{defaultReadLength} = 0; $MFconfig{defaultReadLengthX} = 5000;
 	$MFconfig{oldStylFolders} =0; #0=smpl name as out folder; 1=inputdir as out foler (legacy)
 	$MFconfig{mocatLinkDir} = "";
 	$MFconfig{wcKeysForJob} = ""; #EI specific system to register jobs under certain flag
