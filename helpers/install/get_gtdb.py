@@ -41,6 +41,7 @@ import argparse
 from collections import defaultdict, namedtuple
 import csv
 import gzip
+import io
 import json
 import logging
 import os
@@ -49,6 +50,7 @@ import shutil
 from statistics import mode
 import subprocess
 from datetime import datetime
+import tarfile
 from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple, Literal, Any
 from pathlib import Path
 
@@ -88,7 +90,8 @@ class GTDBVersion:
             version: float,
             base_url: str = ("https://data.ace.uq.edu.au/public/gtdb/data"
                              "/releases/"),
-            required_urls: Optional[Dict[str, str]] = None
+            required_urls: Optional[Dict[str, str]] = None,
+            test: bool = False
     ) -> None:
         """
         :param version: GTDB version
@@ -99,17 +102,27 @@ class GTDBVersion:
         Either full URLs or suffixes to base_url. If this is left blank,
         files correct at v220 will be added to this list. See __default_urls
         for details of what the standard URLs are.
+        :param test: Make dummy files instead of downloasing, to allow testing
+        script logic without downloading large files.
         """
         self.version: float = version
         self.base_url: str = base_url
         self.required_urls: Dict[str, str] = self.__default_urls(required_urls)
-        self.__dl_name: Literal["wget", "curl"]
+        self.__dl_name: Literal["wget", "curl", "test"]
         self.__dl_cmd: Callable
-        self.__set_dl_cmd()
+        self.__set_dl_cmd(test)
     
-    def __set_dl_cmd(self) -> None:
-        """Determine which utility to use for file downloads. Prefer wget."""
-        if self.program_avail("wget"):
+    def __set_dl_cmd(self, test: bool = False) -> None:
+        """Determine which utility to use for file downloads. Prefer wget.
+        :param test: Make dummy files instead of download."""
+        if test:
+            self.__dl_name = "test"
+            self.__dl_cmd = cmd_test
+            logger.warning(
+                "Using test mode for downloads. This will create dummy files "
+                "rather than performing downloads."
+            )
+        elif self.program_avail("wget"):
             self.__dl_name = "wget"
             self.__dl_cmd = cmd_wget
         elif self.program_avail("curl"):
@@ -279,7 +292,11 @@ class GTDBVersion:
                     raise Exception(subp)
             downloaded[label] = local
         if not offline:
-            self._processing_metadata(dir=download_dir, tk=download_tk)
+            self._processing_metadata(
+                dest=download_dir,
+                dir=str(download_dir),
+                tk=str(download_tk)
+            )
             dl_check.write_text(str(datetime.now()))
         return downloaded
 
@@ -390,7 +407,7 @@ class GTDBVersion:
         logger.info("Combining archaeal and bacterial markers")
         # Determine which markers exist for both archaea and bacteria
         # Where there are multiple, concatenate them
-        marker_files: Dict[list] = defaultdict(list)
+        marker_files: Dict[str, list] = defaultdict(list)
         for file in bac_markers + arc_markers:
             marker_files[file.name].append(file)
         for f_name, files in (
@@ -406,18 +423,19 @@ class GTDBVersion:
             )
             proc_res.check_returncode()
         # Move any remaining archaeal marker files to the main directory
-        logger.info("Moving remaining archaea specific markers")
-        cmd: str = f"mv {arc_dest}/*.f* {bac_dest}"
-        logger.debug(f"Command: {cmd}")
-        proc_res: subprocess.CompletedProcess = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True
-        )
-        if proc_res.returncode != 0:
-            logger.error(proc_res.stderr)
-            logger.error(proc_res.stdout)
-        proc_res.check_returncode()
+        if len(list(arc_dest.glob("*.f*"))) > 1:
+            logger.info("Moving remaining archaea specific markers")
+            cmd: str = f"mv {arc_dest}/*.f* {bac_dest}"
+            logger.debug(f"Command: {cmd}")
+            proc_res: subprocess.CompletedProcess = subprocess.run(
+                cmd,
+                shell=True,
+                capture_output=True
+            )
+            if proc_res.returncode != 0:
+                logger.error(proc_res.stderr)
+                logger.error(proc_res.stdout)
+            proc_res.check_returncode()
         arc_dest.rmdir()
         finished_marker.write_text(str(datetime.now()))
 
@@ -439,24 +457,24 @@ class GTDBVersion:
             return
 
         parts: bool = "tk_database_parts" in downloaded_files.keys()
-        src: Path = next(
-            v for k, v in downloaded_files.items() if k[:3] == 'tk_')
+        src: Path = downloaded_files['tk_database']
         dest.mkdir(parents=True, exist_ok=True)
         cmd: str = f"tar -xf {src} -C {dest}"
         if parts:
-            logger.info("GTDBtk database parts will be concatenated for"
+            logger.info("GTDBtk database parts will be concatenated for "
             "extraction. Concatenated version will be deleted after extraction "
             "and parts retained")
+            part_src: Path = downloaded_files['tk_database_parts']
 
             # Check if concatenation completed
-            concat: Path = dest / 'gtdb_full.tar.gz'
+            concat: Path = src
             src_size: float = sum(
-                p.stat().st_size for p in src.glob("*gz*part*"))
+                p.stat().st_size for p in part_src.glob("*gz*part*"))
             dest_size: float = (
                 0 if not concat.exists() else concat.stat().st_size
             )
             cat_cmd: str = (
-                f"cat {src / '*.tar.gz.part*'} > "
+                f"cat {part_src / '*.tar.gz.part*'} > "
                 f"{concat}"
             )
             # Allow a tolerance in filesize sum
@@ -466,8 +484,8 @@ class GTDBVersion:
                 and
                 (dest_size < (src_size * (1 + TOL)))
             ):
-                logger.info("Concatenating GTDBtk database parts to %s", dest)
-                logger.debug("Destination: %s", dest)
+                logger.info("Concatenating GTDBtk database parts to %s", concat)
+                logger.debug("Destination: %s", concat)
                 logger.debug("Command: %s", cat_cmd)
 
                 proc_res: subprocess.CompletedProcess = subprocess.run(
@@ -480,8 +498,8 @@ class GTDBVersion:
                 logger.info("GTDBtk concatenation complete")
                 
             cmd = (
-                f"tar -xf {dest / 'gtdb_full.tar.gz'} -C {dest} && "
-                f"rm -f {dest / 'gtdb_full.tar.gz'}"
+                f"tar -xf {concat} -C {dest} && "
+                f"rm -f {concat}"
             )
         
         logger.info("Extracting GTDBtk database to %s", dest)
@@ -574,8 +592,8 @@ class GTDBVersion:
                 if row['gtdb_representative'] == "t":
                     tax: str = row['gtdb_taxonomy']
                     accession: str = row['accession']
-                    species = tax.split(";")[-1]
-                    lineage_write.writerow([species, accession])
+                    species_str = tax.split(";")[-1]
+                    lineage_write.writerow([species_str, accession])
 
         comb_md.unlink()
         comb_tax.unlink()
@@ -648,7 +666,7 @@ class GTDBVersion:
     ) -> None:
         """Attempt to automatically update MG-TK configuration to use new DB."""
 
-        mgtk_dir_s: Optional[str] = self.get_mgtk_dir()
+        mgtk_dir_s: Optional[str] = str(self.get_mgtk_dir())
         if mgtk_dir_s is None:
             logger.error(
                 "MG-TK installation not found. Please ensure environmental "
@@ -736,7 +754,15 @@ class GTDBVersion:
             f.writelines(mod_lines)
 
         # Attempt to install correct GTDB-tk
-        ver_min, ver_max = self.required_gtdbtk(self.version)
+        ver_tup = self.required_gtdbtk(self.version)
+        if ver_tup is None:
+            logger.warning(
+                "Cannot determine suitable GTDB-TK version, please check "
+                "required version and install into environment MGTKgtdbtk "
+                "manually."
+            )
+            return
+        ver_min, ver_max = ver_tup
         logger.debug("Compatible GTDB-TK - Min: %s, Max %s", ver_min, ver_max)
         # Use the lowest compatible version if max version is current, as
         # no guarantee this script is up to date. Othewise, use higher
@@ -832,7 +858,7 @@ class GTDBVersion:
         """
 
 
-        mgtk_dir: str = (
+        mgtk_dir: Optional[str] = (
             "[Your MG-TK Dir]" if os.environ.get("MGTKDIR") is None else
             os.environ.get("MGTKDIR")
         )
@@ -869,12 +895,12 @@ class GTDBVersion:
         :param tk: Was GTDBtk data downloaded
         """
 
-        mgtk_dir: str = (
+        mgtk_dir: Optional[str] = (
             "[Your MG-TK Dir]" if os.environ.get("MGTKDIR") is None else
             os.environ.get("MGTKDIR")
         )
         rec_ver: str = f"{self.version:.0f}"
-        ver: Optional[str] = self.required_gtdbtk(self.version)
+        ver: Optional[Tuple[str, str]] = self.required_gtdbtk(self.version)
 
         tk_inst: str = (
             (f"GTDBtk version between {ver[0]} and {ver[1]} is required for "
@@ -940,10 +966,10 @@ class GTDBVersion:
         return Path(dir_s)
     
     @staticmethod
-    def parse_mgtk_config(cfg: Path) -> Dict[str, str]:
+    def parse_mgtk_config(cfg: Path) -> Dict[str, Optional[str]]:
         """Read MG-TK config files into a dictionary."""
         with cfg.open("r") as f:
-            config: Dict[str, str] = dict()
+            config: Dict[str, Optional[str]] = dict()
             for line in f:
                 if len(line.strip()) < 1:
                     continue
@@ -993,7 +1019,7 @@ class GTDBVersion:
         """
 
         # Get a list of files which should have been downloaded
-        files: Dict[str, str] = self.download(
+        files: Dict[str, Path] = self.download(
             download_dir=dl_dir,
             offline=True,
             download_tk=(False if tk == "skip" else tk)
@@ -1015,7 +1041,10 @@ class GTDBVersion:
         self._processing_metadata(dest=dest_dir)
 
     @staticmethod
-    def from_version(version: float):
+    def from_version(
+        version: float,
+        **kwargs
+    ):
         """
         Get an object which will download a specific version of GTDB.
 
@@ -1023,20 +1052,21 @@ class GTDBVersion:
         exists to get a specific version. Otherwise, it creates a base class,
         which was developed to work on r220.
 
-        :params version: Version of GTDB
+        :param version: Version of GTDB
+        :param **kwargs: Passed to GTDBVersion.__init__
         """
         # Logic to return a version specific sublcass should go here when
         # I've identified any and implemented them.
         # Using default
         if version == 226:
-            return GTDB226(version)
+            return GTDB226(version, **kwargs)
         if version != 220:
             logger.warning(
                 "Using default download URLs and extraction methods\n"
                 "This method was tested to work with r220, but are "
                 f"untested for {version}."
             )
-        return GTDBVersion(version)
+        return GTDBVersion(version, **kwargs)
 
 class GTDB111(GTDBVersion):
     """This is an example of how you would override methods to implement
@@ -1105,12 +1135,12 @@ class GTDB226(GTDBVersion):
         # Dictionary of species -> lineage lookup
         logger.info("Creating GTDBmg.tax with duplicates for species")
         logger.debug("Output to %s", dest / "GTDBmg.tax")
-        lineage_map: Dict[str] = dict()
+        lineage_map: Dict[str, Any] = dict()
         with lineage.open('rt') as f:
             for row in csv.reader(f, delimiter="\t"):
                 species: str = row[0]
-                lineage: str = ";".join(row[2:])
-                lineage_map[species] = lineage
+                lineage_s: str = ";".join(row[2:])
+                lineage_map[species] = lineage_s
 
         with (
             tax.open('rt') as tax_in,
@@ -1121,10 +1151,10 @@ class GTDB226(GTDBVersion):
             logger.debug("Write to %s", dest / "GTDBmg.tax")
             for row in csv_in:
                 species: str = row[0]
-                lineage = lineage_map[species]
+                lineage_s = lineage_map[species]
                 accession: str = row[1]
                 csv_out.writerow(
-                    [accession.strip(), lineage.strip()]
+                    [accession.strip(), lineage_s.strip()]
                 )
 
     def _format_taxonomy(
@@ -1208,9 +1238,9 @@ class GTDB226(GTDBVersion):
                 # if accession.strip() in accessions:
                 if True:
                     tax: str = row['gtdb_taxonomy']
-                    species = tax.split(";")[-1]
+                    species_s = tax.split(";")[-1]
                     lineage_write.writerow(
-                        [species.strip(), accession.strip()])
+                        [species_s.strip(), accession.strip()])
         
         self._make_gtdbmg_tax(
             dest / "markerGenes",
@@ -1227,8 +1257,17 @@ class GTDB226(GTDBVersion):
 def is_url_dir(src: str) -> bool:
     return src[-1] == "/"
 
+def mkdir_parents(dest: str) -> None:
+    dest_pth: Path = Path(dest)
+    logger.debug("Making directory %s", dest_pth)
+    if "." not in dest_pth.name:
+        dest_pth.mkdir(parents=True, exist_ok=True)
+    else:
+        dest_pth.parents[0].mkdir(parents=True, exist_ok=True)
+
 def cmd_wget(src: str, dest: str) -> str:
     """Compose a command to fetch a file or directory using wget."""
+    mkdir_parents(dest)
     if is_url_dir(src):
         # Number of directories to trim from structure
         return (
@@ -1240,6 +1279,7 @@ def cmd_wget(src: str, dest: str) -> str:
 
 def cmd_curl(src: str, dest: str) -> str:
     """Compose a command to fetch a file or directory using curl."""
+    mkdir_parents(dest)
     if is_url_dir(src):
         raise NotImplementedError(
             "Directory download is not supported by curl. "
@@ -1247,6 +1287,46 @@ def cmd_curl(src: str, dest: str) -> str:
         )
     else:
         return f"curl -o {dest} -C - {src}"
+
+def cmd_test(src: str, dest: str) -> str:
+    """Compose a command to create a dummy file for a download.
+    This uses some preconstructed dummy files which are in 
+    /helpers/install, and if using test mode expects to be run in
+    this helpers/install."""
+    mkdir_parents(dest)
+    dummy_root: Path = Path("get_gtdb/")
+    if "marker_genes" in src:
+        if "ar" in src:
+            return f"cp {dummy_root / 'arc_markers.tar.gz'} {dest}"
+        elif "bac" in src:
+            return f"cp {dummy_root / 'bac_markers.tar.gz'} {dest}"
+    elif "taxonomy"in src:
+        if "ar" in src:
+            return f"cp {dummy_root / 'arc_taxonomy.tsv.gz'} {dest}"
+        elif "bac" in src:
+            return f"cp {dummy_root / 'bac_taxonomy.tsv.gz'} {dest}"
+    elif "metadata" in src:
+        if "ar" in src:
+            return f"cp {dummy_root / 'arc_metadata.tsv.gz'} {dest}"
+        elif "bac" in src:
+            return f"cp {dummy_root / 'bac_metadata.tsv.gz'} {dest}"
+    elif "split_package" in src:
+        # GTDB split package
+        # Make 3 fake split parts
+
+        parts = [
+            (
+                f'cp {dummy_root}/gtdbtk_dummy.tar.gz.part_{p} '
+                f'{dest}/gtdbtk_dummy.tar.gz.part_{p}'
+            )
+            for p in 
+            ['aa', 'ab', 'ac']
+        ]
+        return " && ".join(parts)
+    elif "full_package" in src:
+        return f"touch {dest}"
+    logger.warning("Defaulting to empty file for %s in %s", src, dest)
+    return f"touch {dest}"
 
 def prompt_input_set(prompt: str, valid: List[str], case: bool = False) -> str:
     """Prompt user for input from a set of options. If not case sensitive
@@ -1303,7 +1383,10 @@ def meta_from_dir(dir: Path) -> Dict[str, Any]:
 def cli_download(args):
     configure_logging(args.debug)
     greet()
-    downloader: GTDBVersion = GTDBVersion.from_version(args.version)
+    downloader: GTDBVersion = GTDBVersion.from_version(
+        args.version,
+        test=args.test
+    )
     downloader.download(
         download_dir = args.tmp,
         download_tk = args.tk
@@ -1315,7 +1398,6 @@ def cli_extract(args):
     meta = meta_from_dir(args.tmp)
     version, tk = meta['version'], meta['tk']
     downloader: GTDBVersion = GTDBVersion.from_version(version)
-    print(args)
     downloader.extract(
         dl_dir = args.tmp,
         dest_dir = args.dest,
@@ -1337,7 +1419,10 @@ def cli_all(args):
     configure_logging(args.debug)
     greet()
     version = args.version
-    downloader: GTDBVersion = GTDBVersion.from_version(version)
+    downloader: GTDBVersion = GTDBVersion.from_version(
+        version,
+        test=args.test
+    )
     # Ask if want to update config
     config: bool = GTDBVersion.ask_config_update()
     downloader.download(
@@ -1448,6 +1533,20 @@ def main():
             )
         )
     )
+    arg_test = (
+        ["--test"],
+        dict(
+            dest="test",
+            action="store_true",
+            help=(
+                "Do not download any files, instead create dummy files in the"
+                "destination. Included to allow test of script logic without "
+                "needing to download and extract large files."
+            )
+        )
+    )
+
+
 
     # Always used arguments
     parser.add_argument(
@@ -1467,7 +1566,7 @@ def main():
         description="Download GTDB and GTDBtk databases."
     )
     parser_download.set_defaults(func=cli_download)
-    add_args(parser_download, arg_temp, arg_version, arg_tk)
+    add_args(parser_download, arg_temp, arg_version, arg_tk, arg_test)
 
     # Extract subcommand
     parser_extract = subparsers.add_parser(
@@ -1512,10 +1611,13 @@ def main():
         )
     )
     parser_all.set_defaults(func=cli_all)
-    add_args(parser_all, arg_temp, arg_dest, arg_version, arg_tk)
+    add_args(parser_all, arg_temp, arg_dest, arg_version, arg_tk, arg_test)
 
     args = parser.parse_args()
-    args.func(args)
+    if "func" in args:
+        args.func(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
