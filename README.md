@@ -51,11 +51,11 @@ Author: Falk Hildebrand <Falk.Hildebrand@gmail.com>
 plenty.. please refer to helpers/install/\*.yml for software that is available on Conda.
 
 Other software used that was adapted and/or developed specifically for MG-TK (all implemented in C++):
-[sdm](https://github.com/hildebra/sdm), [LCA](https://github.com/hildebra/LCA): for 1) read qual filtering 2) least common ancestor calculations in tax assignments. Both are part of our amplicons sequencing pipeline [LotuS2](https://lotus2.earlham.ac.uk/)
-[clusterMAGs](https://github.com/hildebra/clusterMAGs): cluster MAGs into MGS (metagenomic species) based on conserved marker genes
-[camopy2](https://github.com/hildebra/canopy2): canopy clustering of gene catalogues, a much more efficient implementation of the [original algorithm](http://www.nature.com/articles/nbt.2939)
-[MSAfix](https://github.com/hildebra/MSAfix): fixes frameshifts in MSA that sometimes occur, important for high senstive intraspecific phylogenies
-[rdCover](https://github.com/hildebra/rdCover): calculates read coverage of genes, genomes etc based on mappings.
+- [sdm](https://github.com/hildebra/sdm), [LCA](https://github.com/hildebra/LCA): for 1) read qual filtering 2) least common ancestor calculations in tax assignments. Both are part of our amplicons sequencing pipeline [LotuS2](https://lotus2.earlham.ac.uk/)
+- [clusterMAGs](https://github.com/hildebra/clusterMAGs): cluster MAGs into MGS (metagenomic species) based on conserved marker genes
+- [camopy2](https://github.com/hildebra/canopy2): canopy clustering of gene catalogues, a much more efficient implementation of the [original algorithm](http://www.nature.com/articles/nbt.2939)
+- [MSAfix](https://github.com/hildebra/MSAfix): fixes frameshifts in MSA that sometimes occur, important for high senstive intraspecific phylogenies
+- [rdCover](https://github.com/hildebra/rdCover): calculates read coverage of genes, genomes etc based on mappings.
 
 ### Citing MG-TK
 
