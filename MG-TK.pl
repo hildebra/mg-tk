@@ -6669,6 +6669,7 @@ sub spadesAssembly{
 	}
  	my $cmd = "rm -rf $nodeTmp\nmkdir -p $nodeTmp\nmkdir -p $finalOut\n\n";
 	$cmd .= "\necho '". $AsGrps{$cAsGrp}{AssemblSmplDirs}. "' > $nodeTmp/smpls_used.txt\n\n";
+	$cmd .= "echo \"Starting Spades assembly\"\n";
 	my $defTotMem = $MFopt{AssemblyMemory};#60;
 	if ($defTotMem == -1){ #auto set mem
 		$defTotMem = ($inputFileSizeMB{$curSmpl}*4+1e5)/1024;
@@ -6697,6 +6698,7 @@ sub spadesAssembly{
 	#cleanup assembly
 	$cmd .= "\nrm -f -r $nodeTmp/K* $nodeTmp/tmp $nodeTmp/mismatch_corrector/*\n";
 	#dual size filter
+	$cmd .= "echo \"Assembly finished, renaming contigs, size sorting contigs, collating assembly statistics\"\n";
 	my $renameCtgScr = getProgPaths("renameCtg_scr");#"perl renameCtgs.pl";
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	$cmd .= "$renameCtgScr $nodeTmp/scaffolds.fasta $smplName\n";
@@ -6721,6 +6723,7 @@ sub spadesAssembly{
 	$cmd .= $cmdDB unless($mateFlag || !$MFopt{map2Assembly}); #doesn't need bowtie index
 	
 	#clean up
+	$cmd .= "echo \"Zipping non-essential files\"\n";
 	$cmd .= "\n $pigzBin -f -p $nCores -r $nodeTmp/scaffolds.fasta $nodeTmp/misc/\n $pigzBin -f -p $nCores -r $nodeTmp/contigs.paths  $nodeTmp/*contigs.fa* \n";
 	$cmd .=  "rm -rf $nodeTmp/assembly_graph*.gfa $nodeTmp/corrected $nodeTmp/*.fastg $nodeTmp/before_rr*\n";
 	unless ($noTmpOnNode){
@@ -6805,6 +6808,7 @@ sub longRdAssembly{
 	
 	my $nodeTmp2 = "$nodeTmp/tmpRawRds/";
  	my $cmd = "rm -rf $nodeTmp\nmkdir -p $nodeTmp $finalOut $nodeTmp2\n\n"; #\n  mkdir -p $nodeTmp/tmp\n
+	$cmd .= "echo \"Starting $nameProg assembly\"\n";
 	#input reads for assembly .. expected unpaired, long reads
 	my @inRds;# = @{$singlAr};
 	
@@ -6876,6 +6880,7 @@ sub longRdAssembly{
 
 	$cmd .= $contigRecovery;#
 	#dual size filter
+	$cmd .= "echo \"Assembly finished, renaming contigs, size sorting contigs, collating assembly statistics\"\n";
 	my $renameCtgScr = getProgPaths("renameCtg_scr");#"perl renameCtgs.pl";
 	my $sizFiltScr = getProgPaths("sizFilt_scr");#"perl sizeFilterFas.pl";
 	$cmd .= "$renameCtgScr $nodeTmp/scaffolds.fasta $smplName\n";
@@ -6890,6 +6895,7 @@ sub longRdAssembly{
 	$cmd .= $cmdDB unless( !$MFopt{map2Assembly}); #doesn't need bowtie index
 	
 	#clean up
+	$cmd .= "echo \"Zipping non-essential files\"\n";
 	$cmd .= "\n $pigzBin -f -p $nCores $nodeTmp/scaffolds.fasta\n";
 	$cmd .=  "mkdir -p $finalOut\ncp -r $nodeTmp/* $finalOut\n" ;
 	$cmd .= "rm -rf $nodeTmp\n";
@@ -6949,7 +6955,7 @@ sub megahitAssembly{
 	#die "$nodePreD\n$nodeTmp\n";
 	
  	my $cmd = "rm -rf $nodeTmp\nmkdir -p $nodePreD $finalOut\n\n"; #\n  mkdir -p $nodeTmp/tmp\n
-
+	$cmd .= "echo \"Starting megaHit assembly\"\n";
 	my $inputSizeloc = spaceInAssGrp($curSmpl);
 	#die "DS$inputSizeloc\n";
 	my $defTotMem = $MFopt{AssemblyMemory};#60;
@@ -6992,6 +6998,7 @@ sub megahitAssembly{
 	$cmd .= "-o $nodeTmp  \n";  #--tmp-dir $nodeTmp/tmp/
 	#from here could as well be separate 1 core job
 	#cleanup assembly
+	$cmd .= "echo \"Assembly finished, renaming contigs, size sorting contigs, collating assembly statistics\"\n";
 	$cmd .= "\necho '". $AsGrps{$cAsGrp}{AssemblSmplDirs}. "' > $nodeTmp/smpls_used.txt\n\n";
 	$cmd .= "\nrm -fr $nodeTmp/tmp/ $nodeTmp/intermediate_contigs/ \nmv $nodeTmp/megaAss.contigs.fa $nodeTmp/scaffolds.fasta\n\n";
 	#dual size filter
@@ -7018,9 +7025,13 @@ sub megahitAssembly{
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta.filt > $nodeTmp/AssemblyStats.txt\n";
 	
 	my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx("$nodeTmp/scaffolds.fasta.filt",$nCores,$MFopt{largeMapperDB},$MFopt{MapperProg});#$nCores);
-	$cmd .= $cmdDB unless($mateFlag || !$MFopt{map2Assembly}); #doesn't need bowtie index
+	unless($cmdDB == "" || $mateFlag || !$MFopt{map2Assembly}){
+		$cmd .= "echo \"Building mapper index on assembly\"\n";
+		$cmd .= $cmdDB ; #doesn't need bowtie index
+	}
 	#print "DB:: $cmdDB\nMATE::$mateFlag\n";
 	#clean up
+	$cmd .= "echo \"Zipping non-essential files\"\n";
 	$cmd .= "\n $pigzBin -f -p $nCores $nodeTmp/scaffolds.fasta.filt2 $nodeTmp/scaffolds.fasta.lnk\n";
 	$cmd .= "rm -f $nodeTmp/scaffolds.fasta\n";
 	unless ($noTmpOnNode){
