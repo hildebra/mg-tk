@@ -1,0 +1,196 @@
+---
+title: "MG-TK Assembly and Gene QC Statistics"
+output: html_document
+params:
+    date: !r Sys.Date()
+    statspath: "/hpc-home/rel25vaz/software/mg-tk/examples/output/1.testAG/metagStats.txt" # Path for the metagStats.txt file - provided by command line argument
+---
+
+## Date: `r params$date`
+
+```{r setup, include=FALSE}
+    # Set the device to png, otherwise the system may try X11 forwarding first, 
+    # which often isn't allowed
+    knitr::opts_chunk$set(echo = TRUE, dev = 'png')
+
+    # Force Cairo only if running headless or if X11 isn't available
+    if (Sys.getenv("DISPLAY") == "" || !capabilities("X11")) {
+      options(bitmapType = "cairo")
+    }
+    
+    
+    
+    library(ggplot2)
+    library(tidyr)
+    library(dplyr)
+    library(cowplot)
+
+    source('QC_metagStats_functions.R')
+
+  
+```
+
+## Load Input Data
+
+First we load the data from the MG-TK overall assembly and gene annotation statistics file. This file contains one row for each sample. Samples in the same assembly group share the same assembly and gene statistics. For the purposes of this report, these are not double counted.
+
+```{r import_df, echo=FALSE, message=FALSE}
+    df_orig <- data.frame(
+      read.delim(params$statspath, 
+        header = T, 
+        sep = "\t")
+    )
+    colnames(df_orig)[1] <- "Sample"
+    
+    # For Rui's script we only need these columns, and 
+    # until the Assembly Group is included in the stats file, 
+    # the easiest thing to do to deduplicate groups is to just
+    # take unique results from these columns. 
+    # Kasia's script functions use the original data frame. 
+    
+    reqd_cols <- c(
+      "ScaffN50",
+      "ContigN50",
+      "ScaffMaxSize",
+      "ScaffSize",
+      "GeneNumber",
+      "AvgGeneLength",
+      "AvgComplGeneLength", 
+      "HQ_bins_SB", 
+      "MQ_bins_SB", 
+      "CircCtgs", 
+      "CircCtgG1M"
+    )
+    
+    
+    nsamples <- nrow(df_orig)
+    few_samples <- (nsamples < 5)
+    example1ill <- all(df_orig$DIR == c("SRR8797712", "SRR8797713", "SRR8797712"))
+    
+    df <- df_orig[, reqd_cols] %>% unique
+    nassgrps <- nrow(df)
+    
+```
+
+```{r warn_few_samples, results='asis', echo = FALSE, include = few_samples}
+
+    cat(c('### Warning! \n **There are only', nsamples, 'metagenomes and', nassgrps,'assembly groups in your dataset. Some of the statistics shown may not be particularly meaningful.** Furthermore, if you have just 1 sample, the R correlation functions will crash. In those cases the correlation results will return NA. '))
+```
+
+```{r warn_example, results='asis', echo = FALSE, include = example1ill}
+
+    cat('### Warning! \n **It looks like you are running the Illumina short read example data. The results from this are a little weird - this is somewhat nonsensical data to check MG-TK runs as intended. Two of the input read files are identical, and another pair of files have been pooled into one assembly group.** ')
+    cat('In particular, the output from the metagstats.tsv file which is used to produce this data will have some odd looking results: \n ')
+    cat(' - Two samples will have similar read error characteristics')
+    cat(' - Two others will be pooled during assembly and therefore have the same contig/scaffold statistics.')
+
+```
+
+## Dataset Overview - Read Quality
+
+```{r read_stats, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=4}
+
+  plot_totalrds(df_orig, column = "Sample")
+
+```
+
+## Dataset Overview - Assemblies
+
+There are `r nsamples` samples and `r nassgrps` assemblies (a.k.a. assembly groups) in this dataset.
+
+We check the distribution of contig/scaffold N50, the maximum scaffold size, and the total size of the assemblies.
+
+```{r assembly_size_stats, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=4}
+    
+    p1 <- ggplot(df, aes(ScaffN50)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Contig/Scaffold N50", y = "Counts") +
+        geom_vline(xintercept = median(df$ScaffN50), color = "salmon", linetype = "dashed")
+    
+    p2 <- ggplot(df, aes(ScaffMaxSize)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Scaffold Max Size", y = "Counts") +
+        geom_vline(xintercept = median(df$ScaffMaxSize), color = "salmon", linetype = "dashed")
+    
+    p3 <- ggplot(df, aes(ScaffSize)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Scaffold size", y = "Counts") +
+        geom_vline(xintercept = median(df$ScaffSize), color = "salmon", linetype = "dashed")
+    
+    plot_grid(p1, p2, p3, nrow = 1)
+```
+
+The distribution of contig N50 shows that the median N50 is `r round(median(df$ScaffN50), 2)` for thecontigs/scaffolds, with a maximum size of `r round(max(df$ScaffMaxSize)/1000, 3)` kbp, and the total size of the assembly ranges from `r round(min(df$ScaffSize)/1000000, 2)`Mb to `r round(max(df$ScaffSize)/1000000, 2)` Mb.
+
+Dash lines indicate the median value for each visualized characteristic.
+
+We next look at the Spearman correlation between the N50 and size of assemblies. There is usually a positive correlation.
+
+```{r cor, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3}
+    ggplot(df, aes(ScaffN50, ScaffSize)) + geom_point() +
+        theme_bw() + labs(x = "Scaffold N50", y = "Scaffold Size") #+
+        #scale_color_manual(values = c_role)
+    print(cor.test(df$ScaffN50, df$ScaffSize, method = "spearman"))
+```
+
+## Dataset overview - Annotation
+
+Now we check the distribution of number of annotated genes.
+
+```{r import_anno, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=4}
+    
+    p1 <- ggplot(df, aes(GeneNumber)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Number of genes", y = "Counts") +
+        geom_vline(xintercept = median(df$GeneNumber), color = "salmon", linetype = "dashed")
+    
+    p2 <- ggplot(df, aes(AvgGeneLength)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Average Gene Length", y = "Counts") +
+        geom_vline(xintercept = median(df$AvgGeneLength), color = "salmon", linetype = "dashed")
+    
+    p3 <- ggplot(df, aes(AvgComplGeneLength)) + geom_histogram(bins = 50) +
+        theme_bw() + labs(x = "Average Complete Gene Length", y = "Counts") +
+        geom_vline(xintercept = median(df$AvgComplGeneLength), color = "salmon", linetype = "dashed")
+    
+    plot_grid(p1, p2, p3, nrow = 1)
+```
+
+We expect there to be a significant positive Spearman correlation between the gene number and size of assemblies.
+
+```{r cor2, echo=FALSE, message=FALSE, warning=FALSE, fig.width=5, fig.height=3}
+    ggplot(df, aes(GeneNumber, ScaffSize)) + geom_point() +
+        theme_bw() + labs(x = "Number of Genes", y = "Scaffold Size")
+
+    print(cor.test(df$GeneNumber, df$ScaffSize, method = "spearman"))
+```
+
+Also, we expect a significant positive correlation between the average (complete) gene length and contig N50; and a significant positive correlation between the average (complete) gene length and size of assemblies.
+
+```{r cor3, echo=FALSE, message=FALSE, warning=FALSE, fig.width=7, fig.height=7}
+    p1 <- ggplot(df, aes(AvgGeneLength, ScaffN50)) + geom_point() +
+        theme_bw() + labs(x = "Average Gene Length", y = "Scaffold N50")
+
+    p2 <- ggplot(df, aes(AvgComplGeneLength, ScaffN50)) + geom_point() +
+        theme_bw() + labs(x = "Average Complete Gene Length", y = "Scaffold N50")
+    
+    p3 <- ggplot(df, aes(AvgGeneLength, ScaffSize)) + geom_point() +
+        theme_bw() + labs(x = "Average Gene Length", y = "Scaffold Size")
+
+    p4 <- ggplot(df, aes(AvgComplGeneLength, ScaffSize)) + geom_point() +
+        theme_bw() + labs(x = "Average Complete Gene Length", y = "Scaffold Size")
+    
+    plot_grid(p1, p2, p3, p4, nrow = 2)
+
+    print(cor.test(df$AvgGeneLength, df$ScaffN50, method = "spearman"))
+    print(cor.test(df$AvgComplGeneLength, df$ScaffN50, method = "spearman"))
+    print(cor.test(df$AvgGeneLength, df$ScaffSize, method = "spearman"))
+    print(cor.test(df$AvgComplGeneLength, df$ScaffSize, method = "spearman"))
+```
+
+Below are boxplot summaries of the overall binning, gene and contig, and read statistics. 
+
+```{r ass_bin_stats, echo = FALSE, message=FALSE, WARNING=FALSE, fig.width=10, fig.height=5}
+  
+  plot_read_stats(df_orig)
+  plot_ass_bin_stats(df)
+```
+
+```{r gene_stats, echo = FALSE, message=FALSE, WARNING=FALSE, fig.width=5, fig.height=5}
+  plot_gene_stats(df)
+```
