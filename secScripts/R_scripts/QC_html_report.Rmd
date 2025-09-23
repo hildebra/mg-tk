@@ -3,7 +3,7 @@ title: "MG-TK Assembly and Gene QC Statistics"
 output: html_document
 params:
     date: !r Sys.Date()
-    statspath: "/hpc-home/rel25vaz/software/mg-tk/examples/output/1.testAG/metagStats.txt" # Path for the metagStats.txt file - provided by command line argument
+    statspath: None # Path for the metagStats.txt file - provided by command line argument
 ---
 
 ## Date: `r params$date`
