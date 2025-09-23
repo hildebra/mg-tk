@@ -82,6 +82,7 @@ filterMB2core	[Rscript] [Rpath]/filterMB2.R	env:MGTK_R
 neighborTree	[Rscript] [Rpath]/neighborTree.R	env:MGTK_R
 vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R	env:MGTK_R
 normMiTag	[Rscript] [Rpath]/NormMiTag.R	env:MGTK_R
+qcMakeHTMLReport	[Rscript] [Rpath]/QC_make_html.R	env:MGTK_R
 
 
 ## taxonomic profiling, if requrested ##
