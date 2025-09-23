@@ -1527,7 +1527,7 @@ sub postprocess{
 		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
 		my $Rpath = getProgPaths("Rpath");
 		my $call = "$qcMakeHTMLReport $Rpath $baseOut/metagStats.txt $baseOut/metagStatsReport.html";
-		#my $QCRes = `$call`; chomp $QCRes;
+		my $QCRes = `$call`; chomp $QCRes;
 		#print $QCRes
 		print "Report file in $baseOut/metagStatsReport.html\n";
 	}
