@@ -42,7 +42,9 @@ plot_totalrds <- function(metag_stats, column = "SMPLID", hide_labels = FALSE, l
 #' Plots basic assembly and binning statistics as boxplots 
 #' @param metag_stats a data frame of metagStats
 plot_ass_bin_stats <- function(metag_stats) {
-  metag_stats %>% replace(is.na(.), 0) %>%
+  metag_stats %>% 
+    mutate(across(-1, ~ as.numeric(replace(., . == '', 0)))) %>%
+    replace(is.na(.), 0) %>%
     select(all_of(c(
       "HQ_bins_SB", "MQ_bins_SB", 
       "ContigN50", "ScaffN50", 
@@ -56,7 +58,7 @@ plot_ass_bin_stats <- function(metag_stats) {
     mutate(Type = case_when(stat == "HQ_bins_SB" ~ "Bins",
                             stat == "MQ_bins_SB" ~ "Bins",
                             stat == "CircCtg" ~ "Circular Contigs",
-                            stat == "CircCtg.g.t..1Mbp" ~ "Circular Contigs",
+                            stat == "CircCtg g.t. 1Mbp" ~ "Circular Contigs",
                             stat == "ContigN50" ~ "N50",
                             stat == "ScaffN50" ~ "N50")) %>% 
     ggplot(aes(x = stat, y = value)) +
@@ -70,7 +72,9 @@ plot_ass_bin_stats <- function(metag_stats) {
 #' Plots basic gene statistics as boxplots 
 #' @param metag_stats a data frame of metagStats
 plot_gene_stats <- function(metag_stats) {
-  metag_stats %>% replace(is.na(.), 0) %>%
+  metag_stats %>% 
+    mutate(across(-1, ~ as.numeric(replace(., . == '', 0)))) %>%
+    replace(is.na(.), 0) %>%
     select(all_of(c(
       "AvgGeneLength", "AvgComplGeneLength"
     ))) %>%
@@ -88,7 +92,9 @@ plot_gene_stats <- function(metag_stats) {
 #' Plots read statistics as boxplots 
 #' @param metag_stats a data frame of metagStats
 plot_read_stats <- function(metag_stats) {
-  metag_stats %>% replace(is.na(.), 0) %>%
+  metag_stats %>% 
+    mutate(across(-1, ~ as.numeric(replace(., . == '', 0)))) %>%
+    replace(is.na(.), 0) %>%
     select(all_of(c(
       "totRds", "FilteredContaRds", 
       "Accepted1", "Accepted2", 
