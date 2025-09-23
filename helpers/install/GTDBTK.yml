@@ -7,7 +7,7 @@ dependencies:
   - conda-forge::numpy
   - conda-forge::scipy
   - blas[build=openblas]
-  - gtdbtk=2.3
+  - gtdbtk=2.5
   - pigz=2.8
 #  - whokaryote=1.1.2 (downgrades pytorch etc..)
 #  - checkm2 >= 1 (downgrades pytorch etc..)

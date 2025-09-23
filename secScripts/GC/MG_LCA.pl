@@ -60,17 +60,14 @@ if ($useGTDBmg eq "GTDB"){
 	$speciesLink = "GTDB_lnks"; $speciesCutoff = "GTDB_cutoff"; $subsetFile = "GTDBmg.subset.cats";
 	$speciesGTDB = "GTDB_GTDB"; $speciesDir = "GTDBPath"; $MGtag = "GTDBmg";
 }
-my $inSImap = getProgPaths($speciesLink);
-my $GTDBspecI = getProgPaths($speciesGTDB);
-my $SpecID=getProgPaths($speciesDir);#directoy with all 40 SpecI marker genes
-my %FMGcutoffs = %{readTabbed3(getProgPaths($speciesCutoff,0),1)};
-
 #make the distinction here, as not all Marker genes might be present in a certain experiment (e.g. no Archaea)
 my %FMGkeys = %{readTabbed3("$GCd/$subsetFile",1)};
 
 
-
-
+my $inSImap = getProgPaths($speciesLink);
+my $GTDBspecI = getProgPaths($speciesGTDB);
+my $SpecID=getProgPaths($speciesDir);#directoy with all 40 SpecI marker genes
+my %FMGcutoffs = %{readTabbed3(getProgPaths($speciesCutoff,0),1)};
 
 my $taxPerGene = "$SpecID/$MGtag.tax";
 reformatGTDBtax($taxPerGene, $inSImap,$GTDBspecI);
