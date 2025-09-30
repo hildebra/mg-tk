@@ -12,7 +12,7 @@ use Mods::GenoMetaAss qw( systemW gzipopen);
 #my $py3activate = getProgPaths("py3activate"); #source conda.. 
 my $GTDBtkBin = getProgPaths("GTDBtk");
 my $GTDBtkDB = getProgPaths("GTDBtk_DB");
-my $GTDBtkMash = getProgPaths("GTDBtk_mash");
+my $GTDBtkMash = getProgPaths("GTDBtk_mash",0);
 
 #die "$GTDBtkDB\n$GTDBtkMash\n";
 my $refMGd = $ARGV[0];
@@ -33,10 +33,18 @@ my $cmd = "";
 #--scratch_dir $tmpD 
 #$cmd .= "export GTDBTK_DATA_PATH=$GTDBtkDB\n";
 if ($GTDBtkBin =~ m/ activate /){
-	$GTDBtkBin =~ s/activate (\S+)/activate $1\nexport GTDBTK_DATA_PATH=$GTDBtkDB\nMVERSION=`mash --version`\n/;
+	$GTDBtkBin =~ s/activate (\S+)/activate $1\nexport GTDBTK_DATA_PATH=$GTDBtkDB\n/;
 }
-$cmd .= "$GTDBtkBin classify_wf -x fna --mash_db $GTDBtkMash/\$MVERSION/ --cpus $ncore --pplacer_cpus $pplacer_cores  --genome_dir $refMGd --out_dir $oDir"; #--scratch_dir $tmpD/GTtmp/ --genes
+
+my $mashArg="" ;
+if ($GTDBtkMash ne ""){ #for newer GTDBtk versions not supported
+	$mashArg = "--mash_db $GTDBtkMash/\$MVERSION/";
+	$cmd .= "MVERSION=`mash --version`"
+}
+
+$cmd .= "$GTDBtkBin classify_wf -x fna $mashArg --cpus $ncore --pplacer_cpus $pplacer_cores  --genome_dir $refMGd --out_dir $oDir"; #--scratch_dir $tmpD/GTtmp/ --genes
 print "\n\n".$cmd."\n\n";
+#die;
 systemW $cmd;
 
 systemW "rm -f $Bdir/gtdbtk.summary.tsv";

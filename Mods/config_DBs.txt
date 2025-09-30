@@ -23,12 +23,12 @@ checkm2DB	[DBDir]/checkm2/CheckM2_database/uniref100.KO.1.dmnd
 
 #DBs for official GTDBtk scripts
 #GTDBtk_DB	[DBDir]/GTDBtk_ref/
-GTDBtk_DB	/ei/projects/8/88e80936-2a5d-4f4a-afab-6f74b374c765/data/cloudpool/DB/MarkerG/GTDB_r226_MGTK/gtdb	#Updated by get_gtdb.py
-GTDBtk_mash	/ei/projects/8/88e80936-2a5d-4f4a-afab-6f74b374c765/data/cloudpool/DB/MarkerG/GTDB_r226_MGTK/gtdb/mashD	#Updated by get_gtdb.py
+GTDBtk_DB	[DBDir]/MarkerG/GTDB_r226_MGTK/gtdb/release226/	#Updated by get_gtdb.py
+#GTDBtk_mash	[DBDir]/MarkerG/GTDB_r226_MGTK/gtdb/release226/mashD	#Updated by get_gtdb.py
 #this is used for GTDB python script from Joachim and MAG->GTDB marker gene tasks.. independent of GTDBtk version
-GTDBPath	/ei/projects/8/88e80936-2a5d-4f4a-afab-6f74b374c765/data/cloudpool/DB/MarkerG/GTDB_r226_MGTK/markerGenes	#Updated by get_gtdb.py
-GTDB_GTDB	/ei/projects/8/88e80936-2a5d-4f4a-afab-6f74b374c765/data/cloudpool/DB/MarkerG/GTDB_r226_MGTK/gtdb_r226_lineageGTDB.tab	#Updated by get_gtdb.py
-GTDB_lnks	/ei/projects/8/88e80936-2a5d-4f4a-afab-6f74b374c765/data/cloudpool/DB/MarkerG/GTDB_r226_MGTK/gtdb_r226_clustering.tab	#Updated by get_gtdb.py
+GTDBPath	[DBDir]/MarkerG/GTDB_r226_MGTK/markerGenes	#Updated by get_gtdb.py
+GTDB_GTDB	[DBDir]/MarkerG/GTDB_r226_MGTK/gtdb_r226_lineageGTDB.tab	#Updated by get_gtdb.py
+GTDB_lnks	[DBDir]/MarkerG/GTDB_r226_MGTK/gtdb_r226_clustering.tab	#Updated by get_gtdb.py
 #GTDB_cutoff	[DBDir]/MarkerG/GTDB_r207v2_MF/markerGenes/cutoffs.txt
 GTDB_cutoff	[MFLRDir]/data/GTDBcutoffs.txt
 

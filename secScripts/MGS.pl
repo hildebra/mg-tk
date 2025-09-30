@@ -481,7 +481,7 @@ if (!-e $GTDBtaxF || !-e"$annoDir/gtdbtk.summary.tsv" || !-e $GTDBtaxSto){
 	$cmd .= "mv $outD/GTDBTK.tax $outD/gtdbtk.summary.tsv $annoDir\n\ntouch $GTDBtaxSto";
 	#changed mem from 370 to 100 with GTDB-TK 2.1.0
 	my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "150G"; 
-	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$canCore,int(200/$canCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$canCore,int(240/$canCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
 	$QSBopt{tmpSpace} =$tmpSHDD;
 	push(@jobs2wait,$jobName2);
 	
