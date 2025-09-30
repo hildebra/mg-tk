@@ -1518,11 +1518,18 @@ sub postprocess{
 		close O;
 	}
 
-	if ($statStr ne ""){
+	if ($statStr ne "" || $MFopt{writeStats}){
 		open O,">$baseOut/metagStats.txt";
 		print O $statStr;
 		close O;
 		print "Stats in $baseOut/metagStats.txt\n";
+
+		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
+		my $Rpath = getProgPaths("Rpath");
+		my $call = "$qcMakeHTMLReport $Rpath $baseOut/metagStats.txt $baseOut/metagStatsReport.html";
+		my $QCRes = `$call`; chomp $QCRes;
+		#print $QCRes
+		print "Report file in $baseOut/metagStatsReport.html\n";
 	}
 	if (0 && $statStr5 ne ""){
 		open O,">$baseOut/metagStats_500.txt";
@@ -1586,7 +1593,7 @@ sub postprocess{
 	}
 
 
-	if ($presentAssemblies >0 &&$presentAssemblies == $totalChecked){
+	if ($presentAssemblies >0 && $presentAssemblies == $totalChecked){
 		my $gcScr = getProgPaths("geneCat_scr");
 		my $GCsub = $baseOut."/GeneCat_pre.sh";
 		my $gcmd = "";
@@ -7375,6 +7382,8 @@ sub setDefaultMFconfig{
 	$MFopt{gzipSDMOut} = 1;#zip sdm filtered files
 	$MFopt{sdmProbabilisticFilter} =1;
 
+	$MFopt{writeStats} = 0;
+
 
 	#Assembly related options
 	$MFopt{doReadMerge} = 0;
@@ -7550,8 +7559,9 @@ sub getCmdLineOptions{
 		"silent" => \$MFconfig{silent},
 		"maxUnzpJobs=i" => \$MFconfig{maxUnzpJobs}, #how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 		"skipSmallSmplsMB=i" => \$MFconfig{skipSmallSmplsMB},  #skip samples with a combined input smaller than this in MB (raw file size, independent of compressed or raw)
+		"forceWriteStats=i" => \$MFopt{writeStats}, # force (re)writing of the metagStats report and text file
+	
 	#input FQ related
-
 	#file strucuture
 		#"relaxedSmplNames=i" => \$relaxedSmplNames, #add instead to map: #RelaxSMPLID	TRUE
 		"rm_tmpdir_reads=i" => \$MFconfig{remove_reads_tmpDir}, #Default 1, remove tmpdir with reads

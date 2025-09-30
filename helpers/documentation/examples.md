@@ -16,7 +16,7 @@ bash 0.getExmplData.sh
 
 After this is finished (check in the newly created mg-tk/examples/data/ dir for ~1.3Gb of data), you can either run 1.runMGTK_illumina.mfc (short read metagenomics) or 2.runMGTK_hybrid.mfc (short+long reads). Note that these are non-seniscal examples, i.e. the short and long reads are from completely independent experiments, don't expect interpretable results, this is purely to check if the technical process can run to completion.
 
-How do you know everything finished as it should? Wait until all submitted jobs have finished, run the 1. or 2. script again until it reports that nothing is left to do. (Note:kill eventual "DependencyNeverSatisified" jobs for 1-2 times, if persists there might be a problem with runnning certain programs, where you need to start checking error logs, see Q&A below).
+How do you know everything finished as it should? Wait until all submitted jobs have finished, run the 1. or 2. script again until it reports that nothing is left to do. (Note:kill eventual "DependencyNeverSatisified" jobs for 1-2 times, if persists there might be a problem with runnning certain programs, where you need to start checking error logs, see Q&A below). Once everything is finished, MG-TK's postprocessing should complete and you will be able to find metagStats.txt and metagStatsReport.html - browse these files to get an overview of the data. 
 
 In the next section we will give examples on how to create your own MG-TK runs.
   

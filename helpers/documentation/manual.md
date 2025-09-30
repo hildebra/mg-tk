@@ -39,6 +39,8 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-OKtoRWassGrps [0|1]			1: can delete assemblies, if suspects error in them, powerful, but careful! (Default: 0)
 	-maxUnzpJobs [#]				#how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 	-skipSmallSmplsMB [#]			skip sample if the overall file size is < than given number (in MB). Default: 1
+	-forceWriteStats [0|1]			force (re)writing of the metagStats HTML report and text files. Default: 0
+
 
 # Detecting raw input files
 	-inputFQregex1 [‘R1’]			R1 input regex extension (e.g. R1 could be '.*_1\.f[^\.]*q\.gz$' or last resort '(.*_pe_1\.f[^\.]*q\.gz$)|(.*R1_00\d\.f[^\.]*q\.gz$)|(.*[\._]1\.f[^\.]*q\.gz$)|(.*R1\.fq\.gz)' )
