@@ -53,7 +53,6 @@ from datetime import datetime
 import tarfile
 from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple, Literal, Any
 from pathlib import Path
-from packaging.version import Version
 
 # Configure logging
 logger: logging.Logger = logging.getLogger(__name__)
@@ -689,7 +688,7 @@ class GTDBVersion:
             db_dir = mgtk_config["DBDir"]
             # If databases are stored in the DBDir, use [DBDir] format, 
             # otherwise asbolute paths
-            db_res: Path = Path(db_dir).resolve()
+            db_res: Path = Path(db_dir.strip()).resolve()
             logger.info("MG-TK DBDir: %s", db_dir)
             logger.debug("MG-TK DBDir resolved: %s", db_res)
             logger.debug("GTDB Database resolved: %s", out_res)
@@ -724,12 +723,13 @@ class GTDBVersion:
         # Use the lowest compatible version if max version is current, as
         # no guarantee this script is up to date. Othewise, use higher
         # compatible version if fixed versions given.
-        ver_use: str = (
-            f"=={ver_min}" if ver_max == "Current" else f"=={ver_max}"
-        )
+        ver_use_s: str = ver_min if ver_max == "Current" else ver_max
+        ver_use: str = f"=={ver_use_s}"
+        logger.debug("Assuming GTDB-TK version %s", ver_use_s)
         # GTDBtk versions > 2.5 do not use mash, so the mash directory
         # line needs to be commented out. 
-        no_mash = Version(ver_min) >= Version("2.5")
+        no_mash = version_as_tuple(ver_use_s) >= version_as_tuple("2.5")
+        logger.debug("Do not use mash: %s", str(no_mash))
 
         to_change: Dict[str, List[str]] = {
             'GTDBPath'      : ['markerGenes'],
@@ -758,10 +758,15 @@ class GTDBVersion:
                 if ("#GTDBtk_mash" in line) and not no_mash:
                     # Restore the mash line if switch to a version that needs it
                     line = line.replace("#GTDBtk_mash", "GTDBtk_mash")
+                    logger.debug("Restored mash path in config")
                 elif ("GTDBtk_mash" in line) and no_mash:
                     # Using a GTDBtk version which does not require mash so
                     # comment this line out
-                    line = "#" + line.strip() + " #Updated by get_gtdb.py\n"
+                    logger.debug("Removed mash path in config")
+                    line = "#" + line.strip()
+                    if "# Updated by " not in line:
+                        line += " #Updated by get_gtdb.py"
+                    line += "\n"
                 if line.strip()[0] == '#':
                     mod_lines.append(line)
                     continue
@@ -1273,6 +1278,9 @@ class GTDB226(GTDBVersion):
 
         logger.info("Taxonomy tables finished")
 
+def version_as_tuple(v: str) -> Tuple:
+    """Convert a string version to a tuple of ints"""
+    return tuple(int(x) for x in v.split("."))
 
 def is_url_dir(src: str) -> bool:
     return src[-1] == "/"
