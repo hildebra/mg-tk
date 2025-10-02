@@ -53,6 +53,7 @@ from datetime import datetime
 import tarfile
 from typing import Callable, Dict, List, NamedTuple, Optional, Set, Tuple, Literal, Any
 from pathlib import Path
+from packaging.version import Version
 
 # Configure logging
 logger: logging.Logger = logging.getLogger(__name__)
@@ -76,9 +77,10 @@ class GTDBVersion:
     utilities (gunzip, mv, zcat, etc) available.
     """
 
+    # The current version will need to be manually updated
     GTDBTK_VERSIONS: Dict[float, Tuple[str, str]] = {
-        226.0: ("2.4.0", "Current"),
-        220.0: ("2.4.0", "Current"),
+        226.0: ("2.4.0", "2.5.2"),
+        220.0: ("2.4.0", "2.5.2"),
         214.0: ("2.1.0", "2.3.2"),
         207.2: ("2.1.0", "2.3.2"),
         207.0: ("2.0.0", "2.0.0"),
@@ -662,7 +664,8 @@ class GTDBVersion:
 
     def update_config(
         self,
-        out_dir: Path
+        out_dir: Path,
+        install_tk: bool
     ) -> None:
         """Attempt to automatically update MG-TK configuration to use new DB."""
 
@@ -708,6 +711,26 @@ class GTDBVersion:
             )
             use_abs = True
 
+        # Determine version of GTDBtk to use
+        ver_tup = self.required_gtdbtk(self.version)
+        if ver_tup is None:
+            logger.warning(
+                "Cannot determine suitable GTDB-Tk version. "
+                "Paths will be updated assuming a GTDB-Tk version of 2.5"
+            )
+            ver_tup = ("2.5", "2.5")
+        ver_min, ver_max = ver_tup
+        logger.debug("Compatible GTDB-TK - Min: %s, Max %s", ver_min, ver_max)
+        # Use the lowest compatible version if max version is current, as
+        # no guarantee this script is up to date. Othewise, use higher
+        # compatible version if fixed versions given.
+        ver_use: str = (
+            f"=={ver_min}" if ver_max == "Current" else f"=={ver_max}"
+        )
+        # GTDBtk versions > 2.5 do not use mash, so the mash directory
+        # line needs to be commented out. 
+        no_mash = Version(ver_min) >= Version("2.5")
+
         to_change: Dict[str, List[str]] = {
             'GTDBPath'      : ['markerGenes'],
             'GTDB_GTDB'     : [f'gtdb_r{self.version:.0f}_lineageGTDB.tab'],
@@ -732,6 +755,13 @@ class GTDBVersion:
                 if len(line.strip()) < 1:
                     mod_lines.append(line)
                     continue
+                if ("#GTDBtk_mash" in line) and not no_mash:
+                    # Restore the mash line if switch to a version that needs it
+                    line = line.replace("#GTDBtk_mash", "GTDBtk_mash")
+                elif ("GTDBtk_mash" in line) and no_mash:
+                    # Using a GTDBtk version which does not require mash so
+                    # comment this line out
+                    line = "#" + line.strip() + " #Updated by get_gtdb.py\n"
                 if line.strip()[0] == '#':
                     mod_lines.append(line)
                     continue
@@ -753,24 +783,14 @@ class GTDBVersion:
         with db_config.open("w") as f:
             f.writelines(mod_lines)
 
-        # Attempt to install correct GTDB-tk
-        ver_tup = self.required_gtdbtk(self.version)
-        if ver_tup is None:
-            logger.warning(
-                "Cannot determine suitable GTDB-TK version, please check "
-                "required version and install into environment MGTKgtdbtk "
-                "manually."
+        if not install_tk:
+            logger.info(
+                ("No changes made to GTDB-Tk installed in MGTKgtdbtk "
+                "environment. You can run this script with --install-tk to "
+                "install a version of GTDB-Tk known to work with this release.")
             )
             return
-        ver_min, ver_max = ver_tup
-        logger.debug("Compatible GTDB-TK - Min: %s, Max %s", ver_min, ver_max)
-        # Use the lowest compatible version if max version is current, as
-        # no guarantee this script is up to date. Othewise, use higher
-        # compatible version if fixed versions given.
-        ver_use: str = (
-            f"=={ver_min}" if ver_max == "Current" else f"=={ver_max}"
-        )
-        logger.info("Installing gtdbtk%s into environment MGTKgtdbtk", ver_use)
+        logger.info("Installing gtdbtk %s into environment MGTKgtdbtk", ver_use)
         cmd: str = (
             "micromamba install --name MGTKgtdbtk -c bioconda -c conda-forge "
             f"-y --channel-priority flexible gtdbtk{ver_use}"
@@ -1411,7 +1431,8 @@ def cli_configure(args):
     version = meta['version']
     downloader: GTDBVersion = GTDBVersion.from_version(version)
     downloader.update_config(
-        out_dir = args.dest
+        out_dir = args.dest,
+        install_tk = args.install_tk
     )
 
 def cli_all(args):
@@ -1436,7 +1457,8 @@ def cli_all(args):
     )
     if config:
         downloader.update_config(
-            out_dir = args.dest
+            out_dir = args.dest,
+            install_tk = args.install_tk
         )
     else:
         logger.warning("Did not update MG-TK configuration update.")
@@ -1539,9 +1561,22 @@ def main():
             dest="test",
             action="store_true",
             help=(
-                "Do not download any files, instead create dummy files in the"
+                "Do not download any files, instead create dummy files in the "
                 "destination. Included to allow test of script logic without "
                 "needing to download and extract large files."
+            )
+        )
+    )
+    arg_install_tk = (
+        ["--install-tk"],
+        dict(
+            dest="install_tk",
+            action="store_true",
+            help=(
+                "Install the version of GTDBtk required for this GTDB release "
+                "into the MGTKgtdbtk environment. This is not done by default, "
+                "as officially MG-TK only supports one release of GTDB and "
+                "installs the correct GTDBtk using installer shell scripts."
             )
         )
     )
@@ -1598,7 +1633,7 @@ def main():
         )
     )
     parser_configure.set_defaults(func=cli_configure)
-    add_args(parser_configure, arg_dest)
+    add_args(parser_configure, arg_dest, arg_install_tk)
 
     # All subcommand
     parser_all = subparsers.add_parser(
@@ -1611,7 +1646,8 @@ def main():
         )
     )
     parser_all.set_defaults(func=cli_all)
-    add_args(parser_all, arg_temp, arg_dest, arg_version, arg_tk, arg_test)
+    add_args(parser_all, arg_temp, arg_dest, arg_version, arg_tk, 
+        arg_install_tk, arg_test)
 
     args = parser.parse_args()
     if "func" in args:
