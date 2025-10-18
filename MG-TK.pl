@@ -1517,20 +1517,24 @@ sub postprocess{
 		}
 		close O;
 	}
+	my $MGSfile = "$baseOut/metagStats.txt";
+	my $MGShtml = "$baseOut/metagStatsReport.html";
+	my $prevRep=0; #how many samples reported on?
+	if (-e $MGSfile){$prevRep = `wc -l $MGSfile | cut -f1 -d' '`; chomp $prevRep; $prevRep = int($prevRep);}
 
-	if ($statStr ne "" || $MFopt{writeStats}){
-		open O,">$baseOut/metagStats.txt";
-		print O $statStr;
-		close O;
-		print "Stats in $baseOut/metagStats.txt\n";
-
+	if ( ($statStr ne "" && @inputRawFQs > $prevRep)  || $MFopt{writeStats}){
+		open O,">$baseOut/metagStats.txt";print O $statStr;close O;
+	}
+	print "Stats in $MGSfile \n";
+	if ($MFopt{writeStats} || @inputRawFQs > $prevRep || !-e $MGShtml ){
 		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
 		my $Rpath = getProgPaths("Rpath");
-		my $call = "$qcMakeHTMLReport $Rpath $baseOut/metagStats.txt $baseOut/metagStatsReport.html;\n";
-		print $call."\n";
-		my $QCRes = `$call`; chomp $QCRes;
+		my $call = "$qcMakeHTMLReport $Rpath $MGSfile $MGShtml;\n";
+		#print $call."\n";
+		#my $QCRes = `$call`; chomp $QCRes;
+		system $call;
 		#print $QCRes
-		print "Report file in $baseOut/metagStatsReport.html\n";
+		print "HTML Report in $MGShtml\n";
 	}
 	if (0 && $statStr5 ne ""){
 		open O,">$baseOut/metagStats_500.txt";
