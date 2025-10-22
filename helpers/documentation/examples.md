@@ -219,20 +219,20 @@ S4qiaS3	SRR8797712			hiSeq		I3		S4zm_R1177-S0001	0
 ```
 (note that this map shows a mix of assembl grps, of samples with and without support reads. Further note that the tag **#WARNING	OFF** has to be used, since in this test case samples are being reused - something that would normally trigger MF to stop the run.)
 
-#### 2. setup MF run
+#### 2. setup MG-TK run
 
-Setup your MF run like you would normally setup an assembly dependent metagenomic analysis (see examples above). However, these flags should be defined:
+Setup your MG-TK run like you would normally setup an assembly dependent metagenomic analysis (see examples above). However, these flags should be defined:
  - `-mapSupportReadsOntoAssembly 1`: setting this to `1` will lead to support reads (PB reads in this case) being mapped onto the assembly. A coverage profile is created that is then **separately** used from the illumina coverage profile in the binning step (which in our experience can significantly boost the recovery of MAGs).
  - `-mapper -1`: set the choice of mapper to the default (`-1`) which means that a mapper will be automatically selected. You could set this to e.g. **1** to do all mapping with bowtie2, or **3** to use minimap2 everywhere, but **-1** is the recommended choice as this will use bowtie2 for ill reads and minimap2 for PB reads.
  - `-assembleMG 5`: this flag is crucial and tells MF to conduct a hybrid assembly, using **megahit for illumina** and **metaMDBG for PB** reads.
  - `-inputReadLengthSuppl 8000`: not crucial, but good to have. Here we estimated that our support PacBio reads are on average 8000 bp long.
  
-Your example MF call could now look like:
+Your example MG-TK call could now look like:
  
 ```{sh}
 MAP=/path/to/map/PB_hybrid.map
 
-perl $MF3DIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -inputBAMregex '.*\.bam$' \
+perl $MGTKDIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQregex1 '(.*_R1_001\.fastq\.gz)|(.*[_\.]1\.f[^\.]*q\.gz)$' -inputFQregex2 '(.*_R2_001\.fastq\.gz)|(.*[_\.]2\.f[^\.]*q\.gz)$' -inputBAMregex '.*\.bam$' \
 -assembleMG 5 -spadesCores 12 -spadesKmers "25,43,67,87,111,127" -spadesMemory 200 -MetaBat2 2 \
 -mapper -1 -mapSupportReadsOntoAssembly 1 \
 -filterHostKrak2DB /path/to/kraken2/hsap/ -filterHostRds 1 \
@@ -241,12 +241,11 @@ perl $MF3DIR/MG-TK.pl -map $MAP -inputFQregexSingle '.*\.fastq\.gz' -inputFQrege
 -from 0 -to 1
 ```
 
-#### 3. running MF in hybrid mode
+#### 3. running MG-TK in hybrid mode
 
-We opted for a bit of a complicated processing of hybrid assemblies, that in the end allows for both usage of existing paths in MF as well as supporting more complicated (assemblyGrps) sample setup.
-What this means for you as the user is simply that you need to run the above MF command several times. In the first iteration this will trigger the megahit illumina-assembly, in the second iteration remaining samples in assemblyGrp are mapped onto this illumina-assembly, in the third iteration the hybrid assembly with metaMDBG is started, fourth iteration will map remaining samples in assemblyGrp onto hybrid-assembly, fifth iteration will then finally starting consensus SNP calling and binning. Remember to wait between iterations until all current jobs have finished (though sample locks should normally prevent double submissions).
+We opted for a bit of a complicated processing of hybrid assemblies, that in the end allows for both usage of existing paths in MG-TK as well as supporting more complicated (assemblyGrps) sample setup.
+What this means for you as the user is simply that you need to run the above MG-TK command several times. In the first iteration this will trigger the megahit illumina-assembly, in the second iteration remaining samples in assemblyGrp are mapped onto this illumina-assembly, in the third iteration the hybrid assembly with metaMDBG is started, fourth iteration will map remaining samples in assemblyGrp onto hybrid-assembly, fifth iteration will then finally starting consensus SNP calling and binning. Remember to wait between iterations until all current jobs have finished (though sample locks should normally prevent double submissions).
 
 _tldr; this mode requires several iterations to complete_ 
-
 
 
