@@ -43,7 +43,7 @@ Further, you can add the following specifics for each single sample:
 - **#GlobalTmpDir**	[Path] temporary dir (scratch) accessible from all compute nodes, overrides **globalTmpDir** definition in config file
 - **#mocatFiltPath**	If for some reason you are forced to use mocat filtered fastqs and not the original, unfiltered files (strongly recommended), than you can indicate in which subdir these mocat files can be found
 - **#RelaxSMPLID**	[TRUE/FALSE] 	Use FALSE to deactivate basic checks if the #SmplID adheres to MG-TK formats. Caution: use on your own risk!
-- **#WARNING**	[OFF/ON]	If **OFF** MF won't stop when an error is encountered in the map. Caution: use on your own risk!
+- **#WARNING**	[OFF/ON]	If **OFF** MG-TK won't stop when an error is encountered in the map. Caution: use on your own risk!
 
 After this follow the sample IDs and the relative path, where to find the input fastqs.  
 See _examples/example_map_assemblies.map_ for a very complicated mapping file with several source dirs.
