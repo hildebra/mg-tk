@@ -412,8 +412,8 @@ sub getSpecificDBpaths($ $){
 	else {die"Unknown DB for func assignments: $curDB\n";}
 
 	#basic file checks
-	unless (-d $DBpath){die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid DBpath: $DBpath\n";
-	unless (-e "$DBpath/$refDB"){die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid file: $DBpath/$refDB\n";
+	unless (-d $DBpath) {die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid DBpath: $DBpath\n";}
+	unless (-e "$DBpath/$refDB") {die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid file: $DBpath/$refDB\n";}
 	
 	if ($checkDBpreped){
 		die "getSpecificDBpaths:: Can't find prepared diamond database at:\n$DBpath$refDB.db.dmnd" unless (-e "$DBpath$refDB.db.dmnd");
@@ -480,7 +480,6 @@ sub sortgzblast{ #function that checks if the diamond output was already sorted 
 	die "Something went wrong in sortgzblast 2\n" if (!-e $input);
 	return $input;
 }
-
 
 
 
