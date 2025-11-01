@@ -123,7 +123,8 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-redoAssmblConsSNP [0|1]		1: redo getAssemblConsSNP (Default: 0)
 	-redoGeneExtrSNP [0\1]			1: redo gene extractions from consensus SNP contig (Default: 0)
 	-SNPjobSsplit [#]				#: split consensus SNP jib further (Default: 1)
-	-SNPsaveVCF [0|1]				1: save SNPs to VCF file (Default: 0)
+	-SNPsaveVCF [0|1]				1: save SNPs to VCF file (Default: 1)
+	-SNPsaveConsFasta [0|1]			1: save consensus fasta based on SNP calls (Default: 0)
 	-SNPcaller [MPI|FB]				"MPI" mpileup or ".FB" for freebayes (Default: MPI)
 	-SNPcores [#]				number of cores ‘#’ used for SNP calling
 	-SNPmem [#]				Memory allocated for consensus SNP calling process in Gb (Default: 23)
