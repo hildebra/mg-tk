@@ -820,9 +820,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#die "$assemblyBuildIndexFlag  $MFopt{DoAssembly}  && !$assemblyFlag  && $MFopt{map2Assembly} && ($mapAssFlag || $mapSuppAssFlag ) \n". mapperDBbuilt($finAssLoc,$MFopt{MapperProg})  ."\n";
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
-	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} 
-				&& ( ($MFopt{saveConsFastas} && ! fileGZe($genePredSNP)  )
-				|| ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
+	my $calcConsSNP=0; 
+	if ($MFopt{DoConsSNP}){
+		if (-e $vcfSNP && !-s $vcfSNP){system "rm -f $vcfSNP";} #some old versions produced an empty vcf file..
+		my $calcConsSNP=0; $calcConsSNP =1 if ( ($MFopt{saveConsFastas} && ! fileGZe($genePredSNP)  )
+				|| ($MFopt{saveVCF} && ! fileGZe($vcfSNP) ));
+	}
 				
 				
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
