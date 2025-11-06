@@ -60,4 +60,16 @@ You can also delete **all** jobs where the dependency failed, saving you a lot o
 
 **Solution:** This can be resolved stepwise. First, make sure the environment where the problem occurs is created with the right name in micromamba. Then install packages (or dependencies) that have issues manually with micromamba. Try conda_forge first, then bioconda for the -c parameter. Restart the installer and note down any further issues. When a problem occurs with a package that is already installed, it can help to remove it and then reinstall it manually. If manual installation does not resolve conflicts, remove version numbers from the yml file of problematic packages and start this process again. It is important to note this somehow, in order to troubleshoot later on if any incompatible version of a package was installed this way.
 
+#### I want to get MAGs of a specific MGS?
+
+**Problem:** I want to extract all MAGs from an MG-TK output that are of a particular MGS (metagenomic species). 
+
+**Solution:** We have an accociated repository named [MAGRec-TK](https://github.com/huminfo8/magrec-tk/tree/main) which you can install and run on the MG-TK output. 
+
+#### Unrecognised CONDcmd (or other similar error during installation)
+
+**Problem:** On startup there are errors, originating in the MG-TK config file (for example, CONDcmd not recognised). 
+
+**Solution:** MG-TK map and config files are very strictly tab delimited. The whitespace delimiting fields (in the mapping file, or the MG-TK config file) must be a tab, any other kind of whitespace character will cause an error. In vim you can view whitespace using the command `:set list`, and tab appears as "^I". 
+
 </details>
