@@ -1,5 +1,7 @@
 library(rmarkdown)
 
+options(warn=-1)
+
 # Usage:
 # Rscript QC_make_html.R <Rscripts directory> <metagStats.txt filepath> <output filepath>
 

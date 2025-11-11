@@ -1529,7 +1529,7 @@ sub postprocess{
 	if ($MFopt{writeStats} || @inputRawFQs > $prevRep || !-e $MGShtml ){
 		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
 		my $Rpath = getProgPaths("Rpath");
-		my $call = "$qcMakeHTMLReport $Rpath $MGSfile $MGShtml;\n";
+		my $call = "$qcMakeHTMLReport $Rpath $MGSfile $MGShtml 1> /dev/null 2>&1;\n";
 		#print $call."\n";
 		#my $QCRes = `$call`; chomp $QCRes;
 		system $call;
