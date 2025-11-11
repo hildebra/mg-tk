@@ -409,11 +409,15 @@ sub getSpecificDBpaths($ $){
 	elsif ($curDB eq "PTV"){$DBpath = getProgPaths("PATRIC_VIR_path_DB"); $refDB = "PATRIC_VF.faa";$shrtDB = $curDB; }
 	elsif ($curDB eq "PAB"){$DBpath = getProgPaths("ABprod_path_DB"); $refDB = "dedup_best_prod_predictions.faa";$shrtDB = $curDB; }
 	elsif ($curDB eq "VDB"){$DBpath = getProgPaths("VirDB_path_DB"); $refDB = "VFDB_setB_pro.fas";$shrtDB = $curDB; }
-	else {die"Unknown DB for Diamond: $curDB\n";}
+	else {die"Unknown DB for func assignments: $curDB\n";}
 
+	#basic file checks
+	unless (-d $DBpath) {die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid DBpath: $DBpath\n";}
+	unless (-e "$DBpath/$refDB") {die "getSpecificDBpaths:: Specified DB ($curDB) did not have valid file: $DBpath/$refDB\n";}
+	
 	if ($checkDBpreped){
-		die "Can't find prepared diamond database at:\n$DBpath$refDB.db.dmnd" unless (-e "$DBpath$refDB.db.dmnd");
-		die "Can't find length file at:\n$DBpath$refDB.length" unless (-e "$DBpath$refDB.length");
+		die "getSpecificDBpaths:: Can't find prepared diamond database at:\n$DBpath$refDB.db.dmnd" unless (-e "$DBpath$refDB.db.dmnd");
+		die "getSpecificDBpaths:: Can't find length file at:\n$DBpath$refDB.length" unless (-e "$DBpath$refDB.length");
 	}
 	return ($DBpath ,$refDB ,$shrtDB );
 }
@@ -476,7 +480,6 @@ sub sortgzblast{ #function that checks if the diamond output was already sorted 
 	die "Something went wrong in sortgzblast 2\n" if (!-e $input);
 	return $input;
 }
-
 
 
 

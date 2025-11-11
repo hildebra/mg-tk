@@ -19,3 +19,4 @@ dependencies:
   - r-ggplot2>=3.5
   - r-devtools>=2.4.5
   - r-getopt>=1.20
+  - conda-forge::r-cowplot>=1.2.0

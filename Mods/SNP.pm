@@ -434,7 +434,7 @@ sub SNPconsensus_vcf{
 	#from here on: merge XX vcf's into one
 	my $sortCmd = "";
 	my $vcfSuff=""; #indicates some extra step in merging .. not needed any longer
-	if ($myParL ){
+	if ($myParL && $cmdAll ne ""){
 		#this string simply sorts all output files in correct numerical order.. doesn't touch file contents!
 		my $sortedFileList = " | awk -F '.' '{print \$(NF-1),\$0}'  | sort -n -k1 | cut -f2 -d' '";
 		#DEBUG
@@ -459,7 +459,7 @@ sub SNPconsensus_vcf{
 			#$postcmd .= "\necho \"Merge short- and long-read SNP calls\"\n";
 			#$postcmd .= "$bcftBin concat -a --threads $samcores -O b -o $vcfFile$vcfSuff $vcfFile $vcfFileS;\n\n";				
 		}
-		$sortCmd .= "echo \"creating consensus SNP call\"\n";
+		#$sortCmd .= "echo \"creating consensus SNP call\"\n";
 		#$postcmd .= "$bcftBin view -H $vcfFile$vcfSuff | $vcfcnsScr $ofasCons.depStat $minDepth $minCallQual | $pigzBin -p $samcores -c >$ofasCons.gz ;\n\n"; #$refFA.fai
 		
 		
@@ -472,21 +472,27 @@ sub SNPconsensus_vcf{
 	my $postcmd = "";
 	if (-s $vcfFile && ($SNPsuppStone eq "" || -s $vcfFileS) ){$cmdAll="";}
 	my $vcf2fnaOpt = "";
+	if (!$SNPIHR->{createFastas}){
+		$vcf2fnaBin = "##".$vcf2fnaBin;
+		$postcmd.="\n##In case you want to create consensus fastas, use:\n";
+	} else {
+		$postcmd.="\n# Create consensus fastas\n";
+	}
 	if ($SNPsuppStone eq "" ){#variant for 1 vcf
 		my $tmpST = $SNPIHR->{SeqTech}; if ($tmpST eq ""){$tmpST = "ill";}
 		$vcf2fnaOpt = "-seqPlatform $tmpST -t 1 -minCallDepth $minDepth -minCallQual $minCallQual ";
-		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile -depthF $depthFile -oCtg $ofasCons.gz ";
+		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile -depthF $depthFile -oCtg $ofasCons.gz ";# if ($SNPIHR->{createFastas});
 	} else {#and for two vcfs..
 		$vcf2fnaOpt = "-seqPlatform $SNPIHR->{SeqTech},$SNPIHR->{SeqTechSuppl} -t 1 -minCallDepth $minDepth,$minDepth -minCallQual $minCallQual ";
-		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS -oCtg $ofasCons.gz ";
+		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS -oCtg $ofasCons.gz ";# if ($SNPIHR->{createFastas}); -> handled before..
 
 	}
 	if (exists($SNPIHR->{gffFile}) && !-e $SNPIHR->{genefna}){
 		$postcmd .= "-gff $SNPIHR->{gffFile} -oGeneNT $SNPIHR->{genefna} -oGeneAA $SNPIHR->{genefaa} ";
 	}
 	$postcmd .= ";\n";
-	$postcmd .= "rm -f $vcfFile$vcfSuff $vcfFileS.csi $vcfFile.csi;\n" if ($vcfSuff ne "");
-	$postcmd .= "rm  -f $vcfFileS $vcfFile;\n" if (!$saveVCF );
+	$postcmd .= "rm -f $vcfFile$vcfSuff $vcfFileS.csi $vcfFile.csi;\n" if ($vcfSuff ne ""); #functionality no longer used..
+	$postcmd .= "rm  -f $vcfFileS $vcfFile;\n" if (!$saveVCF && $SNPIHR->{createFastas});
 	#} else {
 	#	if ($SNPsuppStone ne "" ){die "support reads activated. combined SNP calling only works current with use of the \"-SNPsaveVCF 1\" MG-TK option. Aborting\n";}
 		#$postcmd .= "#DEBUG\ncp $tmpOut.lz4 $ofasConsDir\n\n";

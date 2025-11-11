@@ -7,7 +7,7 @@ use strict;
 
 use Getopt::Long qw( GetOptions );
 
-use Mods::GenoMetaAss qw(fileGZe fileGZs readClstrRev systemW median mean readMapS readFasta getAssemblPath);
+use Mods::GenoMetaAss qw(fileGZe fileGZs readClstrRev systemW median mean readMapS readFasta getAssemblPath getAssemblGFF getAssemblContigs checkSeqTech);
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystem2 qsubSystemJobAlive qsubSystemWaitMaxJobs);
 use Mods::IO_Tamoc_progs qw(getProgPaths );
 use Mods::TamocFunc qw(readTabbed getFileStr checkMF);
@@ -31,14 +31,16 @@ die "Not enough args!\n" unless (@ARGV > 1);
 #v0.20: 22.11.24: fixed bug with v0.19 no longer accepting assmblGrps. code refactor that makes it a lot easier to understand
 #v0.21: 2.1.25: v0.20 fix, to only select single gene instead of COG; further changed how genes are selected, to reomve potentially conspecific MGS per sample (instead of removing entire gene)
 #v0.22: added per sample (not assmblGrp) MGS filtering based on multigenes
-#v.023: removed MGS conspecific filter: was too harsh and didn't make sense to have a global filter: MGS are conspecific in a single sample, not all samples..
-my $version = 0.23;
+#v.23: removed MGS conspecific filter: was too harsh and didn't make sense to have a global filter: MGS are conspecific in a single sample, not all samples..
+#.24: 31.10.25: on-the-fly creation of SNP consensus fastas, if correct vcf present
+my $version = 0.24;
 
 #input args..
 my $GCd = "";#$ARGV[0];
 my $MGSfile = "";#$ARGV[1];
 my $numCores = 4;#$ARGV[2];
 my $outDpre = "";
+my $locTmpDir = "";
 my $maxCores = -1;
 my $onlySubmit =0;#extract genes anew?
 my $reSubmit=0;
@@ -59,6 +61,13 @@ my $rmMSA = 1; #argument passed to buildTree5.pl
 my $contTests = ""; my $discTests = ""; #stat tests to be given to strain_within_2.2.pl
 my $familyVar = ""; my $groupStabilityVars = "";
 
+#SNP calling
+my $minSNPDepth = 0;
+my $minSNPCallQual = 20;
+my $forceVCF2FNA = 0; #force the recalc of cons fasta from vcf..
+my $SNPconsLOGs = ""; #logs for recalculating cons SNPs
+
+
 my $takeAll = 0;
 my $conspecificSpThr = 0.1; #higher fraction of genes being two copies in the same sample (abundance >0), and the whole MGS is removed from that sample
 my $multiCpyThr = 0.2; #kick out specific genes if too many copies / genome: should be relatively high (0.2+) as there are less intrusive mechanisms for removing such genes..
@@ -68,9 +77,22 @@ my $mode = "MGS";
 my $appendWriteTrigger = 80; #every Xth samples, genes are written (to manage memory)
 my $startSubFromMGS = ""; #debug option: only start resubmitting tree building from this MGS (e.g. "MGS.1382" )
 #define local files..
-my $lSNPdir="SNP"; 
+my $lSNPdir="SNP"; my $lMAPdir = "mapping";
 my $lConsFNA = "genes.shrtHD.SNPc.MPI.fna.gz";
+my $lConsCTG = "contig.SNPc.MPI.fna.gz";
 my $lConsFAA = "proteins.shrtHD.SNPc.MPI.faa.gz";
+my $SNPcaller = "MPI";
+my $lConsVCF = "allSNP.${SNPcaller}.vcf.gz";
+my $lConsVCFsup = "allSNP.${SNPcaller}-sup.vcf.gz";
+
+
+#set up some base paths specific to pipeline..
+my $FNAstdof = "allFNAs.fna"; my $FAAstdof = "allFAAs.faa";
+my $LINKstdof = "link2GC.txt"; my $CATstdof = "all.cat";
+my $abundF="/assemblies/metag/ContigStats/Coverage.pergene.gz";
+my $bamDepthFsuffix = "-smd.bam.coverage.gz";
+my $bamDepthFsuffixSup = ".sup-smd.bam.coverage.gz";
+
 
 checkMF();
 #$treeFile = $ARGV[3] if (@ARGV > 3);$onlySubmit = $ARGV[4] if (@ARGV > 4);
@@ -81,6 +103,7 @@ GetOptions(
 	"GCd=s"          => \$GCd,
 	"outD=s"         => \$outDpre,
 	"MGS=s"          => \$MGSfile,
+	"tmpD=s"          => \$locTmpDir,
 	"submit=i"       => \$doSubmit,
 	"onlySubmit=i"   => \$onlySubmit, #submit only jobs, or also recreate input fna/faa files? (can take days)
 	"reSubmit=i"     => \$reSubmit, #for all MGS: resubmit tree phylo building
@@ -104,7 +127,14 @@ GetOptions(
 	"familyVar=s"      => \$familyVar, #column name in metadata containing family id
 	"groupStabilityVars=s"      => \$groupStabilityVars, #column names of categories used for calculation of resilience and persistence
 	"treeSubFromMGS=s" => \$startSubFromMGS, #debug option..
+	
+	#SNP calling
+	"minSNPDepth=i"  => \$minSNPDepth,
+	"minSNPCallQual=i"  => \$minSNPCallQual,
+	"forceSNPcalls=i"  => \$forceVCF2FNA,
+
 );
+
 
 
 my $subsSmpl = -1;
@@ -127,6 +157,14 @@ $bindir =~ s/[^\/]+$//;
 my $outD =  $bindir;#"$GCd/$mode/intra_phylo/";
 $outD .= "/intra_phylo/";
 $outD = $outDpre if ($outDpre ne "");
+$SNPconsLOGs = "$outD/SNPconsCalls.log" if ($SNPconsLOGs eq "");
+if ($locTmpDir eq ""){
+	my $locTmpN = getProgPaths("nodeTmpDir",0) ;
+	if ($locTmpN eq ""){$locTmpDir =  "$outD/tmpStrains/" ; 
+	} else {$locTmpDir =  "$locTmpN/tmpStrains/" ; 
+	}
+	system "mkdir -p $locTmpDir";
+}
 
 print "\n!! WARNING !!: RESUBMISSION mode selected (will resubmit MSA + phylos even for already completed MGS) !!\n" if ($reSubmit);
 print "\n!! WARNING !!: REDOSUBMISSIONDATA mode selected (will redo and resubmit MSA + phylos even for already completed MGS) !!\n" if ($redoSubmissionData);
@@ -140,7 +178,7 @@ print "GC dir: $GCd\nIn Cluster: $MGSfile\nCores: $numCores (max: ${maxCores})\n
 print "MAP: $mapF\n";
 #print "Ref tree: $treeFile\n";
 print "Using tree $treeFile to create automatically outgroups\n" if ($treeFile ne "");
-print "Outdir: $outD\n";
+print "Outdir: $outD\nTmpDir: $locTmpDir\n";
 print "MGs: $useGTDBmg\n";
 print "Using $presortGenes genes from each MGS for location\n";
 print "Deep repariing remaining submission files\n" if ($deepRepair);
@@ -176,12 +214,6 @@ system "mkdir -p $outD" unless (-d $outD);
 system "mkdir -p $outD/stones/" unless (-d "$outD/stones/");
 my $inputChk = "$outD/stones/0.fileChk.sto";
 
-#set up some base paths specific to pipeline..
-my $FNAstdof = "allFNAs.fna"; my $FAAstdof = "allFAAs.faa";
-my $LINKstdof = "link2GC.txt"; my $CATstdof = "all.cat";
-my $fnaSNPf = "/SNP/genes.shrtHD.SNPc.MPI.fna.gz";
-my $aaSNPf = "/SNP/proteins.shrtHD.SNPc.MPI.faa.gz";
-my $abundF="/assemblies/metag/ContigStats/Coverage.pergene.gz";
 
 #my $xtraGuids = 
 
@@ -222,9 +254,13 @@ foreach my $smpl (@samples){ # just check that files are there..
 	#my $tarF = $cD."/SNP/genes.shrtHD.SNPc.MPI.fna.gz";
 	my $tarF = $cD."/$lSNPdir/$lConsFNA";
 	my $tarF2 = $cD."/$lSNPdir/$lConsFAA";
-	if (!-e $tarF || !-e $tarF2){
-		print "Can't find SNP  file: $cD\n" ;
-		$fileAbsent = 1;
+	my $tarVCF = $cD."/$lSNPdir/$lConsVCF";
+	if (! fileGZe($tarVCF) || (-e $tarF && -e $tarF2 ) ){
+		print "Can't find SNP  file: $cD\n" ;$fileAbsent = 1;
+		#die "$tarVCF\n";
+	}
+	if ($forceVCF2FNA && ! fileGZe($tarVCF)){
+		die "Option -forceSNPcalls 1 used, but missing vcf $tarVCF\n";
 	}
 }
 unless (-e "$inputChk"){
@@ -744,6 +780,10 @@ my $nxtCmd = "$strain2Scr -GCd $GCd -FMGdir $outD -MGSmatrix $MGSabundance -map 
 	my ($dep,$qcmd) = qsubSystem($outD."strainAnalysis2.sh",$nxtCmd,1,"60G","2StrainSub","","",1,[],$QSBoptHR);
 print "\n". $nxtCmd."\n";
 
+
+#cleanup
+system "rm -rf $locTmpDir";
+
 exit(0);
 
  
@@ -883,7 +923,50 @@ sub extractFNAFAA2genes{
 	return;
 }
 
+sub createConsFastas{
+	my ($cD,$sm, $vcfFile,$oFNA, $oFAA,$append2LOG,$returnCmd) = @_;
+	my $vcf2fnaBin = getProgPaths("vcf2fna");
+	my $vcf2fnaOpt = "";
+	#my $seqPlatf = "hiSeq"; #-> get this from .map ..
+	my $refFA = getAssemblContigs($cD); my $refGFF = getAssemblGFF($cD);
+	my $depthFile = "$cD$lMAPdir/$sm$bamDepthFsuffix";
+	my $ofasCons = "$cD/$lSNPdir/$lConsCTG";
+	
+	my $secSeqTechS = "";#secondary reads..
+	if (  $map{$sm}{"SupportReads"} =~ m/PB:/){$secSeqTechS = "PB" ;
+	} elsif (  $map{$sm}{"SupportReads"} =~ m/ONT:/) {$secSeqTechS = "ONT" ;}
+	my $seqPlatf =$map{$sm}{SeqTech}; #primary reads
 
+	my $cmd ="";
+	if ($secSeqTechS eq ""){
+		#in case of only illumina:
+		if ($seqPlatf eq ""){$seqPlatf = "hiSeq";} #if empty, assume hiSeq
+		#checkSeqTech($seqPlatf);
+		$vcf2fnaOpt = "-seqPlatform $seqPlatf -t 1 -minCallDepth $minSNPDepth -minCallQual $minSNPCallQual ";
+		$cmd = "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile -depthF $depthFile  -oCtg /dev/null " ;
+	} else {
+		#die;
+		#in case of both PacBio and illumina:
+		#$vcf2fnaOpt = "-seqPlatform $SNPIHR->{SeqTech},$SNPIHR->{SeqTechSuppl} -t 1 -minCallDepth $minDepth,$minDepth -minCallQual $minCallQual ";
+		#$cmd = "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS ";# -oCtg $ofasCons.gz " ;
+		my $vcfFileS = "$cD/$lSNPdir/$lConsVCFsup";
+		my $depthFileS = "$cD$lMAPdir/$sm$bamDepthFsuffixSup";
+		$vcf2fnaOpt = "-seqPlatform $seqPlatf,$secSeqTechS -t 1 -minCallDepth $minSNPDepth -minCallQual $minSNPCallQual ";
+		$cmd = "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS  -oCtg /dev/null " ;
+	}
+
+	$cmd .= "-gff $refGFF -oGeneNT $oFNA -oGeneAA $oFAA";
+	if ($append2LOG){$cmd.=" >> $SNPconsLOGs\n";
+	} else {$cmd .= "\n";}
+	if ($returnCmd){ #don't excecute
+		return $cmd;
+	}
+	
+	#local excecution.. probably takes forever..
+	#die "$cmd\n";
+	system $cmd;
+
+}
 
 sub readGenesSample_Singl{
 	#go into curSpl dir and extract all marked gene reps.. 
@@ -929,9 +1012,12 @@ sub readGenesSample_Singl{
 		@subSds = @{$AGlist{$cAssGrp}};
 	}
 	
+	print "$map{$sm}{SeqTech}\t2:$map{$sd2}{SeqTech}\t3:$map{$subSds[0]}{SeqTech}\n";
+	
 	#print "YY @subSds : $sd2 $sd\n";#die;
 	#go into each sample ($sd3) from assembly group ($sd), that an assembly might be associated to (across multiple assemblies in assmblGrp)
 	foreach my $sd3 (@subSds){
+		my $locSpace = "$locTmpDir/$sd3.cons/"; system "mkdir -p $locSpace";
 		my %locFAA; my %locFNA;my%locCSP;
 		my %locMGSgenes; #keep track of genes written for each MGS..
 		my $cD = $map{$sd3}{wrdir}."/";
@@ -943,18 +1029,29 @@ sub readGenesSample_Singl{
 		if ($metaGD eq ""){die "assembly not available: $cD $sd3";}
 		#get NT's
 		#my $tar = $metaGD."genePred/genes.shrtHD.fna";
-		my $fastaf = $cD.$fnaSNPf;
+		my $fastaf = "$cD/$lSNPdir/$lConsFNA";
+		my $fastafAA = "$cD/$lSNPdir/$lConsFAA";
+		my $fastafVCF = "$cD/$lSNPdir/$lConsVCF";
+		
+		#need to recreate fna/faa on the fly?? -> or does user want this?
+		if ( $forceVCF2FNA  || (! fileGZe( $fastaf ) && fileGZe($fastafVCF))){
+			print "Recreating consensus fasta files on the fly..\n";
+			#store these in scratch, uncompressed (much faster)
+			$fastaf = "$locSpace/$sd3.cons.genes.fna";
+			$fastafAA = "$locSpace/$sd3.cons.prots.faa";
+			createConsFastas($cD, $sd3, $fastafVCF, $fastaf, $fastafAA, 1, 0);
+		}
 		#print "$fastaf\n";
 		unless (-e $fastaf){
 			print "\n=====================================\nCan't find nt file $fastaf\n=====================================\n";
+			#die;
 			next;
 		}
 		print "$fastaf\n";
 		#read the assemble nt and AA genes from the sample
 		my $FNA = readFasta($fastaf,1,"\\s");#,\%subG);
 		#my %FNA = %{$hr};
-		$fastaf = $cD.$aaSNPf;
-		my $FAA2 = readFasta($fastaf,0);#,"\\s",\%subG);#read full head string
+		my $FAA2 = readFasta($fastafAA,0);#,"\\s",\%subG);#read full head string
 		my $FAA = {};
 		my $abunHR = readTabbed($cD.$abundF);
 
@@ -1182,6 +1279,8 @@ sub readGenesSample_Singl{
 			$OAstrHR->{$SI} .= $OAstr;$OFstrHR->{$SI} .= $OFstr;$OLstrHR->{$SI} .= $OLstr;$OCstrHR->{$SI} .= $OCstr;
 			$SInum ++ if ($locCnt>0);
 			$foundGene+=$locCnt;
+			#clenup tmp
+			system "rm -rf $locSpace";
 		}
 		my @genesPmgs = values %locMGSgenes; 	@genesPmgs = sort { $a <=> $b}  @genesPmgs;
 		histoMGS(\@genesPmgs,"Detected Bin Genes:");

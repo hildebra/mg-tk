@@ -122,7 +122,8 @@ sub createConsSNPandSVs;
 #.66: 15.5.25: completely new way of creating consensus SNPs contgis/genes via vcf2fasta
 #.67: 16.5.25: integrated multi-map reading for MG-TK
 #.68: 28.6.25: -upload2EBI adapted to also include xtra reads.. streamlined functions that deal with host removal
-my $MATFILER_ver = 0.68;
+#.69: 1.11.25: cons fasta from SNP calls no longer by default stored, will be calculated on the fly in strain_within.pl
+my $MATFILER_ver = 0.69;
 
 
 #operation mode?
@@ -278,7 +279,7 @@ my $globalLogDir;my $collectFinished; #two dirs that can change dependent on dif
 my $baseoutPrev = "";
 
 
-my $presentAssemblies = 0; my $totalChecked=0;
+my $presentAssemblies = 0; my $totalCheckedSamples=0;
 my @samples = @{$map{opt}{smpl_order}}; my @allSmplNames;
 my @allFilter1; my @allFilter2; my @inputRawFQs; 
 my @EmptySample;
@@ -407,7 +408,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	%locStats = ();
 	$locStats{hasPaired} = 0;	$locStats{hasSingle} = 0; 
 
-	$totalChecked++;
+	$totalCheckedSamples++;
 	
 	print "\n======= $SmplName - $JNUM - $dir2rd =======\n" unless($MFconfig{silent});
 	
@@ -426,7 +427,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $finalCommAssDir = "$curOutDir/assemblies/metag/";
 	my $finalCommAssDirSingle = $finalCommAssDir; #this is only used for checking..
 	my $finalMapDir = "$curOutDir/mapping/";
-	my $KrakenOD = $curOutDir."Tax/kraken/$MFopt{globalKraTaxkDB}/";
 	
 	
 	$AsGrps{$cAssGrp}{AssemblSmplDirs} .= $curOutDir."\n";
@@ -494,7 +494,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $nonParDir = $curOutDir."nonpareil/";
 	#SNP calling on assembly related files
 	my $SNPdir = "$curOutDir/SNP/";
-	my $contigsSNP = "$SNPdir/contig.SNPc.$MFopt{SNPcallerFlag}.fna"; #keep without gz, although will be gz'd
+	my $contigsSNP = "$SNPdir/contig.SNPc.$MFopt{SNPcallerFlag}.fna"; #flag $MFopt{saveConsFastas} controls this.. #keep without gz, although will be gz'd
 	my $genePredSNP = "$SNPdir/genes.shrtHD.SNPc.$MFopt{SNPcallerFlag}.fna.gz";
 	my $genePredAASNP = "$SNPdir/proteins.shrtHD.SNPc.$MFopt{SNPcallerFlag}.faa.gz";
 	my $vcfSNP = "$SNPdir/allSNP.$MFopt{SNPcallerFlag}.vcf";	$vcfSNP = "" if (!$MFopt{saveVCF});
@@ -688,7 +688,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system("rm -rf $finalCommAssDir/ContigStats/ $ContigStatsDir $binningDir/");
 		$eCovAsssembly = 0; $eSuppCovAsssembly=0; #contigstats needs redoing..
 	}
-	system "rm -r $KrakenOD" if ($MFopt{RedoKraken} && -d $KrakenOD);
+	my $KrakenOD = $curOutDir."Tax/kraken/$MFopt{globalKraTaxkDB}/";
+	if ($MFopt{RedoKraken} && -d $KrakenOD) {system "rm -r $KrakenOD" ;}
 	if ($MFopt{RedoRiboFind}){system "rm -rf $curOutDir/ribos";}
 	if ($MFopt{RedoRiboAssign}){system "rm -rf $curOutDir/ribos//ltsLCA";}
 	if ($MFopt{DoRibofind} && -e "$curOutDir/LOGandSUB/RiboLCA.sh.etxt"){
@@ -766,32 +767,17 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	$calcContamination = 1 if ($locStats{contamination} eq "?\t" && $efinAssLoc && $MFopt{completeContaStats});
 	#print "Conta: $calcContamination   \"$locStats{contamination}\"\n";
 
-	#Kraken flag
-	my $calcKraken =0;
-	$calcKraken = 1 if ($MFopt{DoKraken} && (!-d $KrakenOD || !-e "$KrakenOD/krakDone.sto"));
-	if (!$calcKraken && $MFopt{DoKraken}){
-		my $dir_KrakFind = $baseOut."pseudoGC/Phylo/KrakenTax/$MFopt{globalKraTaxkDB}/"; #kraken dir
-		opendir D, $KrakenOD; my @krkF = grep {/krak\./} readdir(D); closedir D;
-		foreach my $kf (@krkF){
-			$kf =~ m/krak\.(.*)\.cnt\.tax/; my $thr = $1;# die $thr."  $kf\n";
-			system "mkdir -p $dir_KrakFind/$thr" unless (-d "$dir_KrakFind/$thr"); 
-			system "cp $KrakenOD/$kf $dir_KrakFind/$thr/$SmplName.$thr.krak.txt";
-		}
-	} else {$progStats{KrakTaxFailCnts}++;}
-	
-	#system "rm -f $curOutDir/ribos//ltsLCA/LSU_ass.sto $curOutDir/ribos//ltsLCA/Assigned.sto"; fix for new LSU assignments
-
 	
 	#die "XX $calcDiamond $calcDiaParse\n";
 	
-	my ($calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
+	my ($calcKraken,$calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
 			$calcMetaPhlan, $calcMOTU2,$calcTaxaTar) = checkRawProgsFin($curOutDir,$SmplName);
 
 
 
 	my $allMapDone =0;#used for SNP calling and Binning - but binning requires info if all maps are finished from all samples
-	$allMapDone = 1 if (-e "$finalMapDir/$SmplName-smd.$bamcramMap" && $eCovAsssembly && !$ePreAssmbly && ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ );
-	
+	$allMapDone = 1 if (-e "$finalMapDir/$SmplName-smd.$bamcramMap" && $eCovAsssembly &&  ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ );
+	#die "$allMapDone\n-e $finalMapDir/$SmplName-smd.$bamcramMap && $eCovAsssembly && !$ePreAssmbly && ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/\n";
 	
 	my $calcBinning = 0;
 	if ($MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e "$BinningOut.cm" && !-s "$BinningOut.cm2") ) {
@@ -834,14 +820,27 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#die "$assemblyBuildIndexFlag  $MFopt{DoAssembly}  && !$assemblyFlag  && $MFopt{map2Assembly} && ($mapAssFlag || $mapSuppAssFlag ) \n". mapperDBbuilt($finAssLoc,$MFopt{MapperProg})  ."\n";
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
-	my $calcConsSNP=0; $calcConsSNP =1 if ($MFopt{DoConsSNP} && (!-e  $genePredSNP || -s $genePredSNP < 100 || ($MFopt{saveVCF} && ! fileGZe($vcfSNP) )));
+	my $calcConsSNP=0; 
+	if ($MFopt{DoConsSNP}){
+		if (-e $vcfSNP && !-s $vcfSNP){system "rm -f $vcfSNP";} #some old versions produced an empty vcf file..
+		my $calcConsSNP=0; $calcConsSNP =1 if ( ($MFopt{saveConsFastas} && ! fileGZe($genePredSNP)  )
+				|| ($MFopt{saveVCF} && ! fileGZe($vcfSNP) ));
+	}
+				
+				
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
 	#structural variants calcs
 	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{callSVs} && !-e $vcfSV );
 	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ($locMapSup2Assembly && $MFopt{callSVsSupp} && !-e $vscSVsupp );
+	if (($calcConsSNP || $calcSVsSupp || $calcSVs || $calcSuppConsSNP) && $eFinMapCovGZ && !$allMapDone && !$mapAssFlag){
+		#die $mapAssFlag;
+		$mapAssFlag = 1; #reactivate mapping of assembly, to allow SNP consensus calling..
+		$eFinMapCovGZ = 0;
+	}
+
+
 	
-	#die "genePredSNP $genePredSNP\n";
 	my $calc2ndMapSNP = 0; $calc2ndMapSNP = 1 if ($MFopt{Do2ndMapSNP});
 	my $pseudAssFlag = 0; $pseudAssFlag = 1 if ($MFopt{pseudoAssembly} && $map{$curSmpl}{ExcludeAssem} eq "0" && (!-e $pseudoAssFileFinal.".sto" || !$boolGenePredOK));
 	my $dowstreamAnalysisFlag = 0; 
@@ -903,12 +902,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 				system "rm -rf $CRAMmap";
 			}
 		}
-		
-		
 		print "next due to sample finished";
 		MFnext($smplLockF,\@sampleDeps,$JNUM ,$QSBoptHR); 
 		loop2C_check($cAssGrp,\@sampleDeps);next;
-
 	}
 	
 
@@ -919,7 +915,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 
 
 
-	#die "$mapAssFlag\n";
 
 
 
@@ -1310,6 +1305,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 #		die;
 	}
 	
+#		die "$MappingGo && !$eFinMapCovGZ && $MFopt{map2Assembly} && ($MFopt{DoAssembly} || $mapAssFlag)";
+
+	
 	#moves finished assemblies & mappings, deletes temp dirs, logic for when to do that:
 	my $rmRdsFlag=0; $rmRdsFlag=1 if ($MappingGo && ( $AssemblyGo || $efinAssLoc) );
 	#die "$rmRdsFlag ($MappingGo && ( $AssemblyGo || $efinAssLoc) )\n";
@@ -1348,21 +1346,21 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	}
 
 	
-	#die "@{$AsGrps{$cAssGrp}{MapCopies}}\n";
-	
+	#die "AT CONS SNP\n$allMapDone\n";
 	if ( ($calcConsSNP || $calcSuppConsSNP || $calcSVs || $calcSVsSupp ) && $allMapDone){
 		#die "conssnp:: $calcConsSNP $allMapDone $finalMapDir\n";
 		#my $ofas = "$curOutDir/SNP/genePred/genes.shrtHD.SNPc.fna";
+	
 		my %SNPinfo = (gff => "$finalCommAssDir/genePred/genes.gff",
 						assembly => $metaGassembly,
 						mapD => "$finalMapDir",
 						SNPcaller => $MFopt{SNPcallerFlag},
+						createFastas => $MFopt{saveConsFastas},
 						ofas => $contigsSNP, #primary file of contigs
 						genefna => $genePredSNP,genefaa => $genePredAASNP,
-						vcfFile => $vcfSNP,vcfFileSupp => $vcfSNPsupp,gffFile => "$finalCommAssDir/genePred/genes.gff",
+						vcfFile => $vcfSNP,vcfFileSupp => $vcfSNPsupp, gffFile => "$finalCommAssDir/genePred/genes.gff",
 						nodeTmpD => $nodeSpTmpD,scratch => "$smplTmpDir/SNP/",
 						smpl => $SmplName,bamcram => $bamcramMap,minDepth => $MFopt{consSNPminDepth},
-						callSVs => $MFopt{callSVs}, vcfSVfile => $vcfSV, vcfSVfileS => $vscSVsupp, callSVsSupp => $MFopt{callSVsSupp},
 						depthF => $coveragePerCtg,firstInSample => 1, #($i == 0 ? 1 : 0)
 						bpSplit => 1e6,runLocal => 1,SeqTech => $map{$curSmpl}{SeqTech},SeqTechSuppl => "",
 						cmdFileTag => "ConsAssem",maxCores => $MFopt{maxSNPcores},memReq => $MFopt{memSNPcall},
@@ -1370,6 +1368,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 						overwrite => $MFopt{redoSNPcons},
 						STOconSNP => $STOsnpCons, STOconSNPsupp => "",
 						minCallQual => $MFopt{SNPminCallQual},
+						#struct vars
+						callSVs => $MFopt{callSVs}, vcfSVfile => $vcfSV, vcfSVfileS => $vscSVsupp, callSVsSupp => $MFopt{callSVsSupp},
 					);
 		if (  $map{$curSmpl}{"SupportReads"} =~ m/PB:/){$SNPinfo{SeqTechSuppl} = "PB" ;
 		} elsif (  $map{$curSmpl}{"SupportReads"} =~ m/ONT:/) {$SNPinfo{SeqTechSuppl} = "ONT" ;
@@ -1517,12 +1517,24 @@ sub postprocess{
 		}
 		close O;
 	}
+	my $MGSfile = "$baseOut/metagStats.txt";
+	my $MGShtml = "$baseOut/metagStatsReport.html";
+	my $prevRep=0; #how many samples reported on?
+	if (-e $MGSfile){$prevRep = `wc -l $MGSfile | cut -f1 -d' '`; chomp $prevRep; $prevRep = int($prevRep);}
 
-	if ($statStr ne ""){
-		open O,">$baseOut/metagStats.txt";
-		print O $statStr;
-		close O;
-		print "Stats in $baseOut/metagStats.txt\n";
+	if ( ($statStr ne "" && @inputRawFQs > $prevRep)  || $MFopt{writeStats}){
+		open O,">$baseOut/metagStats.txt";print O $statStr;close O;
+	}
+	print "Stats in $MGSfile \n";
+	if ($MFopt{writeStats} || @inputRawFQs > $prevRep || !-e $MGShtml ){
+		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
+		my $Rpath = getProgPaths("Rpath");
+		my $call = "$qcMakeHTMLReport $Rpath $MGSfile $MGShtml 1> /dev/null 2>&1;\n";
+		#print $call."\n";
+		#my $QCRes = `$call`; chomp $QCRes;
+		system $call;
+		#print $QCRes
+		print "HTML Report in $MGShtml\n";
 	}
 	if (0 && $statStr5 ne ""){
 		open O,">$baseOut/metagStats_500.txt";
@@ -1570,7 +1582,7 @@ sub postprocess{
 	if ($MFopt{DoAssembly}){
 		my $warnMsg = "";
 		$warnMsg = "(may be inaccurate due to loop2complete)" if ($loop2completion_ini);
-		print "Found ".$presentAssemblies." of ".$totalChecked." samples already assembled $warnMsg\n";
+		print "Found ".$presentAssemblies." of ". $totalCheckedSamples ." samples already assembled and all tasks done.\n$warnMsg\n";
 		
 	}
 	my $totalScratchUse=0;
@@ -1586,7 +1598,7 @@ sub postprocess{
 	}
 
 
-	if ($presentAssemblies >0 &&$presentAssemblies == $totalChecked){
+	if ($presentAssemblies >0 && $presentAssemblies == $totalCheckedSamples){
 		my $gcScr = getProgPaths("geneCat_scr");
 		my $GCsub = $baseOut."/GeneCat_pre.sh";
 		my $gcmd = "";
@@ -2023,6 +2035,23 @@ sub checkRawProgsFin{
 	
 	my $calcRibofind = 0; my $calcRiboAssign = 0;my $calcGenoSize=0; 
 	my $calcMetaPhlan=0;	my $calcMOTU2=0;	my $calcTaxaTar = 0;
+	my $calcKraken =0;
+	
+	
+	#Kraken .. totally outdated way of doing things..
+	
+	my $KrakenOD = $curOutDir."Tax/kraken/$MFopt{globalKraTaxkDB}/";
+	$calcKraken = 1 if ($MFopt{DoKraken} && (!-d $KrakenOD || !-e "$KrakenOD/krakDone.sto"));
+	if (!$calcKraken && $MFopt{DoKraken}){
+		my $dir_KrakFind = $baseOut."pseudoGC/Phylo/KrakenTax/$MFopt{globalKraTaxkDB}/"; #kraken dir
+		opendir D, $KrakenOD; my @krkF = grep {/krak\./} readdir(D); closedir D;
+		foreach my $kf (@krkF){
+			$kf =~ m/krak\.(.*)\.cnt\.tax/; my $thr = $1;# die $thr."  $kf\n";
+			system "mkdir -p $dir_KrakFind/$thr" unless (-d "$dir_KrakFind/$thr"); 
+			system "cp $KrakenOD/$kf $dir_KrakFind/$thr/$SmplName.$thr.krak.txt";
+		}
+	} else {$progStats{KrakTaxFailCnts}++;}
+
 	
 	$calcGenoSize=1 if ($MFopt{DoGenoSizeEst} && 	!-e "$curOutDir/MicroCens/MC.0.result");
 	$calcRibofind = 1 if ($MFopt{DoRibofind} && (!-e "$curOutDir/ribos//SSU_pull.sto"|| !-e "$curOutDir/ribos//LSU_pull.sto" || ($MFopt{doRiboAssembl} && !-e "$curOutDir/ribos/Ass/allAss.sto" ))); #!-e "$curOutDir/ribos//ITS_pull.sto"|| 
@@ -2052,7 +2081,7 @@ sub checkRawProgsFin{
 			$progStats{taxTarFailCnts}++;
 		} else { $progStats{taxTarComplCnts}++;}
 	}
-	return ($calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
+	return ($calcKraken,$calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
 			$calcMetaPhlan, $calcMOTU2,$calcTaxaTar) ;
 }
 
@@ -7375,6 +7404,8 @@ sub setDefaultMFconfig{
 	$MFopt{gzipSDMOut} = 1;#zip sdm filtered files
 	$MFopt{sdmProbabilisticFilter} =1;
 
+	$MFopt{writeStats} = 0;
+
 
 	#Assembly related options
 	$MFopt{doReadMerge} = 0;
@@ -7434,7 +7465,8 @@ sub setDefaultMFconfig{
 	#SNPs
 	$MFopt{DoConsSNP}=0; $MFopt{DoSuppConsSNP}=0; $MFopt{redoSNPcons} = 0; $MFopt{redoSNPgene} =0; $MFopt{SNPconsJobsPsmpl} = 1; 
 	$MFopt{SNPminCallQual} = 20;
-	$MFopt{saveVCF} = 1; $MFopt{maxSNPcores} = 10; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
+	$MFopt{saveVCF} = 1; $MFopt{saveConsFastas} = 0;
+	$MFopt{maxSNPcores} = 10; $MFopt{memSNPcall} = 23; $MFopt{consSNPminDepth} = 0;
 	$MFopt{SNPcallerFlag} = "MPI"; #"MPI" mpileup or ".FB" for freebayes
 	$MFopt{callSVs} = 0; #0=not, 1=delly, 2=gridss
 	$MFopt{callSVsSupp} = 0; #same as "callSVs" but for supplemental reads
@@ -7550,8 +7582,9 @@ sub getCmdLineOptions{
 		"silent" => \$MFconfig{silent},
 		"maxUnzpJobs=i" => \$MFconfig{maxUnzpJobs}, #how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 		"skipSmallSmplsMB=i" => \$MFconfig{skipSmallSmplsMB},  #skip samples with a combined input smaller than this in MB (raw file size, independent of compressed or raw)
+		"forceWriteStats=i" => \$MFopt{writeStats}, # force (re)writing of the metagStats report and text file
+	
 	#input FQ related
-
 	#file strucuture
 		#"relaxedSmplNames=i" => \$relaxedSmplNames, #add instead to map: #RelaxSMPLID	TRUE
 		"rm_tmpdir_reads=i" => \$MFconfig{remove_reads_tmpDir}, #Default 1, remove tmpdir with reads
@@ -7649,7 +7682,8 @@ sub getCmdLineOptions{
 		"redoGeneExtrSNP=i" => \$MFopt{redoSNPgene},
 		"SNPjobSsplit=i" => \$MFopt{SNPconsJobsPsmpl}, #how many parallel jobs are run on each 
 		"SNPminCallQual=i" => \$MFopt{SNPminCallQual},
-		"SNPsaveVCF=i" => \$MFopt{saveVCF},
+		"SNPsaveVCF=i" => \$MFopt{saveVCF}, #save vcf of SNP calles? DEfault : 1
+		"SNPsaveConsFasta=i" => \$MFopt{saveConsFastas}, #Save consensus fasta from vcf calls? Default: 0 -> too large, can be quickly recreated..
 		"SNPcaller=s" => \$MFopt{SNPcallerFlag},
 		"SNPcores=i" => \$MFopt{maxSNPcores},
 		"SNPmem=i" => \$MFopt{memSNPcall}, #memory for consensus SNP job in Gb
@@ -7702,22 +7736,22 @@ sub getCmdLineOptions{
 	# ------------------------------------------ options post processing ------------------------------------------
 	setConfigFile($MFconfig{configFile});
 
-	die "No mapping file provided (-map)\n" if ($MFconfig{mapFile} eq "");
+	die "ERROR:: No mapping file provided (-map)\n" if ($MFconfig{mapFile} eq "");
 	if (!$MFopt{DoAssembly}){
 		$MFopt{mapSupport2Assembly}=0;$MFopt{map2Assembly}=0;
 	}
 
-	die "\"-mappingMem\" argument contains characters: $MFopt{MapperMemory}" if ($MFopt{MapperMemory} !~ m/[\d-]+/);
-	die "\"-mapSortMem\" argument contains characters: $MFopt{mapSortMemGb}" if ($MFopt{mapSortMemGb} !~ m/[\d-]+/);
-	die "\"-assemblMemory\" argument contains characters: $MFopt{AssemblyMemory}" if ($MFopt{AssemblyMemory} !~ m/[\d-]+/);
-	die "\"-BinnerMem\" argument contains characters: $MFopt{BinnerMem}" if ($MFopt{BinnerMem}  !~ m/[\d-]+/);
-	die "\"-SNPmem\" argument contains characters: $MFopt{memSNPcall}" if ($MFopt{memSNPcall} !~ m/[\d-]+/);
+	die "ERROR:: \"-mappingMem\" argument contains characters: $MFopt{MapperMemory}" if ($MFopt{MapperMemory} !~ m/[\d-]+/);
+	die "ERROR:: \"-mapSortMem\" argument contains characters: $MFopt{mapSortMemGb}" if ($MFopt{mapSortMemGb} !~ m/[\d-]+/);
+	die "ERROR:: \"-assemblMemory\" argument contains characters: $MFopt{AssemblyMemory}" if ($MFopt{AssemblyMemory} !~ m/[\d-]+/);
+	die "ERROR:: \"-BinnerMem\" argument contains characters: $MFopt{BinnerMem}" if ($MFopt{BinnerMem}  !~ m/[\d-]+/);
+	die "ERROR:: \"-SNPmem\" argument contains characters: $MFopt{memSNPcall}" if ($MFopt{memSNPcall} !~ m/[\d-]+/);
 	if ($MFopt{MapperMemory} == -1 ){
 		if($MFopt{MapperProg} >2){$MFopt{MapperMemory} = 35 ;
 		} else {$MFopt{MapperMemory} = 20 ;}	
 	}
 
-	if ($MFopt{DoDiamond} && $MFopt{reqDiaDB} eq ""){die "Functional profiling was requested (-profileFunct 1), but no DB to map against was defined (-diamondDBs)\n";}
+	if ($MFopt{DoDiamond} && $MFopt{reqDiaDB} eq ""){die "ERROR:: Functional profiling was requested (-profileFunct 1), but no DB to map against was defined (-diamondDBs)\n";}
 	$MFopt{AssemblyKmers} = "-k $MFopt{AssemblyKmers}" unless ($MFopt{AssemblyKmers} =~ m/^-k/);
 	$MFopt{sdm_opt}->{minSeqLength}=$MFopt{tmpSdmminSL} if ($MFopt{tmpSdmminSL} > 0);
 	$MFopt{sdm_opt}->{maxSeqLength}=$MFopt{tmpSdmmaxSL} if ($MFopt{tmpSdmmaxSL} > 0);
@@ -7726,13 +7760,15 @@ sub getCmdLineOptions{
 	$MFconfig{filterFromSource}=1 if ($MFconfig{unpackZip} );
 	@filterHostDB = split /,/,$MFopt{filterHostDB1};
 	
-	die "SNPcaller argument invalid, has to be \"MPI\" or \"FB\"\n" if ($MFopt{SNPcallerFlag} ne "MPI" && $MFopt{SNPcallerFlag} ne "FB");
+	die "ERROR:: SNPcaller argument invalid, has to be \"MPI\" or \"FB\"\n" if ($MFopt{SNPcallerFlag} ne "MPI" && $MFopt{SNPcallerFlag} ne "FB");
+	if ($MFopt{DoConsSNP} && !$MFopt{saveConsFastas} && !$MFopt{saveVCF}){die "ERROR:: Can't use -SNPsaveVCF 0 and -SNPsaveConsFasta 0 -> SNP calling would not be saved in any way..\n";}
+
 	
 	#structural variants..
 	if ($MFopt{callSVs} == 0){ ;
 	}elsif ($MFopt{callSVs} == 1){	$MFopt{SVcallerFlag} = "DL"; #delly
 	}elsif ($MFopt{callSVs} == 2){	$MFopt{SVcallerFlag} = "GY"; # gridss
-	}else {die"Invalid callSVs option: $MFopt{callSVs}\n";}
+	}else {die"ERROR:: Invalid callSVs option: $MFopt{callSVs}\n";}
 	
 	#check HDDspace format
 	foreach my $k (keys (%HDDspace)){

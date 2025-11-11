@@ -26,7 +26,7 @@ use Getopt::Long qw( GetOptions );
 #.25: 9.12.23: added extraction of representative MGS genome in contigs (highest qual MAG)
 #.26: 13.8.24: added -genomesPerFamily flag & function
 #.27: 12.11.24: removed necessity for -canopies flag
-my $MGSpipelineVersion = 0.26;
+my $MGSpipelineVersion = 0.27;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths jgi_depth_cmd);
 use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp readClstrRev unzipFileARezip getAssemblPath systemW gzipopen);
@@ -626,7 +626,7 @@ my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
 my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -rmMSA 1 -onlySubmit 1 -submit 1 -reSubmit 0 -redoSubmissionData 0 \n#consider adapting options: -rmMSA 0 -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
 printL $ph2Cmd;
 #systemW $ph2Cmd;
-my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "0"; 
+my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "50"; #needs some tmp space for on the fly creations.. 
 my ($jobName2, $tmpCmd) = qsubSystem($logDir."/strainMGS.sh",$ph2Cmd,1,int(150/1)."G","strainKickoff",$treedep,"",1,[],\%QSBopt) ;
 $QSBopt{tmpSpace} =$tmpSHDD;
 

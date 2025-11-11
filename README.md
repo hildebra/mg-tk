@@ -1,4 +1,4 @@
-# MG-TK
+<p align="center"><img src="/../dev/images/mgtk-logo.png?raw=true" alt="MG-TK" width=500 align="center"></img></p>
 
 ## Introduction 
 

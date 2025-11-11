@@ -30,3 +30,4 @@ examples/*.otxt
 examples/*.etxt
 examples/*.Falk.mfc
 DBs_old
+.ipynb_checkpoints
