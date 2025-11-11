@@ -233,9 +233,10 @@ if ($mode == 3 || $mode == 4){ #scan for all reads finished
 	my $hr = readMohTax($DButil."/MohCzy.tax");
 	%czyTax = %{$hr};
 	$hr = readCzySubs("$DButil/cazy_substrate_info.txt");
-	system "ln -s $DButil/CAZyDB.07312019.fam-activities.txt $inP/Cazy.families" unless (-e "$inP/Cazy.families");
+	#die "ln -s $DButil/CAZyDB.07312019.fam-activities.txt $inP/Cazy.families";
+	#system "ln -s $DButil/CAZyDB.07312019.fam-activities.txt $inP/Cazy.families" unless (-e "$inP/Cazy.families");
 	system "ln -s $DButil/cazy_substrate_info.txt $inP/cazy_substrate_info.txt" unless (-e "$inP/cazy_substrate_info.txt");
-	system "ln -s $DButil/cazy_substrate_reformated.txt $inP/cazy_substrate_info2.txt" unless (-e "$inP/cazy_substrate_info2.txt");
+	#system "ln -s $DButil/cazy_substrate_reformated.txt $inP/cazy_substrate_info2.txt" unless (-e "$inP/cazy_substrate_info2.txt");
 	
 	%czySubs = %{$hr};
 	$czyEuk =2; $czyFungi=5;
@@ -274,7 +275,7 @@ if ($mode == 3 || $mode == 4){ #scan for all reads finished
 		%cardName = %{$hr};
 	} else {
 		my ($hr,$MaxDepth) = readTabbed2($DButil."card.parsed.f11.tab.map",0);
-		system "ln -s $DButil/card.parsed.f11.tab.map $inP/Card.tax";
+		system "ln -s $DButil/card.parsed.f11.tab.map $inP/Card.tax" unless (-e "$inP/Card.tax");
 		$hr = fixCardMeta($hr);
 #		($hr,$MaxDepth) = readTabbed2($DButil."card.parsed.f11.txt",0);
 		%cardFull = %{$hr};
@@ -349,37 +350,42 @@ if ($mode == 0 || $mode==1 || $mode == 2){ #mode1 = write gene assignment, mode 
 	#die;
 	
 	my @splSave;
-	my @wordv1; my @wordv2;
-	
+	my @wordv1=(); my @wordv2=();
+
 	while (1){
-		my @splX;
+		my @splNext;
 		while (my $line = <$I>){
 			chomp $line; 
-			@splX = split (/\t/,$line);
+			my @splX = split (/\t/,$line);
+			if (@splX != 12 ){ die "something wrong with blast string!: \n$line\n@splX\n";}
 			my $query = $splX [0];
-			$query =~ s/\/\d$//;
+			$query =~ s/\/[12]$// if ($query =~ m/\/[12]/);
 			#print $query."\n";
 #			$lcnt++;
 			
 			if ($lastQ eq ""){$lastQ = $query;
 			} elsif ($lastQ ne $query){
 				$lastQ = $query;
-				$stopInMiddle=1;last;
+				$stopInMiddle=1;
+				@splNext = @splX;
+				last;
 			}
 			
-			if (@splX > 10 ){
-				if ( $splX[0] =~ m/\/2$/){push(@wordv2, [@splX]);
-				} else {push(@wordv1, [@splX]);}
-			}
+			if ( $splX[0] =~ m/\/2$/){push(@wordv2, [@splX]);
+			} else {push(@wordv1, [@splX]);}
+
 		}
 
-		#print "YY " . keys (%wordv2) . " YY " . keys (%wordv1) . "\n";
+		#print "YY ". @wordv2 ." YY ". @wordv1.  "\n";
 		#1st combine scores
 		#if ($blRes[0]->[0] =~ m/_982/){print "@{$blRes[0]}\n@{$blRes[3]}\n".Dumper(\%wordv1).Dumper(\%wordv2);}
 		my $whX = combineBlasts(\@wordv1,\@wordv2);
+		#DEBUG:
+		#my $whX = \@wordv2;
 		#2nd: sort these, find best hit
 		#my $arBhit = bestBlHit($whX); #doesn't need this, this is done in the major routine
 		#@blRes = @{$whX};#values %{$whX};
+		#print "@blRes \n\n";
 		#if (exists($wordv1{"GI:BAE78083.1"})){die @blRes."@{$blRes[0]}\n".Dumper(\%wordv1).Dumper(\%wordv2);} #[0]->[0] =~ m/_982/
 
 
@@ -388,11 +394,9 @@ if ($mode == 0 || $mode==1 || $mode == 2){ #mode1 = write gene assignment, mode 
 		for (my $i=0; $i<@aminBLE ; $i++){
 			main($whX,$aminBLE[$i],$aminPID[$i],$i,$reportEggMapp);
 		}
-		undef @blRes; undef @wordv1;undef @wordv2;
-		if (@splX > 10 ){ #save the last line for next round..
-			if ( $splX[0] =~ m/\/2$/){push(@wordv2, \@splX);
-			} else {push(@wordv1, \@splX);}
-		}
+		undef @wordv1;undef @wordv2; #undef @blRes; 
+		if ( $splNext[0] =~ m/\/2$/){push(@wordv2, \@splNext);
+		} else {push(@wordv1, \@splNext);}
 
 		
 		if ($stopInMiddle==0){last;}
@@ -657,6 +661,7 @@ sub main(){
 	my ($AR, $minBLE,$minPid,$pos,$reportEggMappNow)=@_;
 	my @blRes  = @{$AR};
 	if (@blRes == 0){return;}
+	#print "@blRes   - ".  @blRes."\n";
 	my %COGabundance=%{$COGhits{$pos}}; my %CATabundance=%{$CAThits{$pos}}; my %funHit=%{$GENEhits{$pos}};
 
 #	my %COGabundance=%{$hr1}; my %CATabundance=%{$hr2}; my %funHit=%{$hr3};
@@ -667,6 +672,7 @@ sub main(){
 	
 	my @tmp = ("");
 	@tmp = @{$blRes[0]};
+	#print "@tmp PP\n";
 	my $qold=$tmp[0];
 	die "Subject length not in length DB : $tmp[1]\n" unless (exists ($DBlen{$tmp[1]}));
 	my $SbjLen = $DBlen{$tmp[1]};
@@ -1205,6 +1211,7 @@ sub combineBlasts($ $){
 	return $wh1 if (@{$wh2} == 0);
 	
 	my @Pbl1 = @{$wh1}; my @Pbl2 = @{$wh2};
+	#basic dereplication procedure to only take first hit per read
 	my %bl1; my %bl2;
 	foreach my $li (@Pbl1){
 		$bl1{${$li}[1]} = $li unless (exists($bl1{${$li}[1]})); #only take first hit
@@ -1218,38 +1225,45 @@ sub combineBlasts($ $){
 	my @allKs = uniq ( keys %bl1, keys %bl2); #
 	#print "@allKs\n";
 	foreach my $k (@allKs){
-		my $ex1 = exists ($bl1{$k});
-		unless ($ex1 && exists ($bl2{$k}) ){
-			if ($ex1) {push (@ret,$bl1{$k});#$ret{$k} = $bl1{$k};
-			} else { push (@ret,$bl2{$k});}#$ret{$k} = $bl2{$k};}
+		unless (exists ($bl1{$k}) && exists ($bl2{$k}) ){
 			next;
+			if (exists ($bl1{$k})) {push (@ret,$bl1{$k});#$ret{$k} = $bl1{$k};
+			} else { push (@ret,$bl2{$k});}#$ret{$k} = $bl2{$k};}
 		}
 #		die "$k" unless (exists $bl2{$k});
 		my @hit1 = @{$bl1{$k}};
 		my @hit2 = @{$bl2{$k}};
+		die "Unequal blast string length: \n@hit2 (".@hit2.") \n@hit1(".@hit1.")\n" if (@hit1 != @hit2);
 		#pair
 		#print "pair";
 		#$k =~ s/\/\d$/\/12/;
-		my @cur = \@hit1;
+		my @cur = @hit1;
+		$cur[0] =~ s/\/[12]$//;
 		
-		my @sbss1 = sort{ $a <=> $b }(($hit1[8],$hit1[9]));
-		my @sbss2 = sort{ $a <=> $b }($hit2[8],$hit2[9]);
+		my @sbss1 = sort{ $a <=> $b }(($hit1[8],$hit1[9])); my @sbss2 = sort{ $a <=> $b }($hit2[8],$hit2[9]); #sort start/stop
 		#sort 
 		#print "$sbss1[0] > $sbss2[0]\n";
-		if ($sbss1[0] > $sbss2[0]){
-		#print"X";
+		if ($sbss1[0] > $sbss2[0]){ #sort reads: read1 should start earlier in query than read2
+			#print"X $sbss1[0] > $sbss2[0]\n";
 			my @tmp = @hit1; @hit1 = @hit2; @hit2 = @tmp;
 			@tmp = @sbss1; @sbss1 = @sbss2; @sbss2 = @tmp;
 		}
+		
+		
+				#push (@ret,\@hit1); next; #DEBUG
+
+		#query start/stop sorting..
 		my @quss1 = sort { $a <=> $b }($hit1[6],$hit1[7]);my @quss2 = sort { $a <=> $b }($hit2[6],$hit2[7]);
 		#overlap?
 		my $overlap = 0;
-		if ($sbss1[1] > $sbss2[0]){ $overlap= ( $sbss1[1] - $sbss2[0]); }#die "$cur[3] = $hit1[3] + $hit2[3] - ( $sbss1[1] - $sbss2[0])\n";}
-		$cur[3] = $hit1[3] + $hit2[3] - $overlap; #ALlength
+		if ($sbss1[1] > $sbss2[0]){ $overlap= ( $sbss1[1] - $sbss2[0]);}# print "OVER $overlap\n";}#die "$cur[3] = $hit1[3] + $hit2[3] - ( $sbss1[1] - $sbss2[0])\n";}
+		$cur[3] = ($hit1[3] + $hit2[3]) - $overlap; #ALlength
+		if ($cur[3] <0){$cur[3]=$hit1[3];} #fatal.. recover with half useful value
+		
 		#print "$sbss1[1] > $sbss2[0] $sbss1[0]  $cur[3] $overlap\n";
-		$cur[2] = ($hit1[2] + $hit2[2] ) /2;#%id
+		$cur[2] = ($hit1[2] + $hit2[2] ) /2.0;#%id
 		$cur[11] = ($hit1[11] + $hit2[11]) * (1- $overlap/($hit1[3] + $hit2[3] ) );#bitscore
-		$cur[10] = ($hit1[10], $hit2[10])[$hit1[10] > $hit2[10]];  # min($hit1[10] + $hit2[10]);
+		$cur[10] = ($hit1[10], $hit2[10])[$hit1[10] > $hit2[10]];  # min($hit1[10] + $hit2[10]); #eval
 		#die "@cur\n";
 		push (@ret,\@cur);
 		#print "$k \n@sbss1 @sbss2\n@hit1\n";

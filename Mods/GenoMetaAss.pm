@@ -13,7 +13,8 @@ our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFast
 		readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
 		resetAsGrps
 		renameFastHD  prefixFAhd parse_duration resolve_path
-		clenSplitFastas getAssemblPath fileGZe fileGZs filsizeMB
+		clenSplitFastas getAssemblPath getAssemblGFF getAssemblContigs
+		fileGZe fileGZs filsizeMB
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
 		unzipFileARezip systemW is_integer 
 		readGFF reverse_complement reverse_complement_IUPAC
@@ -48,6 +49,7 @@ sub fileGZe{
 	my ($fil) = @_;
 	return 1 if (-e $fil);
 	return 1 if (-e "$fil.gz");
+	return 1 if ($fil =~ m/\.gz$/ && -e substr($fil,0,-3));
 	return 0;
 }
 
@@ -80,7 +82,8 @@ sub prefixFAhd{
 sub gzipwrite{
 	my ($outF,$descr) = @_;
 	$outF .= ".gz" if ( $outF !~ m/\.gz$/);
-	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!";
+	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!\n\n";
+	#open my $O, ':>gzip', $outF or die "error starting gzip pipe $outF\n$!\n\n";
 	#my $pigzBin = getProgPaths("piz");
 	#open (my $O, "| $pigzBin -c > $outF") or die "error starting gzip pipe $outF\n$!";
 	return $O;
@@ -753,6 +756,7 @@ sub readGFF($){
 }
 
 
+
 sub getAssemblPath{
 	my $cD = $_[0];
 	my $newpath = "";
@@ -781,6 +785,27 @@ sub getAssemblPath{
 	}
 	
 	return($metaGD);
+}
+
+
+
+sub getAssemblGFF{
+	my $cD = $_[0];
+	my $assmD = getAssemblPath($cD);
+	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
+
+	my $gffF = "$assmD//genePred/genes.gff";
+	if (!-s $gffF){print STDERR "getAssemblGFF::Could not find gff in dir $cD!:\n$gffF\n";die if ($dieOnFail);}
+	return $gffF;
+}
+
+sub getAssemblContigs{
+	my $cD = $_[0];
+	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
+	my $assmD = getAssemblPath($cD);
+	my $ctgF = "$assmD/scaffolds.fasta.filt";
+	if (!-s $ctgF){print STDERR "getAssemblContigs::Could not find assembly in dir $cD!:\n$ctgF\n";die if ($dieOnFail);}
+	return $ctgF;
 }
 
 

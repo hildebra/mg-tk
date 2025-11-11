@@ -4,7 +4,8 @@
 #OutPath	$MGTKDIR/examples/output/								
 #DirPath	$MGTKDIR/examples//data
 S4zmS1	SRR8797713			hiSeq		I2		S4zm_R1177-S0001	0
-S4zmS1PB	SRR8797712	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq		I2		S4zm_R1177-S0001	0
+#S4qiaS389	SRR15489009_sub.fq.gz			hiSeq		I3		S4zm_R1177-S0001	0S4zmS1PB	SRR8797712			hiSeq		I2		S4zm_R1177-S0001	0
+S4zmPBonly	SRR15489013_sub			PB					0
 S4zm	SRR8797713	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq				S4zm_R1177-S0001	0
 S4qia	SRR8797712	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz,$MGTKDIR/examples//data/SRR15489009_sub.fq.gz		hiSeq				S4zm_R1177-S0001	0
 S4zmGG1	SRR8797713	PB:$MGTKDIR/examples//data/SRR15489013_sub.fq.gz		hiSeq		I1		S4zm_R1177-S0001	0

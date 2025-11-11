@@ -1,8 +1,8 @@
 name: MGTK
 channels:
-- https://conda.anaconda.org/conda-forge
+- conda-forge
 - https://conda.anaconda.org/anaconda
-- https://conda.anaconda.org/bioconda
+- bioconda
 dependencies:
   - conda-forge::r-biocmanager>1.30
   - r-dplyr >= 1.1

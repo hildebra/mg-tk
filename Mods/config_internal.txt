@@ -19,6 +19,7 @@ MAGpipe	perl [MFLRDir]/secScripts/MGS.pl
 
 
 #local scripts 	ESSENTIAL
+fastHdChkENA	perl [MFLRDir]/secScripts/composition/checkFQhds4ENA.pl
 cLSUSSU_scr	perl [MFLRDir]/secScripts/miTag/catchLSUSSU.pl
 lotusLCA_cLSU_scr	[MFLRDir]/secScripts/miTag/lotus_LCA_blast3.pl
 krakCnts_scr	[MFLRDir]/secScripts/GC/krak_count_tax.pl
@@ -81,6 +82,7 @@ filterMB2core	[Rscript] [Rpath]/filterMB2.R	env:MGTK_R
 neighborTree	[Rscript] [Rpath]/neighborTree.R	env:MGTK_R
 vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R	env:MGTK_R
 normMiTag	[Rscript] [Rpath]/NormMiTag.R	env:MGTK_R
+qcMakeHTMLReport	[Rscript] [Rpath]/QC_make_html.R	env:MGTK_R
 
 
 ## taxonomic profiling, if requrested ##

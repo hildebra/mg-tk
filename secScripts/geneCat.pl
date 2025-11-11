@@ -92,6 +92,18 @@ my $smplSep = "__"; #separator of samples and gene id in all MF fastas.. pretty 
 my $selfScript=Cwd::abs_path($PROGRAM_NAME);#dirname($0)."/".basename($0);
 my $rtkFunDelims = "-funcHieraSep \";\" -funcHAnnoAND \",\" -funcAnnoOR \"|\" "; #used to define for rtk how tax annotation strings treat hierachies, and annotations that should be summed (AND) or should be treated as equally likely (OR)
 
+
+#diamond func assigns:
+my $minBitSc = 45;
+my $minAlLeng=30;
+my $minPercSbjCov=0.5;
+my $minPerID = 25;
+my $minEVal=1e-8;
+
+
+
+
+
 #check all correct
 checkMF();
 
@@ -243,6 +255,14 @@ GetOptions(
 	"SmplStart=i" => \$SmplStart, #for subprepSmpls
 	"SmplStop=i" => \$SmplStop, #for subprepSmpls
 	"SmplBatch=i" => \$SmplBatch, #for subprepSmpls
+#flags for functional assignment
+	"FuncMinBitSc=f" => \$minBitSc,
+	"FuncMinAlLeng=i" => \$minAlLeng,
+	"FuncMinPercSbjCov=i" => \$minPercSbjCov,
+	"FuncMinPerID=f" => \$minPerID,
+	"FuncMinEVal=f" => \$minEVal,
+
+
 );
 
 
@@ -2514,9 +2534,9 @@ sub geneCatFunc{
 	my $qsubDir2 = "$qsubDir/Funct/";
 	system "mkdir -p $qsubDir2" unless (-d $qsubDir2);
 	$QSBoptHR->{qsubDir} = $qsubDir2;
-	
-	my %optsDia = (eval=>1e-8,percID=>25,minPercSbjCov=>0.5,fastaSplits => $fastaSplits,ncore=>$ncore,align=>$funcAligner,
-			splitPath=>$GLBtmp,keepSplits=>!$doClean,redo=>$doClean, minAlignLen=>30, minBitScore=>45);
+		
+	my %optsDia = (eval=>$minEVal,percID=>$minPerID,minPercSbjCov=>$minPercSbjCov,fastaSplits => $fastaSplits,ncore=>$ncore,align=>$funcAligner,
+			splitPath=>$GLBtmp,keepSplits=>!$doClean,redo=>$doClean, minAlignLen=>$minAlLeng, minBitScore=>$minBitSc);
 			
 			
 	my ($allAss,$jdep) = assignFuncPerGene($query,$outD,$tmpD,$curDB,\%optsDia,$QSBoptHR,(!-e "$outD/${curDB}L0.txt")) ;

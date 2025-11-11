@@ -39,6 +39,8 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-OKtoRWassGrps [0|1]			1: can delete assemblies, if suspects error in them, powerful, but careful! (Default: 0)
 	-maxUnzpJobs [#]				#how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 	-skipSmallSmplsMB [#]			skip sample if the overall file size is < than given number (in MB). Default: 1
+	-forceWriteStats [0|1]			force (re)writing of the metagStats HTML report and text files. Default: 0
+
 
 # Detecting raw input files
 	-inputFQregex1 [‘R1’]			R1 input regex extension (e.g. R1 could be '.*_1\.f[^\.]*q\.gz$' or last resort '(.*_pe_1\.f[^\.]*q\.gz$)|(.*R1_00\d\.f[^\.]*q\.gz$)|(.*[\._]1\.f[^\.]*q\.gz$)|(.*R1\.fq\.gz)' )
@@ -71,6 +73,7 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-mocatFiltered [0|1]			??
 	-filterHostKr2Conf [#]                      set host kraken2 confidence parameter (e.g. 0.05) 
 	-filterHostKr2Quick ["--quick"]             set quick option for kraken2 (should be "--quick")
+	-upload2EBI [dir]			copy reads after host read removal to this directory, ready for upload to standard repositories
 
 # sdm (read filtering) related
 	-gzipSDMout [0|1] 			gzip sdm output
@@ -120,7 +123,8 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-redoAssmblConsSNP [0|1]		1: redo getAssemblConsSNP (Default: 0)
 	-redoGeneExtrSNP [0\1]			1: redo gene extractions from consensus SNP contig (Default: 0)
 	-SNPjobSsplit [#]				#: split consensus SNP jib further (Default: 1)
-	-SNPsaveVCF [0|1]				1: save SNPs to VCF file (Default: 0)
+	-SNPsaveVCF [0|1]				1: save SNPs to VCF file (Default: 1)
+	-SNPsaveConsFasta [0|1]			1: save consensus fasta based on SNP calls (Default: 0)
 	-SNPcaller [MPI|FB]				"MPI" mpileup or ".FB" for freebayes (Default: MPI)
 	-SNPcores [#]				number of cores ‘#’ used for SNP calling
 	-SNPmem [#]				Memory allocated for consensus SNP calling process in Gb (Default: 23)
