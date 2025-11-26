@@ -138,10 +138,6 @@ GetOptions(
 
 
 my $subsSmpl = -1;
-my $tmpD = getProgPaths("globalTmpDir",0);
-$GCd =~ m/.*\/([^\/]+\/?)/;
-$tmpD .= "/$1/";
-#die $tmpD."\n";
 
 my %genesWrite; #keep stats/track
 
@@ -158,13 +154,19 @@ my $outD =  $bindir;#"$GCd/$mode/intra_phylo/";
 $outD .= "/intra_phylo/";
 $outD = $outDpre if ($outDpre ne "");
 $SNPconsLOGs = "$outD/SNPconsCalls.log" if ($SNPconsLOGs eq "");
+$GCd =~ m/.*\/([^\/]+\/?)/;
 if ($locTmpDir eq ""){
 	my $locTmpN = getProgPaths("nodeTmpDir",0) ;
-	if ($locTmpN eq ""){$locTmpDir =  "$outD/tmpStrains/" ; 
-	} else {$locTmpDir =  "$locTmpN/tmpStrains/" ; 
+	if ($locTmpN eq ""){$locTmpDir =  "$outD/strainsScr1/$1/" ; 
+	} else {$locTmpDir =  "$locTmpN/strainsScr1/$1/" ; 
 	}
-	system "mkdir -p $locTmpDir";
 }
+
+my $scratchD = getProgPaths("globalTmpDir",0);
+$scratchD .= "/strainsScr1/$1/";
+
+system "mkdir -p $locTmpDir $scratchD";
+
 
 print "\n!! WARNING !!: RESUBMISSION mode selected (will resubmit MSA + phylos even for already completed MGS) !!\n" if ($reSubmit);
 print "\n!! WARNING !!: REDOSUBMISSIONDATA mode selected (will redo and resubmit MSA + phylos even for already completed MGS) !!\n" if ($redoSubmissionData);
@@ -584,7 +586,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	$Tcmd .= "-subsetSmpls $subsSmpl -fracMaxGenes90pct 0.7 "; #concentrate on almost complete gene groups.. can yield more samples overall and speeds up calc..
 	$Tcmd .= "-rmMSA $rmMSA -gzInput 1 "; #save more diskspace..
 	$Tcmd .= "-SynTree 0 -NonSynTree 0 -MSAprogram 4 -continue $contPhylo -AutoModel 0 -iqFast 1 -superTree $useSuperTree ";
-	$Tcmd .= "-runDNDS 0 -runTheta 0 -tmpD $tmpD/$SI/ -map $mapF ";
+	$Tcmd .= "-runDNDS 0 -runTheta 0 -tmpD $scratchD/$SI/ -map $mapF ";
 	my $postCmd = "\n\ntouch $treeStone\n";
 		#die "$cmd\n" if ($cnt ==10);
 	
