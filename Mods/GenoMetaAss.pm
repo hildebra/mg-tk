@@ -1122,6 +1122,7 @@ sub readMap{
 		}
 		my @spl = split(/\t/,$line,-1);
 		if ($cnt == 0){
+			#read column headers -> check for MG-TK specific instructions
 			#die "@spl\n";
 			$smplCol = first_index { /^#SmplID$/ } @spl;
 			$dirCol = first_index { /^Path$/ } @spl;
@@ -1176,6 +1177,7 @@ sub readMap{
 		die "Use alphanumeric characters (a-zA-Z0-9.) for sampleID: $curSmp\n" if (!$relaxSmplID && $curSmp =~ m/[^a-zA-Z0-9\.]/);
 		
 		my $cdir = ""; 
+		#read in the path to sample
 		if ($dirCol >= 0 && @spl>= $dirCol && $spl[$dirCol] ne ""){
 			$cdir = $spl[$dirCol] ; 
 			$samplePathUsed=1;
@@ -1203,7 +1205,7 @@ sub readMap{
 		if ($DOWARN && $smplPrefixUsed && $samplePathUsed){die"Warning: in mapping file both \"SmplPrefix\" and \"Path\" are set for sample $curSmp!\nThis is not supported\n$warnDeactivateMsg";}
 
 		
-		
+		#old MATAFILER versions, deprecated in MG-TK
 		if ($folderStrClassical== -1){
 			if (-d  $dir2out.$cdir2 && !-d $dir2out.$curSmp){
 				if ($infFoldClass==0){die "readMap: Inferring old/new folder structure failed, as both folders seem to be valid\n";}
@@ -1221,6 +1223,7 @@ sub readMap{
 		}
 		#die "$ret{$curSmp}{wrdir}\n";
 		
+		#base info for sample on current map line
 		$ret{$curSmp}{SmplID} = $curSmp;
 		$ret{$curSmp}{mapFinSmpl} = $curSmp;
 		$ret{$curSmp}{assFinSmpl} = $curSmp;
@@ -1232,18 +1235,22 @@ sub readMap{
 		if ($rLenCol >= 0){$ret{$curSmp}{readLength} = $spl[$rLenCol];} else {$ret{$curSmp}{readLength} = 0;}
 		if ($ExcludeAssemble >= 0){$ret{$curSmp}{ExcludeAssem} = $spl[$ExcludeAssemble];} else {$ret{$curSmp}{ExcludeAssem} = 0;}
 		#cut first basepairs from each read.. (read1 and read2)
+		
+		#instructions to remove X bases at 5' read 2
 		$ret{$curSmp}{cut5pR2} = 0;
 		if ($cut5pR2 >= 0){
 			if (defined ($spl[$cut5pR2]) && length($spl[$cut5pR2]) > 0){
 				$ret{$curSmp}{cut5pR2} = $spl[$cut5pR2];
 			}
 		} 
+		#instructions to remove X bases at 5' read 1
 		$ret{$curSmp}{cut5pR1} = 0;
 		if ($cut5pR1 >= 0){
 			if (defined ($spl[$cut5pR1]) && length($spl[$cut5pR1]) > 0){
 				$ret{$curSmp}{cut5pR1} = $spl[$cut5pR1];
 			}
 		} 
+		
 		#read only the first few reads in each sample..
 		$ret{$curSmp}{firstXrdsRd} = 0;
 		if ($firstXrdsRd >= 0){
@@ -1325,7 +1332,7 @@ sub readMap{
 			#print $agBP{$spl[$MapGroupCol]}{CntAimMap}. " :$spl[$MapGroupCol]\n" ;
 		} else {$ret{$curSmp}{MapGroup} = $Scnt; $agBP{$Scnt}{CntAimMap}=0;}
 		
-		if ($FamGroupCol >= 0 && $spl[$FamGroupCol] ne ""){
+		if ($FamGroupCol >= 0 && scalar(@spl) > $FamGroupCol && $spl[$FamGroupCol] ne "" ){
 			my $curF = $spl[$FamGroupCol];
 			$ret{$curSmp}{FamGroup} = $curF;
 			#if (!exists($agBP{$curF}{CntAimFam})){$agBP{$curF}{CntAimFam}=0;}

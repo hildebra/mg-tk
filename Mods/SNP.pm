@@ -3,7 +3,7 @@ use warnings;
 use strict;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw( gzipopen systemW readFasta readGFF writeFasta reverse_complement_IUPAC );
+use Mods::GenoMetaAss qw( gzipopen systemW readFasta readGFF writeFasta reverse_complement_IUPAC fileGZs );
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystem2);
 use Mods::TamocFunc qw (cram2bsam);
 
@@ -470,27 +470,33 @@ sub SNPconsensus_vcf{
 	}
 	
 	my $postcmd = "";
-	if (-s $vcfFile && ($SNPsuppStone eq "" || -s $vcfFileS) ){$cmdAll="";}
+	if (-s $vcfFile && ($SNPsuppStone eq "" || fileGZs($vcfFileS)) ){$cmdAll="";}
 	my $vcf2fnaOpt = "";
-	if (!$SNPIHR->{createFastas}){
-		$vcf2fnaBin = "##".$vcf2fnaBin;
-		$postcmd.="\n##In case you want to create consensus fastas, use:\n";
-	} else {
-		$postcmd.="\n# Create consensus fastas\n";
+	my $vcf2fnaOuts = "-oCtg $ofasCons.gz";
+	if (!-e $SNPIHR->{genefna}){
+		$vcf2fnaOuts .= " -oGeneNT $SNPIHR->{genefna} -oGeneAA $SNPIHR->{genefaa} ";
 	}
+	die "SNP.pm::SNPconsensus_vcf: gff file not defined" unless (exists($SNPIHR->{gffFile}));
+	my $vcf2fnaIns = "-ref $refFA -gff $SNPIHR->{gffFile} ";
+	
 	if ($SNPsuppStone eq "" ){#variant for 1 vcf
 		my $tmpST = $SNPIHR->{SeqTech}; if ($tmpST eq ""){$tmpST = "ill";}
 		$vcf2fnaOpt = "-seqPlatform $tmpST -t 1 -minCallDepth $minDepth -minCallQual $minCallQual ";
-		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile -depthF $depthFile -oCtg $ofasCons.gz ";# if ($SNPIHR->{createFastas});
+		$vcf2fnaIns .= "-inVCF $vcfFile -depthF $depthFile ";
 	} else {#and for two vcfs..
 		$vcf2fnaOpt = "-seqPlatform $SNPIHR->{SeqTech},$SNPIHR->{SeqTechSuppl} -t 1 -minCallDepth $minDepth,$minDepth -minCallQual $minCallQual ";
-		$postcmd .= "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS -oCtg $ofasCons.gz ";# if ($SNPIHR->{createFastas}); -> handled before..
+		$vcf2fnaIns .= "-inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS ";
+	}
+	if (!$SNPIHR->{createFastas}){
+		$postcmd.="\n##In case you want to create consensus fastas, use (uncomment):\n##$vcf2fnaBin $vcf2fnaOpt $vcf2fnaIns $vcf2fnaOuts\n";
+		$postcmd.="#create stats only of hypothetical consensus generations:\n$vcf2fnaBin $vcf2fnaOpt $vcf2fnaIns; \n\n"
+	} else {
+		$postcmd.="\n# Create consensus fastas\n";
+		$postcmd.="$vcf2fnaBin $vcf2fnaOpt $vcf2fnaIns $vcf2fnaOuts;\n\n";
+	}
 
-	}
-	if (exists($SNPIHR->{gffFile}) && !-e $SNPIHR->{genefna}){
-		$postcmd .= "-gff $SNPIHR->{gffFile} -oGeneNT $SNPIHR->{genefna} -oGeneAA $SNPIHR->{genefaa} ";
-	}
-	$postcmd .= ";\n";
+	
+	
 	$postcmd .= "rm -f $vcfFile$vcfSuff $vcfFileS.csi $vcfFile.csi;\n" if ($vcfSuff ne ""); #functionality no longer used..
 	$postcmd .= "rm  -f $vcfFileS $vcfFile;\n" if (!$saveVCF && $SNPIHR->{createFastas});
 	#} else {

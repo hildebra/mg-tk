@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #The Metagenomic Assembly, Genomic Recovery and Assembly Independent Mapping Tool (formerly MATAFILER, now mg-tk)
 #main mg-tk routine
-# (c) Falk Hildebrand, 2016-2024
+# (c) Falk Hildebrand, 2016-2025
 #examples
 #./mg-tk.pl map2tar test/refCtg.fasta,test/refCtg.fasta test1,test2
 #./mg-tk.pl map2tar test/TEC2/v5/TEC2.MM4.BEE.GF.rn.fa TEC2
@@ -17,7 +17,8 @@ use vars qw($CONFIG_FILE);
 
 
 #load MF specific modules
-use Mods::GenoMetaAss qw(readMap readMapS getDirsPerAssmblGrp lcp readFastHD prefixFAhd prefix_find gzipopen fileGZe
+use Mods::GenoMetaAss qw(readMap readMapS getDirsPerAssmblGrp lcp readFastHD prefixFAhd prefix_find 
+			gzipopen fileGZe fileGZs
 			readFasta writeFasta systemW getAssemblPath  filsizeMB resetAsGrps
 			iniCleanSeqSetHR checkSeqTech is3rdGenSeqTech hasSuppRds 
 			getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp);
@@ -123,7 +124,8 @@ sub createConsSNPandSVs;
 #.67: 16.5.25: integrated multi-map reading for MG-TK
 #.68: 28.6.25: -upload2EBI adapted to also include xtra reads.. streamlined functions that deal with host removal
 #.69: 1.11.25: cons fasta from SNP calls no longer by default stored, will be calculated on the fly in strain_within.pl
-my $MATFILER_ver = 0.69;
+#.70: vcf2fna v0.21 integrated
+my $MATFILER_ver = 0.70;
 
 
 #operation mode?
@@ -822,13 +824,15 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#requires only bam/cram && assembly
 	my $calcConsSNP=0; 
 	if ($MFopt{DoConsSNP}){
-		if (-e $vcfSNP && !-s $vcfSNP){system "rm -f $vcfSNP";} #some old versions produced an empty vcf file..
-		my $calcConsSNP=0; $calcConsSNP =1 if ( ($MFopt{saveConsFastas} && ! fileGZe($genePredSNP)  )
-				|| ($MFopt{saveVCF} && ! fileGZe($vcfSNP) ));
+		my $exSNPf= fileGZe($vcfSNP);
+		if ($exSNPf && fileGZs($vcfSNP) == 0){system "rm -f $vcfSNP*";$exSNPf=0;} #some old versions produced an empty vcf file..
+		$calcConsSNP=0; $calcConsSNP =1 if ( ($MFopt{saveConsFastas} &&  fileGZe($genePredSNP)==0  ) || ($MFopt{saveVCF} &&  !$exSNPf ) ) ;
 	}
 				
 				
 	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
+	
+	
 	
 	#structural variants calcs
 	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{callSVs} && !-e $vcfSV );
@@ -3804,12 +3808,18 @@ sub unploadRawFilePostprocess{
 	#die "XXn\n";
 	if (@EBIjobs == 0){return;}
 	if ($MFconfig{uploadRawRds} eq ""){return ;}
-	if (-e "$MFconfig{uploadRawRds}/R1.md5"){return;}
+	if (-s "$MFconfig{uploadRawRds}/R1.md5"){return;}
 	print "Postprocess upload postprocess\n";
 	#md5sum --version
-	my $cmd = "md5sum $MFconfig{uploadRawRds}/*.R2.fq.gz > $MFconfig{uploadRawRds}/R2.md5 & \n";
-	$cmd .= "md5sum $MFconfig{uploadRawRds}/*.R1.fq.gz > $MFconfig{uploadRawRds}/R1.md5 & \n";
-	$cmd .= "md5sum $MFconfig{uploadRawRds}/*.Rsingl.fq.gz > $MFconfig{uploadRawRds}/Rsingl.md5\n";
+	
+	my $cmd = "md5sum $MFconfig{uploadRawRds}/*.R2.fq.gz > $MFconfig{uploadRawRds}/R2.md5 ";
+	$cmd .= "& \n md5sum $MFconfig{uploadRawRds}/*.R1.fq.gz > $MFconfig{uploadRawRds}/R1.md5 ";
+	unless (my @files = glob("\Q$MFconfig{uploadRawRds}\E/*.Rsingl.fq.gz")) {
+		$cmd .= "###\n### in case needed:\n### md5sum $MFconfig{uploadRawRds}/*.Rsingl.fq.gz > $MFconfig{uploadRawRds}/Rsingl.md5\n";
+	} else {
+		$cmd .= "& \nmd5sum $MFconfig{uploadRawRds}/*.Rsingl.fq.gz > $MFconfig{uploadRawRds}/Rsingl.md5\n";
+	}
+	
 	my ($jobN, $tmpCmd) = qsubSystem("$globalLogDir/postEBI.sh",$cmd,3,"20G","_PP",join(";",@EBIjobs),"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 }
 
@@ -3883,13 +3893,13 @@ sub uploadRawFilePrep{
 			if ($seqTec eq "PB"){$xtra = "PB.${xtra}";}
 			if ($seqTec eq "ONT"){$xtra = "ONT.${xtra}";}
 			#die "$seqTec\n$libInfo[0]\n";
-			my $of = "$tmpD/$smplID.$xtra.R$rd.fq";  
-			my $of2 = "$tmpD/$smplID.$xtra.R2.fq";  
-			my $tmpF = "$tmpD/$smplID.$xtra.R1R2.fq";  
-			my $ff = "$outD/$smplID.$xtra.R$rd.fq";  
+			my $of = "$tmpD/$smplID.${xtra}R$rd.fq";  
+			my $of2 = "$tmpD/$smplID.${xtra}R2.fq";  
+			my $tmpF = "$tmpD/$smplID.${xtra}R1R2.fq";  
+			my $ff = "$outD/$smplID.${xtra}R$rd.fq";  
 			my $ff2 = "$outD/$smplID.$xtra$idx.R2.fq";  
-			my $ofT = "$tmpD/tmp/$smplID.$xtra.TEMP.R$rd.fq";
-			my $ofT2 = "$tmpD/tmp/$smplID.$xtra.TEMP.R2.fq";
+			my $ofT = "$tmpD/tmp/$smplID.${xtra}TEMP.R$rd.fq";
+			my $ofT2 = "$tmpD/tmp/$smplID.${xtra}TEMP.R2.fq";
 			if ($f =~ m/\.gz$/){$of .= ".gz";$ff .= ".gz";$ofT .= ".gz";$of2 .= ".gz";$ff2 .= ".gz";$ofT2 .= ".gz";}
 			#$idx++;
 			#print "$ff\n";
@@ -6208,17 +6218,32 @@ sub getSNPStats{
 	my ($inFi) = @_;
 	#my $outStrDesc = "";  my $outStr = "";
 	my $outStr = "\t" x 4;
-	my $outStrDesc = "SNPbpResolved	SNPfastaEntries	SNPconflicts\tSNPconlResolv2ndL\tNumSNPs\t";
-	my $geneStats = getFileStr("$inFi",0);
-	#Total bp written: 34950480 (0 not resolved) on 26727 entries
+#	my $outStrDesc = "SNPbpResolved	SNPfastaEntries	SNPconflicts\tSNPconlResolv2ndL\tNumSNPs\t";
+	my $outStrDesc = "SNP_TotalResolvedBp\tSNP_fastaEntries\tSNP_Num\tSNP_Passed\tSNP_resolved\tINDEL_Num\tINDEL_Passed\t";
 
+	my $geneStats = getFileStr("${inFi}.etxt",0);
+	#Total bp written: 34950480 (0 not resolved) on 26727 entries
+	my $bps = 0; my $entrs=0;my $confl=0; my $resol=0;my $snpNum=0; my $indelNuml=0;
+	my $SNPpassed=0; my $INDpassed=0;
 	if ($geneStats =~ m/Total bp written: (\d+) \(\d+ not resolved\) on (\d+) entries/){
-		my $bps = $1; my $entrs=$2;
+		$bps = $1; $entrs=$2;
 		$geneStats =~ m/Conflicting calls: (\d+) Resolved with second line: (\d+)/;
-		my $confl=$1; my $resol=$2;
-		$geneStats =~ m/Total SNPs detected: (\d+)/; my $snpNum=$1;
-		$outStr = "$bps\t$entrs\t$confl\t$resol\t$snpNum\t";
+		$confl=$1; $resol=$2;
+		$geneStats =~ m/Total SNPs detected: (\d+)/; $snpNum=$1; 
+		#$outStr = "$bps\t$entrs\t$confl\t$resol\t$snpNum\t";
+		
+	} else { #try in .otxt
+		$geneStats = getFileStr("${inFi}.otxt",0);
+		if ($geneStats =~ m/Total bp that can be determined: (\d+) in (\d+) entries./){
+			$bps = $1; $entrs=$2;
+			#  - Found 11 SNPs and 5 INDELS.
+			$geneStats =~ m/  - Found (\d+) SNPs and (\d+) INDELS./;
+			$snpNum=$1; $indelNuml=$2;
+			$geneStats =~  m/  - Passed (\d+);(\d+) SNPs and INDELS. Conflicts resolved: 0/;
+			$SNPpassed=$1;  $INDpassed=$2;
+		}
 	}
+	$outStr = "$bps\t$entrs\t$snpNum\t$SNPpassed\t$resol\t$indelNuml\t$INDpassed\t";
 	return ($outStr, $outStrDesc);
 }
 
@@ -6399,7 +6424,7 @@ sub smplStats(){
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 
-	($t1,$t2) = getSNPStats("$inD/LOGandSUB/SNP/ConsAssem.oSNPc.sh.etxt");
+	($t1,$t2) = getSNPStats("$inD/LOGandSUB/SNP/ConsAssem.oSNPc.sh");
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){$outStr5 .= $t1;	$outStrDesc5 .= $t2;}
 	
@@ -7054,7 +7079,12 @@ sub megahitAssembly{
 	$cmd .= "$assStatScr $nodeTmp/scaffolds.fasta.filt > $nodeTmp/AssemblyStats.txt\n";
 	
 	my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx("$nodeTmp/scaffolds.fasta.filt",$nCores,$MFopt{largeMapperDB},$MFopt{MapperProg});#$nCores);
-	unless($cmdDB == "" || $mateFlag || !$MFopt{map2Assembly}){
+	
+	
+	#DEBUG
+	#print "\n\n$cmdDB ==  || $mateFlag || !$MFopt{map2Assembly} \n";
+	
+	unless($cmdDB eq "" || $mateFlag || !$MFopt{map2Assembly}){
 		$cmd .= "echo \"Building mapper index on assembly\"\n";
 		$cmd .= $cmdDB ; #doesn't need bowtie index
 	}
