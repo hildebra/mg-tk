@@ -5,6 +5,7 @@
 # *.[oa]
 # *~
 
+runs/files
 runs/*.mfc
 runs
 runs/maps

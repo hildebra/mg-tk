@@ -701,7 +701,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($locRedoSNPcalling){system "rm -fr $SNPdir";}
 	
 	if ($locRedoSVs){system "rm -fr $SVdir";}
-	if ($MFopt{redoSNPcons}){		system "rm -rf $genePredSNP* $contigsSNP* $genePredAASNP* $smplTmpDir/SNP $logDir/SNP";
+	if ($MFopt{redoSNPcons}){		system "rm -rf $SNPdir $genePredSNP* $contigsSNP* $genePredAASNP* $smplTmpDir/SNP $logDir/SNP";
 	} elsif ($MFopt{redoSNPgene}){		system "rm -rf $genePredSNP* $genePredAASNP* ";
 	}
 	my $boolGenePredOK=0;
@@ -1524,13 +1524,15 @@ sub postprocess{
 	my $MGSfile = "$baseOut/metagStats.txt";
 	my $MGShtml = "$baseOut/metagStatsReport.html";
 	my $prevRep=0; #how many samples reported on?
-	if (-e $MGSfile){$prevRep = `wc -l $MGSfile | cut -f1 -d' '`; chomp $prevRep; $prevRep = int($prevRep);}
+	if (-e $MGSfile){$prevRep = `wc -l $MGSfile | cut -f1 -d' '`; chomp $prevRep; $prevRep = int($prevRep);$prevRep--;}
 
-	if ( ($statStr ne "" && @inputRawFQs > $prevRep)  || $MFopt{writeStats}){
+#print $statStr."\n\n".@inputRawFQs . " .. ".@allSmplNames." >= $prevRep\n";
+
+	if ( ($statStr ne "" && @allSmplNames >= $prevRep)  || $MFopt{writeStats}){
 		open O,">$baseOut/metagStats.txt";print O $statStr;close O;
 	}
 	print "Stats in $MGSfile \n";
-	if ($MFopt{writeStats} || @inputRawFQs > $prevRep || !-e $MGShtml ){
+	if ($MFopt{writeStats} || @allSmplNames >= $prevRep || !-e $MGShtml ){
 		my $qcMakeHTMLReport = getProgPaths("qcMakeHTMLReport");
 		my $Rpath = getProgPaths("Rpath");
 		my $call = "$qcMakeHTMLReport $Rpath $MGSfile $MGShtml 1> /dev/null 2>&1;\n";
@@ -2528,9 +2530,10 @@ sub map2ndPrep{
 	}
 	my $DBsubmCnt=0; my $GENEsubmCnt=0;
 	my @refDB1 = split(/,/,$MFopt{refDBall});
+	#die "@refDB1\n";
 	#$MFopt{mapModeTogether} = 0 if (@refDB1 == 1);#could still be a wildcard, wrong assumption
 	my @bwt2Name1;
-	if (defined $MFopt{bwt2NameAll}){
+	if (defined $MFopt{bwt2NameAll} && $MFopt{bwt2NameAll} ne "" ){
 		@bwt2Name1 = split(/,/,$MFopt{bwt2NameAll}) ;
 	} elsif ($ARGV0 eq "map2DB"  ){
 		@bwt2Name1 = ("refDB");
@@ -2540,6 +2543,7 @@ sub map2ndPrep{
 	} else {
 		@bwt2Name1 = ("auto") x scalar(@refDB1);
 	}
+	#die "@bwt2Name1\n";
 	my @refDB;my @bwt2Name ;
 	my %FNrefDB2ndmap;
 	
@@ -2654,6 +2658,8 @@ sub map2ndPrep{
 	#die "@refDB\n";
 	
 	#build index for each fasta, and predict genes on these
+	die "MGTK map2nd check failed: @bwt2Name != @refDB" if (@bwt2Name != @refDB);
+	#die "X:: @refDB  @bwt2Name\n";
 	for (my $i=0;$i<@refDB; $i++){
 		#$refDB[$i] =~ m/(.*\/)[^\/]+/;
 		#my $refDir = $1;
