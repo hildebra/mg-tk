@@ -12,7 +12,7 @@ sub setConfigFile;
 #TAMOC programs related to IO to other programs, program paths .. not real subroutines that do anything
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(getProgPaths 
+our @EXPORT_OK = qw(getProgPaths truePath
 					inputFmtSpades inputFmtMegahit jgi_depth_cmd createGapFillopt setConfigFile 
 					buildMapperIdx mapperDBbuilt decideMapper checkMapsDoneSH greaterComputeSpace convert2Gb);
 

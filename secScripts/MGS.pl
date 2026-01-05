@@ -26,7 +26,8 @@ use Getopt::Long qw( GetOptions );
 #.25: 9.12.23: added extraction of representative MGS genome in contigs (highest qual MAG)
 #.26: 13.8.24: added -genomesPerFamily flag & function
 #.27: 12.11.24: removed necessity for -canopies flag
-my $MGSpipelineVersion = 0.27;
+#.28: 28.12.25: multi scaling flags for strainScr1 added
+my $MGSpipelineVersion = 0.28;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths jgi_depth_cmd);
 use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp readClstrRev unzipFileARezip getAssemblPath systemW gzipopen);
@@ -620,14 +621,26 @@ if ($wait4stone ne ""){
 
 my $strain1scr = getProgPaths("MGS_strain1_scr");
 my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
+my $memUsage = 30; #in Gb
+my $NsubJobs = 0 ; #split job up?
+my $preCompCons = 0;
+if (scalar(@DoosD) > 150){ #scale with the number of assembly groups
+	$memUsage = 50; $NsubJobs = 0; $preCompCons = 5;
+} elsif (scalar(@DoosD) > 400){
+	$memUsage = 70; $NsubJobs = 4; $preCompCons = 10;
+} elsif (scalar(@DoosD) > 700){
+	$memUsage = 120; $NsubJobs = 10; $preCompCons = 0;#at a certain size it makes more sense to handle  preCompCons this in-job
+} elsif (scalar(@DoosD) > 1500){
+	$memUsage = 120; $NsubJobs = 30; $preCompCons = 0; 
+}
 #my $prunTree = "$outD/between_phylo/prunned.nwk";
 #
 #my $ph2Cmd = "$strain1scr $GCd $finalClustersFilt.mgs $canCore $iniTree 0 1\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
-my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -rmMSA 1 -onlySubmit 1 -submit 1 -reSubmit 0 -redoSubmissionData 0 \n#consider adapting options: -rmMSA 0 -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
+my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -rmMSA 1 -preCompConsSNP $preCompCons -selfMemGb $memUsage -onlySubmit 1 -submit 1 -reSubmit 0 -maxSubJob $NsubJobs -redoSubmissionData 0 \n#consider adapting options: \n#-rmMSA 0 -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5 -multiGeneSmplMax 0.15 -conspGeneSmplMax 0.05 -nodeTmp [path]\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
 printL $ph2Cmd;
 #systemW $ph2Cmd;
-my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "50"; #needs some tmp space for on the fly creations.. 
-my ($jobName2, $tmpCmd) = qsubSystem($logDir."/strainMGS.sh",$ph2Cmd,1,int(150/1)."G","strainKickoff",$treedep,"",1,[],\%QSBopt) ;
+my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "20"; #needs some tmp space for on the fly creations.. 
+my ($jobName2, $tmpCmd) = qsubSystem($logDir."/strainMGS.sh",$ph2Cmd,1,int($memUsage/1)."G","strainKickoff",$treedep,"",1,[],\%QSBopt) ;
 $QSBopt{tmpSpace} =$tmpSHDD;
 
 #get phylogenies intra-species.. this requires a lot of power and best called from big cluster..

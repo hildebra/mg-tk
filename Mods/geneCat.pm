@@ -240,8 +240,8 @@ sub readGene2tax{
 	my $inF = $_[0];
 	my $limit = -1;
 	$limit = $_[1] if (@_ > 1);
-	my %SIgenes;my %Gene2COG;my %Gene2MGS;
-	my %uniqs; my %cogPrio;
+	my $SIgenes = {};my $Gene2COG= {};my $Gene2MGS= {};
+	my %uniqs; my $cogPrio= {};
 	#some stats
 	my %totalTax; my $totalGenes=0; my $inclGenes=0;
 	open I,"<$inF" or die "Can't open gene 2 tax (specI/MGS) file:\n$inF\n";
@@ -262,11 +262,11 @@ sub readGene2tax{
 			$OG="uniq$uniqs{$spl[1]}";
 			#die "$OG\n";
 		}
-		unless (exists($SIgenes{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
-			push(@{$cogPrio{$spl[1]}},$OG); ;
-			$SIgenes{$spl[1]}{$OG} = $spl[0];
-			$Gene2COG{$spl[0]} = $OG;
-			$Gene2MGS{$spl[0]} = $spl[1];
+		unless (exists($SIgenes->{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
+			push(@{$cogPrio->{$spl[1]}},$OG); ;
+			$SIgenes->{$spl[1]}{$OG} = $spl[0];
+			$Gene2COG->{$spl[0]} = $OG;
+			$Gene2MGS->{$spl[0]} = $spl[1];
 			$inclGenes++;
 			$totalTax{$spl[1]} ++;
 		}
@@ -280,7 +280,7 @@ sub readGene2tax{
 	print "5 lowest MGS are: \n" ; 
 	foreach my $k (@keys){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5){print "\n";last;}}
 	
-	return (\%SIgenes,\%Gene2COG,\%Gene2MGS,\%cogPrio);
+	return ($SIgenes,$Gene2COG,$Gene2MGS,$cogPrio);
 }
 
 
