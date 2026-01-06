@@ -295,6 +295,7 @@ pogenStats	[Rscript] [MGSTKDir]/popGenStats.R	env:MGSTK
 vizPhylosSign_R	[Rscript] [MGSTKDir]/plotPhylos.R	env:MGSTK
 treewasRun_R	[Rscript] [MGSTKDir]/runTreewas.R	env:MGSTK
 processTreewas_R	[Rscript] [MGSTKDir]/processTreewasResults.R	env:MGSTK
+runNetworks_R	[Rscript] [MGSTKDir]/runNetworks.R	env:MGSTK
 
 #debugging
 noneeneoneono	noneeneoneono

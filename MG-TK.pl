@@ -5106,6 +5106,7 @@ sub mapReadsToRef{
 	#die "$supTag $supportRds $dirsHr->{mapSupport} \n";
 
 	my $REF = $dirsHr->{sbj}; #target to map onto, can by ","-spearated list
+	print "$outName\n";
 	my ($par1,$par2,$parS,$liar,$rear) = getRawSeqsAssmGrp($AsgHR,$ASG,$supportRds,$outName);
 	my @libsOri = @{$liar};
 	#simple rule for mapper program: for now set to bowtie2
@@ -6523,7 +6524,7 @@ sub scndMap2Genos{
 	#map to all refs at once		
 	my %dirset = 	(nodeTmp=>$nodeSpTmpD,outDir => join(",",@bwt2outD),unalDir=>"",
 					sbj => join(",",@DBbtRefX),assGrp => $cAssGrp,
-					smplName => join(",",@bamBaseNameS),
+					smplName => $SmplName,#join(",",@bamBaseNameS),
 					glbTmp => $smplTmpDir."/xtraMaps/", is2ndMap => 1, 
 					qsubDir => "$logDir/map2nd/",mapSupport => 0,
 					glbMapDir => join(",",@mapOutXS),

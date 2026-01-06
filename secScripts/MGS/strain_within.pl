@@ -14,8 +14,6 @@ use Mods::TamocFunc qw(readTabbed getFileStr checkMF);
 use Mods::geneCat qw(readGene2tax createGene2MGS);
 use Mods::math qw(quantileArray);
 
-my $bts = getProgPaths("buildTree_scr");
-my $neiTree = getProgPaths("neighborTree");
 sub extractFNAFAA2genes;
 sub histoMGS;
 sub readGenesSample_Singl;
@@ -383,6 +381,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	}
 	
 	my $subsSmpl = -1;my $useSuperTree = 0;
+	my $bts = getProgPaths("buildTree_scr");
 	my $Tcmd= "$bts -fna $FNAtf -aa $FAAtf -smplSep '\\$SaSe' -cats $CATtf -outD $outD2  -runIQtree 1 -runFastTree 0 -cores $numCoreL  "; 
 	$Tcmd .= "-AAtree 0 -bootstrap 0 -NTfiltCount 400 -NTfilt 0.07 -NTfiltPerGene 0.5 -GenesPerSpecies 0.1 -runRaxMLng 0 -minOverlapMSA 2 ";
 	$Tcmd .= "-subsetSmpls $subsSmpl -fracMaxGenes90pct 0.7 "; #concentrate on almost complete gene groups.. can yield more samples overall and speeds up calc..
@@ -459,6 +458,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	
 	#include outgroup?
 	if ($treeFile ne ""){
+		my $neiTree = getProgPaths("neighborTree");
 		my $call = "$neiTree $treeFile $SI";
 		#print "$call\n";
 		my $OG1 = `$call`; chomp $OG1;
@@ -576,7 +576,7 @@ $MGSabundance = "$bindir/Annotation/Abundance/MGS.matL7.txt";
 my $strain2Scr = getProgPaths("MGS_strain2_scr");
 
 my $nxtCmd = "$strain2Scr -GCd $GCd -FMGdir $outD -MGSmatrix $MGSabundance -map $mapF -cores 4 -Hcores $maxCores -reSubmit 0 -DiscTests \"$discTests\" -ContTests \"$contTests\" -familyVar \"$familyVar\" -groupStabilityVars \"$groupStabilityVars\" \n"; #$GCd/MB2.clusters.ext.can.Rhcl.matL0.txt
-	my ($dep,$qcmd) = qsubSystem($outD."strainAnalysis2.sh",$nxtCmd,1,"60G","2StrainSub","","",1,[],$QSBoptHR);
+	my ($dep,$qcmd) = qsubSystem($outD."/strainAnalysis2.sh",$nxtCmd,1,"60G","2StrainSub","","",1,[],$QSBoptHR);
 print "\n". $nxtCmd."\n";
 
 
@@ -747,7 +747,7 @@ sub prepRun{
 
 	$bindir = $MGSfile;$bindir =~ s/[^\/]+$//; 
 	$outD =  $bindir."/intra_phylo/";#"$GCd/$mode/intra_phylo/";
-	$outD = $outDpre if ($outDpre ne "");
+	if ($outDpre ne ""){$outD = $outDpre ; $outD =. "/" unless ($outD =~ m/\/$/)}
 	$LOGDIR = "$outD/LOGandSUB/";
 	$SNPconsLOGs = "$outD/SNPconsCalls.log" if ($SNPconsLOGs eq "");
 

@@ -875,6 +875,7 @@ sub getRawSeqsAssmGrp{
 	#die "XX @smpls YY\n$support\n@terms\n@{${$raws{$smpls[0]}}{ $terms[2] }}\n";
 	foreach my $smpl (@smpls){
 		#print "$smpl\n"; 
+		die "GenoMetaAss.pm::getRawSeqsAssmGrp: $smpl not included in raw input vector!\n" unless (exists($raws{$smpl}));
 		push(@pa1, @{${$raws{$smpl}}{ $terms[0] }});
 		push(@pa2, @{${$raws{$smpl}}{ $terms[1] }});
 		push(@pas, @{${$raws{$smpl}}{ $terms[2] }});
