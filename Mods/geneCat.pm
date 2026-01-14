@@ -2,14 +2,14 @@ package Mods::geneCat;
 use warnings;
 use strict;
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw(  systemW gzipopen readFasta);
+use Mods::GenoMetaAss qw( fileGZe systemW gzipopen readFasta);
 use Mods::FuncTools qw( readGene2Func);
 use Mods::math qw( meanArray);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(readGeneIdx readGeneIdxSpl correlation calculate_spearman_correlation read_matrix checkAntiOcc
 				readGene2tax createGene2MGS sortFNA readMG_LCA
-				attachProteins attachProteins2 attachProteins3 );
+				attachProteins  attachProteins3 );
 
 
 sub readMG_LCA{
@@ -54,7 +54,7 @@ sub readMG_LCA{
 sub attachProteins3{
 	my ($curSmpl,$prF,$protIn,$hrGI,$SEP) = @_;
 	my %gene2num = %{$hrGI};
-	die "Protein file does not exist: $protIn\n" unless (-e $protIn);
+	die "Protein file does not exist: $protIn\n" unless (fileGZe($protIn));
 	my $hr = readFasta($protIn);
 	my %fas = %{$hr};
 	#print "$protIn\n";
@@ -84,49 +84,6 @@ sub attachProteins3{
 	$tmpStr="";
 }
 
-
-sub attachProteins2{
-	my ($inT,$prF,$protIn) = ($_[0],$_[1],$_[2]);
-	
-	my %gene2num; my $doRename=0;
-	if (@_ > 3){
-		$doRename=1;
-		my $hr = $_[3];
-		%gene2num = %{$hr};
-	}
-	die "Protein file does not exist: $protIn\n" unless (-e $protIn);
-	my $hr = readFasta($protIn);
-	my %fas = %{$hr};
-	#print "$protIn\n";
-	#my $protStore = `cat $inT | xargs $samBin faidx $protIn`;
-	#die length($protStore)."\n";
-	#my @prots = @{$inT};
-	my $tmpStr = "";
-	my @inTa = @{$inT};
-	foreach my $pr (@inTa){
-		#$pr = substr $pr,1; #s/^>//;
-		#1 identify protein
-		my $seq = "";
-		if (!exists($fas{$pr})){
-			print "Can't find $pr in $protIn\n";
-		} else {
-			$seq = $fas{$pr};
-		}
-		if ($doRename){
-			unless(exists($gene2num{$pr})){die "can not identify $pr gene in index file while rewritign prot names\n$protIn\n";}
-			#print "$gene2num{$spl[0]}\n $pr\n";
-			foreach my $pr (@{$gene2num{$pr}}){
-				$tmpStr .= ">".$pr."\n".$seq."\n";
-			}
-		} else {
-			$tmpStr .= ">".$pr."\n".$seq."\n";
-		}
-	}
-	open Oe,">>$prF" or die "Can't open $prF\n";
-	print Oe $tmpStr;
-	close Oe;
-	$tmpStr="";
-}
 
 sub attachProteins{#"$basD/tmp.txt",$protF){
 	my ($inT,$prF,$protIn) = ($_[0],$_[1],$_[2]);

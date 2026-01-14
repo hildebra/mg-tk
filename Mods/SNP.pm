@@ -3,10 +3,9 @@ use warnings;
 use strict;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw( gzipopen systemW readFasta readGFF writeFasta reverse_complement_IUPAC fileGZs );
+use Mods::GenoMetaAss qw( gzipopen systemW filsizeMB readFasta readGFF writeFasta reverse_complement_IUPAC fileGZs fileGZe );
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystem2);
 use Mods::TamocFunc qw (cram2bsam);
-
 use List::Util qw/shuffle/;
 
 
@@ -190,20 +189,23 @@ sub pileupcall{
 	my $threads = 0;#$SNPIHR->{threads};
 	my $run2ctg = $SNPIHR->{run2ctg};
 	my $rdep = $SNPIHR->{rdep} ;
+	my $normalizeIndel = 1; $normalizeIndel = $SNPIHR->{normIndels} if (exists($SNPIHR->{normIndels})) ;
 
 
 	my $useFB = 1;	$useFB = 0 if (uc($SNPIHR->{SNPcaller}) eq "MPI");
 	my $overwrite = $SNPIHR->{overwrite};
 
 	#basic caller options..
-	my $minBQ=30; my $minMQ=30;
+	my $minBQ=30; my $minMQ=30.0;
 	#freebayes std options
 	my $frAllOpts= "-u -i -m $minMQ -q $minBQ -C 1 -F 0.1 -k -X --pooled-continuous --report-monomorphic  --min-repeat-entropy 1 --use-best-n-alleles 2 -G 1 ";
 	#bcftools options #-q = map qual -Q = base qual
 	my $bcfAllOpts = " --min-BQ $minBQ -d 12000 --threads $threads  --min-MQ $minMQ -a FORMAT/DP,FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/SP,INFO/FS,INFO/IDV,INFO/MQ0F,INFO/BQBZ,INFO/SCBZ,INFO/RPBZ,INFO/MQBZ"; 
 	#--skip-indels #--count-orphans -a DP,AD,ADF,ADR,SP
-	my $bcftCallOpts = "-O z --ploidy 1 -c -M --threads 0 -a INFO/PV4 "; #--multiallelic-caller  -> replaced with -c (consensus caller)
+	my $bcftCallOpts = " --ploidy 1 -c -M --threads 0 -a INFO/PV4 "; #--multiallelic-caller  -> replaced with -c (consensus caller)
 	$bcftCallOpts .= "--variants-only " if ($varsOnly);
+	#$bcftCallOpts .= "-O z " ;# if ($normalizeIndel);
+	my $bcftViewOpts = "-Oz  ";
 	if ($tag eq "sup-"){
 		if ($SNPIHR->{SeqTechSuppl} eq "ONT"){$bcfAllOpts.=" -X ont ";
 		} elsif ($SNPIHR->{SeqTechSuppl} eq "PB"){$bcfAllOpts.=" -X pacbio-ccs ";
@@ -227,7 +229,8 @@ sub pileupcall{
 	} else {
 		$cmd = "$bcftBin mpileup --fasta-ref $refFA $bcfAllOpts ";
 	}
-	my @allDeps2; my @checkF;
+	my $normPreTag = ""; #$normPreTag = ".pre" if ($normalizeIndel);
+	my @allDeps2; my @checkF=();
 	#implement in parallel as too slow in single core mode :/
 	system "rm -f $tmpOut.$tag*" if ($overwrite);
 	system "mkdir -p $qsubDirE" unless (-d $qsubDirE);
@@ -235,6 +238,7 @@ sub pileupcall{
 	for (my $i=0;$i<@curReg;$i++){ #go over regions in bed file, submit a job for each "region"
 		#$tar[0] = bam file;  $bedF = bedfile with regions
 		next if (!$run2ctg);
+		$bcftViewOpts .= "--no-header " if (scalar(@checkF)==1);
 		system "rm -f $qsubDirE/$smplNm.$tag*.bed" if ($i==0) ;
 		my $cmd2 = $cmd ;
 		my $bedF = $qsubDirE."$smplNm.${tag}$i.bed";
@@ -244,8 +248,8 @@ sub pileupcall{
 			open O,">",$bedF or die $!;print O $curReg[$i];close O;
 			if ($useFB){
 				$cmd2 .= " -t $bedF $tarR->[0] > $tmpOut.$tag$i && rm $bedF $locXtrCmd\n"; #--region '$curReg[$i]'
-			} else {
-				$cmd2 .= " -R $bedF $tarR->[0] | $bcftBin call $bcftCallOpts  > $tmpOut.$tag$i.gz  && rm $bedF $locXtrCmd\n"; 
+			}else{
+				$cmd2 .= " -R $bedF $tarR->[0] | $bcftBin call $bcftCallOpts | $bcftBin view $bcftViewOpts  > $tmpOut.$tag$i$normPreTag.gz  && rm $bedF $locXtrCmd\n"; 
 			}
 		} else {
 			die "incomplete control structure SNP.pm\n";
@@ -261,6 +265,9 @@ sub pileupcall{
 	#$bedJobs =1 if ($bedJobs<1);
 	$cmdAll2 .= "wait \$(jobs -p);\n" if ($run2ctg);
 	$cmdAll2 .= "rm -f $tarR->[0].crai $tarR->[0].bai;\n";
+	
+	
+	
 	$cmdAll2 .= "\necho \"Finished mpileup $tag\"\n\n";	
 	#$cmdAll .= "rm -f $tarR->[0];\n" if ($run2ctg && $tarR->[0] ne "");
 	if ($bedJobs ==0){$cmdAll2="";}
@@ -281,7 +288,7 @@ sub SNPconsensus_vcf{
 	my $bcftBin = getProgPaths("bcftools");
 	my $vcf2fnaBin = getProgPaths("vcf2fna");
 	
-
+	my $memPJob =0;
 	#get parameteres
 	my $samcores = 12;
 	#my %SNPinfo = %{$SNPIHR};
@@ -298,6 +305,10 @@ sub SNPconsensus_vcf{
 	my $overwrite = $SNPIHR->{overwrite};
 	my $runLocalTmp = $SNPIHR->{runLocal};
 	my $maxSNPcores= $SNPIHR->{maxCores};
+	my $normalizeIndel = 1; $normalizeIndel = $SNPIHR->{normIndels} if (exists($SNPIHR->{normIndels})) ;
+	my $onlyNormalize = 0;
+
+	$memPJob = $SNPIHR->{memPJob};
 	my $SNPstone = $SNPIHR->{STOconSNP}; my $SNPsuppStone = $SNPIHR->{STOconSNPsupp};
 	my $minDepth = 0;
 	$minDepth =$SNPIHR->{minDepth}  if (exists($SNPIHR->{minDepth} ));
@@ -325,6 +336,15 @@ sub SNPconsensus_vcf{
 		$vcfFile = "$scrDir/$smplNm.fin.vcf.gz"; #switch back to vcf for vcf2fna
 		$vcfFileS = "$scrDir/$smplNm.fin-sup.vcf.gz";
 	}
+	if ($normalizeIndel){
+		my $SNPstone2 = $SNPstone; $SNPstone2 =~ s/\.norm\.stone/\.stone/;
+		if (! -e $SNPstone && -e $SNPstone2){#can just do the normalization..
+			$onlyNormalize = 1 ; system "rm -f $SNPstone2"; $maxSNPcores=1;
+		}
+		#die "$onlyNormalize $SNPstone2 $SNPstone\n";
+	}	
+	
+
 
 	
 	#key change for C++ program vcf2fasta
@@ -338,7 +358,7 @@ sub SNPconsensus_vcf{
 	my $run2ctg=1; #flag to determine if I run the cram to bam, mpileup, consensus contig steps..
 	system "rm -f $ofasConsDir/*" if ($overwrite);
 	#die "$ofasCons\n";
-	if (-e "$ofasCons.gz" && -s "$ofasCons.gz" > 200){
+	if (fileGZe ($vcfFile) || (-e "$ofasCons.gz" && -s "$ofasCons.gz" > 200)){
 		$run2ctg =0 ;
 	} else {
 		system "rm -f $ofasConsDir/*"; #better safe than sorry..
@@ -391,6 +411,15 @@ sub SNPconsensus_vcf{
 	my $depthFile = $tar[0];$depthFile =~ s/\.cram$|\.bam$/\.bam\.coverage\.gz/;
 	if (!-e $depthFile){$depthFile =~ s/\.gz//; die "no depth file found (SNP.pm): $depthFile\n$tar[0]\n" if (!-e $depthFile);}
 	
+	my $bcramSiz = filsizeMB($tar[0]);
+	my $refSize = filsizeMB($refFA);
+	my $memReqGB = 3; #memory requested by job
+	my @limits = (1500,3500,5500,7500,10000,12000); my @memRperLimit = (5,7,9,11,13,15);
+	if ($bamcram eq "bam"){ for (my $i=0;$i<@limits;$i++){$limits[$i] *= 1.7;}} #increase limits for bams..
+	for (my $i=0;$i<@limits;$i++){ last if (($bcramSiz+$refSize)<$limits[$i]); $memReqGB = $memRperLimit[$i];}
+	$memReqGB = $memPJob if ($memPJob > 0);;
+	
+	
 	#die $depthFile."\n";
 	
 	if (!$runLocalTmp && $run2ctg && (!-e $tar[0] || !-e $refFA) ){
@@ -403,13 +432,11 @@ sub SNPconsensus_vcf{
 	$SNPIHR->{rdep} = $rdep;
 
 	#$SNPIHR->{assembly} = $refFA;
-	my $cmdAll = ""; $cmdAll .= $xtra if ($run2ctg);
+	my $cmdAll = ""; $cmdAll .= $xtra if ($run2ctg && !$onlyNormalize);
 	my $tmpOut = "$scrDir/$smplNm.cons.vcf";
 	my ($dAR,$cAR,$pilecmd) =  pileupcall(\@tar,"",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut,$myParL,\@curReg,$reportVarOnly);
 	my @allDeps2 = @{$dAR}; my @checkF = @{$cAR};
-	$cmdAll .= $pilecmd;
-	
-	
+	$cmdAll .= $pilecmd if (!$onlyNormalize);
 	
 		#supplementary mappings?
 	my @tarS = ("");
@@ -426,7 +453,7 @@ sub SNPconsensus_vcf{
 			$xtra2 .= "if [ ! -e $tarS[0].bai ] || [ ! -s $tarS[0].bai ]; then rm -f $tarS[0].bai; $smtBin index -@ $samcores  $tarS[0]; fi\n";
 		}
 		($dAR,$cAR,$pilecmd) =  pileupcall(\@tarS,"sup-",$SNPIHR,$QSBoptHR,$scrDir,$tmpOut2,$myParL,\@curReg,$reportVarOnly);
-		$cmdAll .= $xtra2.$pilecmd;
+		$cmdAll .= $xtra2.$pilecmd if (!$onlyNormalize);
 		push(@allDeps2, @{$dAR}); push(@checkF, @{$cAR});
 	}
 
@@ -434,6 +461,7 @@ sub SNPconsensus_vcf{
 	#from here on: merge XX vcf's into one
 	my $sortCmd = "";
 	my $vcfSuff=""; #indicates some extra step in merging .. not needed any longer
+	$vcfFile .= ".gz" unless ($vcfFile =~ m/\.gz$/);
 	if ($myParL && $cmdAll ne ""){
 		#this string simply sorts all output files in correct numerical order.. doesn't touch file contents!
 		my $sortedFileList = " | awk -F '.' '{print \$(NF-1),\$0}'  | sort -n -k1 | cut -f2 -d' '";
@@ -442,7 +470,6 @@ sub SNPconsensus_vcf{
 		$sortCmd .= "mkdir -p $ofasConsDir;\n";
 		$sortCmd .= "if ls $qsubDirE/$smplNm.*.bed 1> /dev/null 2>&1 ;then echo \"Bed files still present, probably incorrect run\"; exit 33; else echo \"bed files deleted, looks good\"; fi\n\n";
 		#old way to save file.. too much data for production environment
-		$vcfFile .= ".gz" unless ($vcfFile =~ m/\.gz$/);
 		$sortCmd .= "cat `ls $tmpOut.* $sortedFileList` >$vcfFile ;\nrm -f $tmpOut.*;\n";
 		if ($SNPsuppStone ne "" ){
 			$vcfFileS .= ".gz" unless ($vcfFileS =~ m/\.gz$/);
@@ -469,15 +496,35 @@ sub SNPconsensus_vcf{
 		$cmdAll .= $sortCmd;
 	}
 	
+	my $bcfNormOpts = " -O z --force  -f $refFA "; #-a -m '+both'
+	my $cmd3 = "";
+	if($normalizeIndel){#bcftools norm -f ref.fa in.vcf
+		$cmd3.="\necho \"left-normalizing indels\"\n";
+		$cmd3 .= "$bcftBin index $vcfFile\n$bcftBin norm $bcfNormOpts $vcfFile > $vcfFile.norm\n"; # && rm $tmpOut.$tag$i$normPreTag.gz* & 
+		$cmd3 .= "rm $vcfFile $vcfFile.csi; mv $vcfFile.norm $vcfFile;\n";
+		
+		if ($SNPsuppStone ne "" ){
+			$cmd3 .= "$bcftBin index $vcfFileS\n$bcftBin norm $bcfNormOpts $vcfFileS > $vcfFileS.norm\n"; 
+			$cmd3 .= "rm $vcfFileS $vcfFileS.csi; mv $vcfFileS.norm $vcfFileS;\n";
+		}
+		
+		
+		
+		$cmd3 .= "\necho \"Done normalizing\"\n"; #wait \$(jobs -p);\n
+		#die "$cmd3";
+		$cmdAll .= $cmd3;
+	}
+	
 	my $postcmd = "";
-	if (-s $vcfFile && ($SNPsuppStone eq "" || fileGZs($vcfFileS)) ){$cmdAll="";}
+	if (!$onlyNormalize && fileGZs($vcfFile) && ($SNPsuppStone eq "" || fileGZs($vcfFileS)) ){$cmdAll="";}
 	my $vcf2fnaOpt = "";
 	my $vcf2fnaOuts = "-oCtg $ofasCons.gz";
 	if (!-e $SNPIHR->{genefna}){
 		$vcf2fnaOuts .= " -oGeneNT $SNPIHR->{genefna} -oGeneAA $SNPIHR->{genefaa} ";
 	}
 	die "SNP.pm::SNPconsensus_vcf: gff file not defined" unless (exists($SNPIHR->{gffFile}));
-	my $vcf2fnaIns = "-ref $refFA -gff $SNPIHR->{gffFile} ";
+	my $gffF = $SNPIHR->{gffFile}; $gffF .= ".gz" if (-e $gffF . ".gz");
+	my $vcf2fnaIns = "-ref $refFA -gff $gffF ";
 	
 	if ($SNPsuppStone eq "" ){#variant for 1 vcf
 		my $tmpST = $SNPIHR->{SeqTech}; if ($tmpST eq ""){$tmpST = "ill";}
@@ -532,11 +579,12 @@ sub SNPconsensus_vcf{
 		}
 	}
 	#die "$cmdAll\n $SNPIHR->{genefna}\n";
+	
 	if ($runLocalTmp && $cmdAll ne ""){#qsub all together now
 		#this is the new way of doing this
 		my $tmpS = $QSBoptHR->{tmpSpace};
-		$QSBoptHR->{tmpSpace} = 10; #in GB
-		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,int($actualCores*1.1),"5G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
+		$QSBoptHR->{tmpSpace} = 3*$memReqGB; #in GB
+		my ($dep,$qcmd) = qsubSystem($qsubDirE."$cmdFTag.oSNPc.sh",$cmdAll,int($actualCores*1.1),$memReqGB."G","Cons$x",join(";",@allDeps2),"",1,[],$QSBoptHR);
 		$rdep =$dep;
 		$QSBoptHR->{tmpSpace} = $tmpS;
 	}
@@ -706,7 +754,7 @@ sub SVcall_vcf{
 #################################################################
 
 sub SNPconsensus_vcf2{
-	die"not used after all..\n";
+	die"SNPconsensus_vcf2::not used after all..\n";
 	#second version, that takes advantage of newer bcftools versions
 	my ($SNPIHR)  = @_;
 	my $frbBin = getProgPaths("freebayes");
@@ -823,6 +871,7 @@ sub SNPconsensus_vcf2{
 	
 	$cmdAll .= "$pigzBin -p $samcores $ofasCons;\n";
 	
+	die; #python script no longer used.
 	if (exists($SNPinfo{gffFile}) && !-e $SNPinfo{genefna}){
 		#requires python3 environment
 		$cmdAll .= "\n$ctg2fas --gff $SNPinfo{gffFile} --contig $ofasCons.gz --outFNA $SNPinfo{genefna} --outFAA $SNPinfo{genefaa};\n";

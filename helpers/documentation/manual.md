@@ -40,6 +40,7 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-maxUnzpJobs [#]				#how many unzip jobs to run in parallel (not to overload HPC IO). Default:20
 	-skipSmallSmplsMB [#]			skip sample if the overall file size is < than given number (in MB). Default: 1
 	-forceWriteStats [0|1]			force (re)writing of the metagStats HTML report and text files. Default: 0
+	-genePredGZenforce [0|1]		1: Will gzip gene prediction files, if not already done. Default: 0
 
 
 # Detecting raw input files
@@ -119,6 +120,7 @@ MG-TK uses three primary phases to analyse metagenomes:
 
 # SNPs
 	-getAssemblConsSNP [0|1]		1: SNPs (onto self assembly); calculates consensus SNP of assembly (useful for checking assembly gets consensus and Assmbl_grps)
+	-SNPmemPerJob [#]				memory per core used in SNP calling. Will normally be automatically determined (values typical 2-12 [Gb]), but can be modified if needed. Default: 0 (=auto)
 	-get2ndMappingConsSNP [0|1]		1: calculate consensus SNPs for mappings against references (map2tar mode)
 	-redoAssmblConsSNP [0|1]		1: redo getAssemblConsSNP (Default: 0)
 	-redoGeneExtrSNP [0\1]			1: redo gene extractions from consensus SNP contig (Default: 0)

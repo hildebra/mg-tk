@@ -39,7 +39,7 @@ dependencies:
   - pigz=2.8
   - pip=24.0
   - rsync=3.4.1
-  - bioconda::strobealign=0.15
+  - bioconda::strobealign=0.17
 #  - screen>=4.8
 #  - glpk
 
@@ -47,7 +47,7 @@ dependencies:
 
   - bioconda::spades=3.15.5
   - bioconda::augustus=3.1
-  - bioconda::bcftools=1.21
+  - bioconda::bcftools=1.23
 #  - mosdepth>=0.3.4
 #  - bedtools>=2.30
 #  - blas>=1.0
@@ -84,7 +84,7 @@ dependencies:
   - bwa=0.7.18
   - vsearch=2.28.1
   - foldseek>=5.53465f0
-  - mmseqs2=16.747c6
+  - mmseqs2=18.8cc5c
 #  - motus>=3
   - mreps=2.6.01
   - muscle=5.3
@@ -93,7 +93,7 @@ dependencies:
   - pprodigal=1.0.1
 #  - metaeuk=6.a5d39d9
 #  - racon>=1.5.0
-  - samtools=1.21
+  - samtools=1.23
   - sortmerna=4.3.7
 #  - semibin=1.5.1
   - trimmomatic=0.39

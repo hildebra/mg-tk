@@ -18,7 +18,9 @@ our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFast
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
 		unzipFileARezip systemW is_integer 
 		readGFF reverse_complement reverse_complement_IUPAC
-		readFasta writeFasta readFastHD splitFastas 
+		
+		readFasta 
+		writeFasta readFastHD splitFastas 
 		readTabByKey convertNT2AA runDiamond median mean quantile
 		getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp iniCleanSeqSetHR
 		hasSuppRds
@@ -738,20 +740,27 @@ sub readGFF($){
 	my ($inF) =@_;
 	my %ret;my $sbcnt=1;
 	my $lcnt=0;
-	open I,"<$inF";
-	while (<I>){
+	#if (!-e $inF && -e "$inF.gz"){$inF .= ".gz";}
+	my $entries=0;
+	my ($GFF ,$status) = gzipopen($inF,"gff file to readGFF",1);
+
+	#open I,"<$inF";
+	while (<$GFF>){
 		if (m/^#/){$sbcnt=1;next;}
 		chomp;
 		$lcnt++;
 		my @spl = split(/\t/);
 		print "readGFF::too short: line $lcnt, $inF\n" unless (@spl > 7);
 		$spl[8] =~ m/^ID=\d+_(\d+)/;
-		my $k = ">".$spl[0]."_$1";
+		#my $k = ">".$spl[0]."_$1";
+		my $k = $spl[0]."_$1";
 		#print $k;
 		$ret{$k}=$_;
+		$entries++;
 	}
-	#die;
-	close I;
+	
+	close $GFF;
+	#die "Found $entries gff entries\n";
 	return \%ret;
 }
 
@@ -795,6 +804,7 @@ sub getAssemblGFF{
 	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
 
 	my $gffF = "$assmD//genePred/genes.gff";
+	$gffF .= ".gz" if (-e $gffF . ".gz");
 	if (!-s $gffF){print STDERR "getAssemblGFF::Could not find gff in dir $cD!:\n$gffF\n";die if ($dieOnFail);}
 	return $gffF;
 }
@@ -804,6 +814,7 @@ sub getAssemblContigs{
 	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
 	my $assmD = getAssemblPath($cD);
 	my $ctgF = "$assmD/scaffolds.fasta.filt";
+	$ctgF .= ".gz" if (!-e $ctgF && -e "$ctgF.gz");
 	if (!-s $ctgF){print STDERR "getAssemblContigs::Could not find assembly in dir $cD!:\n$ctgF\n";die if ($dieOnFail);}
 	return $ctgF;
 }
@@ -853,7 +864,7 @@ sub hasSuppRds{
 	my ($asG, $grp,$smpl) = @_;
 	my %raws = %{${$asG}{$grp}{RawSeqs}};
 	my @smpls = keys %{${$asG}{$grp}{RawSeqs}};
-	print "GRP:$grp\n@smpls\n";
+	#print "GRP:$grp\n@smpls\n";
 #	if (  exists( ${  ${${$asG}{$grp}{RawSeqs}}{$smpl}}{"paXs"} )  ){
 	if (  exists( ${  $raws{$smpl}}{"paXs"} )  ){
 		return 1;
@@ -1051,8 +1062,8 @@ sub checkSeqTech{
 	my $inT = $_[0];
 	my $msg = "Mapping file";
 	$msg = $_[1] if (@_ > 1);
-	if ($inT ne "" && $inT ne "ONT"&& $inT ne "hiSeq" && $inT ne "454" && $inT ne "SLR" && $inT ne "PB" && $inT ne "proto" && $inT ne "miSeq" && $inT ne "GAII" && $inT ne "GAII_solexa"){
-		die "$msg: Can't recognize SeqTech: \"$inT\"\nHas to be one of \"ONT\",\"PB\",\"proto\",\"SLR\",\"miSeq\",\"hiSeq\",\"GAII\",\"GAII_solexa\" or \"\"\n\n";
+	if ($inT ne "" && $inT ne "ONT"&& $inT ne "ill"&& $inT ne "hiSeq" && $inT ne "454" && $inT ne "SLR" && $inT ne "PB" && $inT ne "proto" && $inT ne "miSeq" && $inT ne "GAII" && $inT ne "GAII_solexa"){
+		die "$msg: Can't recognize SeqTech: \"$inT\"\nHas to be one of \"ONT\",\"PB\", \"proto\",\"SLR\", \"ill\", \"miSeq\", \"hiSeq\", \"GAII\",\"GAII_solexa\" or \"\"\n\n";
 	}
 }
 sub readMap{
@@ -1228,7 +1239,7 @@ sub readMap{
 		$ret{$curSmp}{SmplID} = $curSmp;
 		$ret{$curSmp}{mapFinSmpl} = $curSmp;
 		$ret{$curSmp}{assFinSmpl} = $curSmp;
-		#ONT,PB,proto,miSeq,GAII
+		#ONT,PB,proto,miSeq,GAII etc
 		if ($SeqTech >= 0) { my $RT=$spl[$SeqTech];checkSeqTech($RT);$ret{$curSmp}{SeqTech} = $RT; } else {$ret{$curSmp}{SeqTech} = "";}
 		if ($SeqTechS >= 0) { my $RT=$spl[$SeqTechS];checkSeqTech($RT);$ret{$curSmp}{SeqTechSingl} = $RT; } else {$ret{$curSmp}{SeqTechSingl} = "";}
 		

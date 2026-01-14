@@ -20,7 +20,7 @@ Further, you can add the following specifics for each single sample:
 - **AssmblGrps** [STRING] - set this to a number or string. all samples with the same tag will be assembled together (e.g. samples from the same patient at different time points).  
 - **MapGrps** [STRING] - set a tag here as in AssmblGrps. All reads from these samples will be thrown together, when mapping against target sequences (only works with option "map2tar" and "map2DB").
 - **SupportReads** ['PB', 'mate'] - in case you have additional reads, that are not normal illumina hiSeq, e.g. miSeq or hiSeq in mate pair sequence mode ('mate') or PacBio reads ('PB').
-- **SeqTech** ['ill', 'ONT', 'PB', 'SLR'] - Sequencing technology used in sample: illumina short reads ('ill') , Oxford Nanopore ('ONT'), PacBio ('PB') or sythetic long reads ('SLR').
+- **SeqTech** ['ONT', 'PB', 'ill', 'miSeq', 'hiSeq', 'GAII', 'GAII_solexa', 'proto', '454', 'AVITI', 'SLR'] - Sequencing technology used in sample: 3rd gen: Oxford Nanopore ('ONT'), PacBio ('PB'), 2nd gen: illumina short reads ('ill' and it's subtechs miSeq, hiSeq, GAII, GAII_solexa), proton ('proto'), 454 ('454'), Elements AVITI, or sythetic long reads ('SLR').
 - **ReadLength** - Expected read length in sample. Is usually automatically determined, use with caution!
 - **EstCoverage** [0/1] - (Deprecated!!) Used to indicate if the avg coverage of genomes should be estimated in sample.
 - **SupportReads** [tag:path] - Additional reads created with a different seq technology. E.g. miSeq ('miSeq:/path/to/file'), mate-pair ('mate:/path/to/file') or PacBio ('PB:/path/to/bam').

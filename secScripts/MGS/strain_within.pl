@@ -747,7 +747,10 @@ sub prepRun{
 
 	$bindir = $MGSfile;$bindir =~ s/[^\/]+$//; 
 	$outD =  $bindir."/intra_phylo/";#"$GCd/$mode/intra_phylo/";
-	if ($outDpre ne ""){$outD = $outDpre ; $outD =. "/" unless ($outD =~ m/\/$/)}
+	if ($outDpre ne ""){
+		$outD = $outDpre ; 
+		$outD .= "/" unless ($outD =~ m/\/$/);
+		}
 	$LOGDIR = "$outD/LOGandSUB/";
 	$SNPconsLOGs = "$outD/SNPconsCalls.log" if ($SNPconsLOGs eq "");
 
