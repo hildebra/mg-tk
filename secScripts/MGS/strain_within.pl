@@ -809,7 +809,8 @@ sub prepRun{
 	print "MGs: $useGTDBmg\nGene2Tax: $gene2taxF\n";
 	print "Using $presortGenes genes from each MGS for location\n";
 	print "Deep repariing remaining submission files\n" if ($deepRepair);
-	print "Pre-creating ConsSNPs in $preConDir\n" if ($preCompCons);
+	print "Pre-creating ConsSNPs in $preConDir in $preCompCons runs\n" if ($preCompCons);
+	
 	if ($takeAll){print "**************** Take all genes MGS mode\n";}
 	else {print "Using first $maxNGenes genes found per sample\n";}
 	print "==============================================\n";
@@ -827,8 +828,8 @@ sub prepRun{
 
 	}
 	#prep sorted MGS gene file
-	if (!-e $MGSfile.".srt"){
-		die "In rewriting loop while in a subjob.. aborting\n" ;
+	if (!-e $MGSfile.".srt" && !$subJob){
+		die "In rewriting loop while in a subjob.. aborting\n" if ($subJob);
 		print "base files missing.. preparing complete resubmission and recalc of data\n";
 		system "rm -fr $outD";
 		system "rm -f $MGSfile.srt*";

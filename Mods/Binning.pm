@@ -209,7 +209,7 @@ sub filterMGS_CM{
 sub readBinSB($){
 	my ($inF) = @_;
 	my %can2gene;
-	print "reading SemiBin file: $inF\n";
+	#print "reading SemiBin file: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -224,7 +224,7 @@ sub readBinSB($){
 sub readMGS($){
 	my ($inF) = @_;
 	my %can2gene;
-	print "reading MGS file: $inF\n";
+	#print "reading MGS file: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -238,7 +238,7 @@ sub readMGSrev($){
 	my ($inF) = @_;
 	my %g2c;
 	my $dbl=0;
-	print "reading MGS reverse: $inF\n";
+	#print "reading MGS reverse: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -256,7 +256,7 @@ sub readMGSrevRed($){
 	my ($inF) = @_;
 	my %g2c;
 	my $dbl=0;
-	print "reading MGS reverse: $inF\n";
+	#print "reading MGS reverse: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -663,7 +663,9 @@ sub runSemiBin{
 	
 	# --environment human_gut, dog_gut, ocean, soil, cat_gut, human_oral, mouse_gut, pig_gut, built_environment, wastewater, chicken_caecum, global
 	my $smode = "single_easy_bin ";
-	my $senv = "--environment human_gut";$senv =  "--environment $giveSBenv" if ($giveSBenv ne "");
+	my $senvDef = "--environment human_gut";my $senv = ""; 
+	if ($giveSBenv ne "") {$senv =  "--environment $giveSBenv" ; $senvDef = $senv;}
+	if ($numBams > 1){$senv = "";}#multisample doesn't accept env flag
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
 	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
@@ -673,10 +675,10 @@ sub runSemiBin{
 	#my $output = "$outD/$nm.semibin";
 	my $cmd .= "\n\n###Running SemiBin...\n";
 	if ($giveSBenv ne ""){
-		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
+		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). "  $seqType --output $outDir $dflags\n"; 
 
 	}elsif ($numBams == 1 && $jgO ne ""){
-		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senv $seqType --output $outDir $dflags\n";
+		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senvDef $seqType --output $outDir $dflags\n";
 	} else {
 		#--reference-db-data-dir $semibinGTDB --training-type self 
 		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";

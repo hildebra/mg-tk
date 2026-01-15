@@ -116,6 +116,7 @@ MG-TK uses three primary phases to analyse metagenomes:
 	-redoEmptyBins [0|1]		mostly for debugging: redo every sample where no bins where found (note that in some metagenomes there might be no bins)
 	-checkM2 [0|1]			using checkM2 to assess bin quality
 	-checkM1 [0|1]			using checkM1 to assess bin quality
+	-SB_env [S]				#semiBin environment; if given, will avoid re-training de novo binning model. Default: "" (autotrain). [S] can  #human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/chicken_caecum/global. [Note: SemiBin env only works for single sample binnings]
 	-redoBinning [0|1]			redo binning
 
 # SNPs

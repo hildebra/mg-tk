@@ -339,7 +339,7 @@ foreach my $Doo (@DoosD){
 	if ($ignoIncomplMAGs && (!-e $MBout || -s $MBout ==0 ) ){
 		push (@missedMAGs, $smplIDs[-1]);
 		#$missedMAGs++; 
-		print "no MAG file: $MBout\n";
+		printL "no MAG file: $MBout\n";
 		next; 
 	}
 	#check if maybe emtpy Bin?
@@ -352,7 +352,8 @@ foreach my $Doo (@DoosD){
 	die "Bin $MBout seems incomplete\n" unless (-e "$MBout$cmSuffix" && -e "$MBout.assStat");
 	$cnt++;
 }
-print "Missed MAGs from " . scalar(@missedMAGs). " assembly groups\n:@missedMAGs\n" if (@missedMAGs);
+printL "Done reading MAGs\n";
+printL "Missed MAGs from " . scalar(@missedMAGs). " assembly groups\n:@missedMAGs\n" if (@missedMAGs);
 system "touch $iniMB2sto" unless (-e $iniMB2sto);
 
 #if ($cnt){	print "Waiting for jobs to finish.. restart when done\n";	exit(0);}
@@ -624,13 +625,13 @@ my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
 my $memUsage = 30; #in Gb
 my $NsubJobs = 0 ; #split job up?
 my $preCompCons = 0;
-if (scalar(@DoosD) > 150){ #scale with the number of assembly groups
+if ($numSamples > 150){ #scale with the number of assembly groups
 	$memUsage = 50; $NsubJobs = 0; $preCompCons = 5;
-} elsif (scalar(@DoosD) > 400){
+} elsif ($numSamples > 400){
 	$memUsage = 70; $NsubJobs = 4; $preCompCons = 10;
-} elsif (scalar(@DoosD) > 700){
+} elsif ($numSamples > 700){
 	$memUsage = 120; $NsubJobs = 10; $preCompCons = 0;#at a certain size it makes more sense to handle  preCompCons this in-job
-} elsif (scalar(@DoosD) > 1500){
+} elsif ($numSamples > 1500){
 	$memUsage = 120; $NsubJobs = 30; $preCompCons = 0; 
 }
 #my $prunTree = "$outD/between_phylo/prunned.nwk";

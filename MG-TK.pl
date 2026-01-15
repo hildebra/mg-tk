@@ -127,7 +127,8 @@ sub createConsSNPandSVs;
 #.70: 15.12.25: vcf2fna v0.21 integrated
 #.71: 8.1.26: genePred/* are now gz'd 
 #.72: 11.1.26: --rg updates for strobealign, minimap2 and bowtie2
-my $MATFILER_ver = 0.72;
+#.73: 15.1.26: -SB_env flag added
+my $MATFILER_ver = 0.73;
 
 
 #operation mode?
@@ -1743,8 +1744,9 @@ sub submitGenomeBinner{
 
 	#execute calcs later in perl script..
 	my $BinnerScr = getProgPaths("Binner_scr");
-	$MBcmd .= "$BinnerScr -binner $MFopt{DoMetaBat2} -binD $BinDir -smplID \"$smplIDs1\" -tmpD \"$nodeSpTmpD2\" -assmbl $metaGassembly -assmblGrp $cAssGrp -cores $MB2coresL -smplDirs " . join(",",@paths) . " -seqTec \"$seqTec\" \n";
-	
+	$MBcmd .= "$BinnerScr -binner $MFopt{DoMetaBat2} -binD $BinDir -smplID \"$smplIDs1\" -tmpD \"$nodeSpTmpD2\" -assmbl $metaGassembly -assmblGrp $cAssGrp -cores $MB2coresL -smplDirs " . join(",",@paths) . " -seqTec \"$seqTec\" ";
+	$MBcmd .= "-SB_env $MFopt{SB_env} " if ($MFopt{SB_env} ne "");
+	$MBcmd .= ";\n";
 	
 	if ($MFopt{DoMetaBat2} == 1){
 		$BinnerName = "MB2";
@@ -7484,7 +7486,8 @@ sub setDefaultMFconfig{
 	#Binning related options
 	$MFopt{useBinnerScratch} = 0;$MFopt{BinnerMem} = 0;$MFopt{useCheckM2} = 1;
 	$MFopt{DoBinning} = 0;$MFopt{useCheckM1} = 0;$MFopt{BinnerCores} = 9;
-	$MFopt{DoMetaBat2} = 0; $MFopt{BinnerRedoEmpty} = 0;
+	$MFopt{DoMetaBat2} = 0; $MFopt{BinnerRedoEmpty} = 0;  $MFopt{SB_env} = "";
+	$MFopt{BinnerRedoAll} =0;
 
 	#read preprocessing
 	$MFopt{unzipCores} = 3; 
@@ -7735,13 +7738,14 @@ sub getCmdLineOptions{
 	#binning
 		"Binner|MetaBat2|binSpeciesMG=i" => \$MFopt{DoMetaBat2}, #0=no, 1=metaBat2, 2=SemiBin, 3: MetaDecoder
 		"BinnerCores=i" => \$MFopt{BinnerCores}, #cores used for Binning process (and checkM)
-		"BinnerMem=i" => \$MFopt{BinnerMem}, # define binning memory, Gb
+		"BinnerMem=i" => \$MFopt{BinnerMem}, # define binning memory, Gb, 0=auto
 		"checkM2=i" => \$MFopt{useCheckM2},
 		"checkM1=i" => \$MFopt{useCheckM1},
 		"BinnerScratchTmp=i" => \$MFopt{useBinnerScratch}, #very specific (undocumented) use of scratch instead of nodetmp dir
 		#"binSpeciesMG=i" => \$MFopt{DoBinning},#deactivated, replaced by MetaBat2
 		"redoEmptyBins=i" => \$MFopt{BinnerRedoEmpty}, #debug option; redo bins that are empty (no bin detected). Note: this can sometimes happen for metagenomes
 		"redoBinning=i" => \$MFopt{BinnerRedoAll}, 
+		"SB_env=s"  => \$MFopt{SB_env}, #semiBin environment; if given, will avoid re-training de novo binning model. Default: "" (autotrain). should be #human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/chicken_caecum/global
 	#gene prediction on assembly
 		"predictEukGenes=i" => \$MFopt{DoEukGenePred},#severely limits total predicted gene amount (~25% of total genes)
 		"kmerPerGene=i" => \$MFopt{kmerPerGene}, #calculate kmer frequencies for each gene instead of per scaffold
@@ -7869,6 +7873,14 @@ sub getCmdLineOptions{
 	}elsif ($MFopt{callSVs} == 1){	$MFopt{SVcallerFlag} = "DL"; #delly
 	}elsif ($MFopt{callSVs} == 2){	$MFopt{SVcallerFlag} = "GY"; # gridss
 	}else {die"ERROR:: Invalid callSVs option: $MFopt{callSVs}\n";}
+	
+	if ($MFopt{SB_env} ne ""){
+		if ($MFopt{SB_env} ne "human_gut" && $MFopt{SB_env} ne "dog_gut" && $MFopt{SB_env} ne "ocean" && $MFopt{SB_env} ne "soil" && 
+		$MFopt{SB_env} ne "cat_gut" && $MFopt{SB_env} ne "human_oral" && $MFopt{SB_env} ne "mouse_gut" && $MFopt{SB_env} ne "pig_gut" && 
+		$MFopt{SB_env} ne "built_environment" && $MFopt{SB_env} ne "wastewater" && $MFopt{SB_env} ne "chicken_caecum" && $MFopt{SB_env} ne "global"){
+			die "-SB_env must be either: human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/chicken_caecum/global\n";
+		}
+	}
 	
 	$MFopt{memPJob} = int($MFopt{memPJob});
 	

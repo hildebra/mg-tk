@@ -165,8 +165,9 @@ sub createGene2MGS{
 		#not needed here..
 		#$MGS{$spl[0]} = \@genes;
 		my $cMGS =$spl[0];
-		if (exists($MGS{$cMGS} )){ print "Found $cMGS double!\n";}
-		$MGS{$cMGS} = 1;
+		if (!exists($MGS{$cMGS} )){ #print "Found $cMGS double!\n";}
+			$MGS{$cMGS} = 1; #catalogue MGS..
+		}
 		foreach my $x (@genes){
 			#desired format: 23075792        specI_v2_0561   COG0201
 			my $curCOG = "";

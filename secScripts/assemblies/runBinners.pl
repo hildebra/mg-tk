@@ -40,8 +40,12 @@ GetOptions(
 	"assmblGrp=s" => \$cAssGrp, #assembly group of current sample
 	"cores=i" => \$MB2coresL , #num cores to be used (locally in this case)
 	"smplDirs=s" => \$pathsPre, #dirs to MF output dirs, where the map etc will be looked up
-	"seqTec=s" => \$seqTec  #PB, ONT, ill etc
+	"seqTec=s" => \$seqTec,  #PB, ONT, ill etc
+	"SB_env=s" => \$giveSBenv,
 );
+
+
+
 
 
 
@@ -53,6 +57,7 @@ print "   runBinners.pl v $version\n";
 print "     found " . scalar @paths . " sample dirs for sample \"$smplIDs1\"\n";
 print "     using assembly $metaGassembly\n";
 print "     using $MB2coresL cores, binner \"$DoMetaBat2\" to outdir $BinDir\n";
+print "     using $giveSBenv environment\n" if ($giveSBenv ne "");
 print "======================================================================\n";
 
 
