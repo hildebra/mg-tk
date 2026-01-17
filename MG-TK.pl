@@ -27,7 +27,7 @@ use Mods::IO_Tamoc_progs qw(getProgPaths setConfigFile jgi_depth_cmd inputFmtSpa
 use Mods::SNP qw(SNPconsensus_vcf SVcall_vcf);
 use Mods::TamocFunc qw (cram2bsam getSpecificDBpaths getFileStr displayPOTUS bam2cram checkMF checkMFFInstall);
 use Mods::phyloTools qw(fixHDs4Phylo);
-#use Mods::Binning qw (runMetaBat runCheckM runSemiBin runMetaDecoder );
+use Mods::Binning qw (getBinSubdirName );
 use Mods::Subm qw (qsubSystemWaitMaxJobs qsubSystem emptyQsubOpt findQsubSys qsubSystemJobAlive MFnext add2SampleDeps numUserJobs);
 
 
@@ -128,7 +128,8 @@ sub createConsSNPandSVs;
 #.71: 8.1.26: genePred/* are now gz'd 
 #.72: 11.1.26: --rg updates for strobealign, minimap2 and bowtie2
 #.73: 15.1.26: -SB_env flag added
-my $MATFILER_ver = 0.73;
+#.74: 17.1.26: GenomeFace ini test version
+my $MATFILER_ver = 0.74;
 
 
 #operation mode?
@@ -515,7 +516,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($MFopt{DoMetaBat2}){ 
 		@smplIDs = @{$DOs{$cAssGrp}{SmplID}};
 	}
-	if ($MFopt{DoMetaBat2} == 3){$binningDir .= "MD/";} elsif ($MFopt{DoMetaBat2} == 2){$binningDir .= "SB/";} elsif ($MFopt{DoMetaBat2} == 1){$binningDir .= "MB2/";} else {die "Unkown binning option $MFopt{DoMetaBat2}\n";}
+	$binningDir .= (getBinSubdirName($MFopt{DoMetaBat2})) . "/";
+	#if ($MFopt{DoMetaBat2} == 3){$binningDir .= "MD/";} elsif ($MFopt{DoMetaBat2} == 2){$binningDir .= "SB/";} elsif ($MFopt{DoMetaBat2} == 1){$binningDir .= "MB2/";} else {die "Unkown binning option $MFopt{DoMetaBat2}\n";}
 #	die $cAssGrp;
 	my $BinningOut = "$binningDir/$smplIDs[-1]";#	$BinningOut = "$binningDir/SB/$smplIDs[-1]" if ($MFopt{DoMetaBat2} == 2);	$BinningOut = "$binningDir/MD/$smplIDs[-1]" if ($MFopt{DoMetaBat2} == 3);
 	
@@ -1685,7 +1687,8 @@ sub spaceInAssGrp{
 
 sub submitGenomeBinner{
 	my ($nodeSpTmpD,$metaGassembly,$MetaBat2out,$cAssGrp,$smplIDs1) = @_; #$finalCommAssDir,
-	#$MFopt{DoMetaBat2} = 1: metabat2, 2: SemiBin 3: MetaDecoder
+	#$MFopt{DoMetaBat2} = 1: metabat2, 2: SemiBin 3: MetaDecoder, 4: Genome Face
+	#MetaBat2out = file with contigs per bin
 	
 	#die;
 	#if (!-s "$MetaBat2out.cm2"){system "rm $MetaBat2out.cm2";}
@@ -1697,7 +1700,6 @@ sub submitGenomeBinner{
 
 	my $nodeSpTmpD2= $nodeSpTmpD."/Bin$JNUM$cAssGrp$MFopt{DoMetaBat2}/";
 	
-	my $mb2Qual = getProgPaths("mb2qualCheck_scr");
 	#if ($MFconfig{rmBinFailAssmbly}){print"Warning submitGenomeBinner::\n\nremoving $finalCommAssDir\n\n";system"rm -r $finalCommAssDir";return;}
 	my @paths = @{$DOs{$cAssGrp}{wrdir}};#split /,/,$allPaths;
 	my $smplIncl = scalar(@paths);
@@ -1731,7 +1733,6 @@ sub submitGenomeBinner{
 	
 	#die "$totMem\n";
 	my $MBcmd = "mkdir -p $nodeSpTmpD2\n";
-	my $BinnerName = "none";
 	
 	$MBcmd .= "\n\n#checking that all required mappings are done\n". checkMapsDoneSH(\@paths) ."#checks done\n\n";
 	#die "$MBcmd\n\n binner\n";
@@ -1748,14 +1749,11 @@ sub submitGenomeBinner{
 	$MBcmd .= "-SB_env $MFopt{SB_env} " if ($MFopt{SB_env} ne "");
 	$MBcmd .= ";\n";
 	
-	if ($MFopt{DoMetaBat2} == 1){
-		$BinnerName = "MB2";
-	} elsif ($MFopt{DoMetaBat2} == 2){#SemiBin
-		$BinnerName = "SB";
-		$QSBoptHR->{useGPUQueue} = 1;
-	}elsif ($MFopt{DoMetaBat2} == 3){#MetaDecoder
-		$BinnerName = "MD";
-	}
+	
+	my $BinnerName = getBinSubdirName($MFopt{DoMetaBat2});
+
+
+	$QSBoptHR->{useGPUQueue} = 1 if ($MFopt{DoMetaBat2} ==2 || $MFopt{DoMetaBat2} == 4); #semibin/genomeface
 
 	system "rm $MetaBat2out*" if (-e $MetaBat2out && -s $MetaBat2out == 0 && !$CM1done && !$CM2done); #hard flag to just redo calculations..
 	$MBcmd = "" if (-s $MetaBat2out);
@@ -1766,6 +1764,7 @@ sub submitGenomeBinner{
 	my $postCmd = "";
 	my $numCoreCHKM = 3; #fixed --pplacer_threads in routine already..
 	if ( ( $MFopt{useCheckM1} && !$CM1done) || (!$CM2done && $MFopt{useCheckM2})  || !$eBinAssStat){
+		my $mb2Qual = getProgPaths("mb2qualCheck_scr");
 		$postCmd = "\n\nrm -rf $nodeSpTmpD2; mkdir -p $nodeSpTmpD2;\n";
 		$postCmd .= "$mb2Qual $metaGassembly $MetaBat2out $nodeSpTmpD2 $MB2coresL $MFopt{useCheckM2} $MFopt{useCheckM1} $MFopt{DoMetaBat2}\n" ;
 	} 
@@ -6196,9 +6195,10 @@ sub getContamination{
 
 sub getBinnerStats{
 	my ($tmpassD,$SmplN) = @_;
+	my $SBdir = getBinSubdirName(2); my $MB2dir = getBinSubdirName(1); my $MDdir = getBinSubdirName(3); my $GFdir = getBinSubdirName(4);
 	
 ## binning stats SemiBin
-	my $SBbinCM2 = "$tmpassD/Binning/SB/$SmplN.cm2";
+	my $SBbinCM2 = "$tmpassD/Binning/$SBdir/$SmplN.cm2";
 	my $addStr = ""; my $addDescr="";
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0; my $totBins=0;
@@ -6219,7 +6219,7 @@ sub getBinnerStats{
 
 
 ## binning stats MetaBat2
-	$SBbinCM2 = "$tmpassD/Binning/MB2/$SmplN.cm2";
+	$SBbinCM2 = "$tmpassD/Binning/$MB2dir/$SmplN.cm2";
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
 		open I,"<$SBbinCM2" or die $!;
@@ -6236,7 +6236,7 @@ sub getBinnerStats{
 	$addDescr .= "HQ_bins_MB2\tMQ_bins_MB2\t";
 
 ## binning stats MetaDecoder
-	$SBbinCM2 = "$tmpassD/Binning/MD/$SmplN.cm2";
+	$SBbinCM2 = "$tmpassD/Binning/$MDdir/$SmplN.cm2";
 	if (-e $SBbinCM2){
 		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
 		open I,"<$SBbinCM2" or die $!;
@@ -6251,6 +6251,25 @@ sub getBinnerStats{
 		$addStr .= "\t" x 2
 	}
 	$addDescr .= "HQ_bins_MD\tMQ_bins_MD\t";
+	
+	#GenomeFace
+	$SBbinCM2 = "$tmpassD/Binning/$GFdir/$SmplN.cm2";
+	if (-e $SBbinCM2){
+		my $HQbinCnt = 0; my $MQbinCnt = 0;my $totBins=0;
+		open I,"<$SBbinCM2" or die $!;
+		while (<I>){my @spl = split/\t/; next if ($spl[1] eq "Completeness");
+			if ($spl[1] >= 90 && $spl[2] <= 5){$HQbinCnt ++ ;
+			} elsif ($spl[1] >= 80 && $spl[2] <= 5){$MQbinCnt ++ ;}
+			$totBins ++;
+		}
+		close I;
+		$addStr = "$HQbinCnt\t$MQbinCnt\t";
+	} else {
+		$addStr .= "\t" x 2
+	}
+	$addDescr .= "HQ_bins_GF\tMQ_bins_GF\t";
+	
+	
 	return ($addStr,$addDescr);
 }
 
@@ -7736,7 +7755,7 @@ sub getCmdLineOptions{
 		"assemblyLongTime=i" => \$MFopt{SpadesLongtime},
 		"assemblyScaffMinSize=i" => \$MFopt{scaffoldMinSize},
 	#binning
-		"Binner|MetaBat2|binSpeciesMG=i" => \$MFopt{DoMetaBat2}, #0=no, 1=metaBat2, 2=SemiBin, 3: MetaDecoder
+		"Binner|MetaBat2|binSpeciesMG=i" => \$MFopt{DoMetaBat2}, #0=no, 1=metaBat2, 2=SemiBin, 3: MetaDecoder, 4: GenomeFace
 		"BinnerCores=i" => \$MFopt{BinnerCores}, #cores used for Binning process (and checkM)
 		"BinnerMem=i" => \$MFopt{BinnerMem}, # define binning memory, Gb, 0=auto
 		"checkM2=i" => \$MFopt{useCheckM2},

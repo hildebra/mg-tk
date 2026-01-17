@@ -275,6 +275,7 @@ foldseek	foldseek
 ## binning ##
 #maxBin	perl [MFLRDir]/bin/MaxBin-1.4.2/run_MaxBin.pl
 metabat2	metabat2	env:MGTKbinners
+GenomeFace	GenomeFace	env:MGTKbinners
 SemiBin	SemiBin	env:MGTKbinners
 SemiBin2	SemiBin2	env:MGTKbinners
 semibinGTDB	[DBDir]/mmseqs2-GTDB/

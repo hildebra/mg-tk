@@ -1,7 +1,9 @@
 package Mods::Binning;
 use Exporter qw(import);
-our @EXPORT_OK = qw(runMetaBat runSemiBin  runMetaDecoder runCheckM runCheckM2 
-				
+our @EXPORT_OK = qw(
+				runMetaBat runSemiBin  runMetaDecoder  runGenomeFace
+				runCheckM runCheckM2 
+				getBinSubdirName
 				createBin2 createBinFAA createBinCtgs
 				readMGS readMGSrev deNovo16S readMGSrevRed minQualFilter 
 				filterMGS_CM MB2assigns calcLCAcompl readCMquals);
@@ -13,6 +15,21 @@ use Mods::GenoMetaAss qw (systemW readFasta gzipopen getAssemblPath);
 use Mods::TamocFunc qw (cram2bsam);
 
 
+
+sub getBinSubdirName{
+	my ($BinSel) = @_;
+	my $BinnerName = "None";
+	if ($BinSel == 1){
+		$BinnerName = "MB2";
+	} elsif ($BinSel == 2){#SemiBin
+		$BinnerName = "SB";
+	}elsif ($BinSel == 3){#MetaDecoder
+		$BinnerName = "MD";
+	}elsif ($BinSel == 4){#GenomeFace
+		$BinnerName = "GF";
+	}
+	return $BinnerName;
+}
 
 
 sub readCMquals{
@@ -652,7 +669,7 @@ sub runSemiBin{
 	if (@BAMS == 0){
 		#fake empty entry...
 		print "runSemiBin::No bams found, creating fake output\n";
-		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm .assStat";
+		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm.assStat";
 		open O,">$outDir/$nm.cm2";
 		print O "Name\tCompleteness\tContamination\tCompleteness_Model_Used Translation_Table_Used\tAdditional_Notes\n";
 		close O;
@@ -683,9 +700,7 @@ sub runSemiBin{
 		#--reference-db-data-dir $semibinGTDB --training-type self 
 		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
 	}
-	
 	#die $cmd;
-	
 	return $cmd1.$cmd;
 
 }
@@ -720,7 +735,7 @@ sub runMetaDecoder{
 	}
 	if (@SAMS == 0){
 		#fake empty entry...
-		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm .assStat";
+		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm.assStat";
 		open O,">$outDir/$nm.cm2";
 		print O "Name\tCompleteness\tContamination\tCompleteness_Model_Used Translation_Table_Used\tAdditional_Notes\n";
 		close O;
@@ -741,12 +756,54 @@ sub runMetaDecoder{
 
 }
 
+
+
+
+
+sub runGenomeFace{
+	my ($jgO,$outD,$nm, $fna, $ncore, $tmpDir ) = @_;
+
+#!/bin/bash -e
+#SBATCH -t 30 
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH -p "ei-gpu"
+#SBATCH -G 1
+#SBATCH --mem "8G"
+#SBATCH --export ALL
+
+#sed -E 's|_[0-9]+ |\t|' FMGids.txt | awk -F'=' '$2>1000' > gfmarkers.txt
+#genomeface -i $FASTA -a jgi_depths.tsv -g gfmarkers.txt -m 1000 -o GF
+#find GF -name "\d+" -exec rm {} \ #similar to comeBin, the bins themselves are just files named by numbers e.g. 1234. Get rid of them if not needed. 
+#awk -F'\t' '{print $2 $1}' GF/bins.tsv > GF/outfile && rm GF/bins.tsv
+
+	#if (-e "$outD/GeFa.sto"){		return "";	}
+	my $numC = 1;
+	
+	#print "Running MetaBat..\n";
+	my $GFbin = getProgPaths("GenomeFace");
+	#my $mbBin = "/g/bork3/home/hildebra/bin/metabat/./metabat";
+	#my $outCtgNms = "$outD/$nm.ctgs.txt";
+	#my $outFna = "$outD/$nm.fasta.fna";
+	my $outFile = "$outD/$nm";
+	#my $outMat = "$outD/$nm.mat.txt";
+	#my $jgO = "$tmp/depth.jgi";
+	if (!-e $fna){die "Can't find requried scaffold file in metabat routine: $fna\n"; }
+	#start metabat
+	my $cmd = "";#$before."\n";
+	#$cmd .= "$mbBin -i $fna -a $jgO.depth.txt -o $outFna -p $jgO.pairs.sparse -l $outCtgNms --minCVSum  10 -t $numCore --saveCls $outMat -v\n";
+	$cmd .= "mkdir -p $outD\n";
+	$cmd .= "sed -E 's|_[0-9]+ |\\t|' FMGids.txt | awk -F'=' '\$2>1000' > $tmpDir/gfmarkers.txt\n";
+	$cmd .= "$GFbin -i $fna -a $jgO -g $tmpDir/gfmarkers.txt -m 1000 -o $outD \n"; #$outMat    --> replace with $21tmpDir
+	$cmd .= "awk -F'\\t' '{print \$2 \$1}' $outD/bins.tsv > $outFile \n rm $outD/bins.tsv\n";
+	#$cmd .= "echo \"$nm\" > $outD/GeFa.sto\n";
+	return $cmd;
+
+}
+
 sub runMetaBat{
 	my ($jgO,$outD,$nm, $fna ) = @_;
-	if (-e "$outD/MeBa.sto"){
-		#print "metabat2 done: $outD\n";
-		return "";
-	}
+	#if (-e "$outD/MeBa.sto"){		return "";	}
 	my $numC = 0;
 	$numC = $_[4] if (@_ > 4);
 	#print "Running MetaBat..\n";
@@ -763,7 +820,7 @@ sub runMetaBat{
 	#$cmd .= "$mbBin -i $fna -a $jgO.depth.txt -o $outFna -p $jgO.pairs.sparse -l $outCtgNms --minCVSum  10 -t $numCore --saveCls $outMat -v\n";
 	$cmd .= "mkdir -p $outD\n";
 	$cmd .= "$metab2Bin -i $fna -a $jgO -o $outD2 -l --saveCls -t $numC --noBinOut -m 2500 --minCVSum 1\n"; #$outMat
-	$cmd .= "echo \"$nm\" > $outD/MeBa.sto\n";
+	#$cmd .= "echo \"$nm\" > $outD/MeBa.sto\n";
 	return $cmd;
 	#die $cmd."\n";
 	#my $jobName = "MBat";
