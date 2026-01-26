@@ -68,7 +68,7 @@ my $contTests = ""; my $discTests = ""; #stat tests to be given to strain_within
 my $familyVar = ""; my $groupStabilityVars = "";
 
 #SNP calling
-my $minSNPDepth = 0;
+my $minSNPDepth = 2; #changed to two: seems to give better results
 my $minSNPCallQual = 20;
 my $forceVCF2FNA = 0; #force the recalc of cons fasta from vcf..
 my $SNPconsLOGs = ""; #logs for recalculating cons SNPs
@@ -179,7 +179,6 @@ my %SIdirs; #unified storage of dirs per SI (SI==MGS)
 my %MGSsmplConsp; #saves single samples within a MGS that seem to have too high rates of conspecific genes (controlled by $multiGeneSmplMax )
 
 
-print "\n\n----------------------------------------------------\nPart I:: extracting relevant core MGS genes (SNP consensus called) from original assemblies\n----------------------------------------------------\n\n";
 
 
 
@@ -201,7 +200,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	my $outD2 = "$outD/$SI/";
 	$SIdirs{$SI} = $outD2;
 	#print "$outD2\n";
-	$dirsArePrepped =0 unless (-d $outD2 && -e "$outD2/data.log");
+	$dirsArePrepped =0 unless (-d $outD2 &&  (-e "$outD2/data.log" || -e "$outD2/all.cat.tmp") ); # first phase only has "all.cat.tmp" file..
 	$allCatFileE = 0 if (!-e  "$SIdirs{$SI}/$CATstdof");
 	if (-d $outD2 && $onlySubmit == 0){#don't delete folders if we want to submit a job later..
 		system "rm -rf $outD2/*";
@@ -216,6 +215,8 @@ my %smplsPerMGS; #stats: MGS is represented in how many different samples?
 if ($dirsArePrepped == 0 || $onlySubmit == 0 
 			|| $subJob){
 	$PhylosExist=0;
+	
+	print "\n\n----------------------------------------------------\nPart I:: extracting relevant core MGS genes (SNP consensus called) from original assemblies\n----------------------------------------------------\n\n";
 	
 	filterMultiCopyGenes();
 	
@@ -252,6 +253,11 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0
 	#write logs to found genes etc.
 	writeLogsStep1();
 	
+	if ($subJob){
+		print "Finished subJob ${subJob}/$maxSubJob. Exiting..\n";
+		exit(0);
+	}
+
 	if (@jobsMain && $maxSubJob && !$subJob){ # second part for main worker: check that everything else is finished..
 		qsubSystemJobAlive( \@jobsMain,$QSBoptHR );
 		#check if all required files present
@@ -263,14 +269,13 @@ if ($dirsArePrepped == 0 || $onlySubmit == 0
 		
 	}
 	
-	if ($subJob){
-		print "Finished subJob ${subJob}/$maxSubJob. Exiting..\n";
-		exit(0);
-	}
 	print "\nGene extraction & redistribution finished, ready to proceed to phylogeny jobs\n";
 
+} else {
+	print "Skipping Part I, outdir already prepared.\n";
+}
 
-} 
+#die;
 
 
 #load some log files..
@@ -369,7 +374,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	
 	my $inputFNAsize = fileGZs($FNAtf) / (1024 * 1024); #size in MB
 	if ($inputFNAsize ==0){print "empty input $FNAtf .. next.\n";next;} #empty input
-	if ( $inputFNAsize  > 50 ){ #only if FNA is > X mb
+	if ( $inputFNAsize  > 500 ){ #only if FNA is > X mb
 		$QSBoptHR->{useLongQueue} = 1 ;
 	}
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 

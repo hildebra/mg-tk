@@ -717,6 +717,7 @@ sub clusterSingleStep{
 		#die "$cmd\n";
 		print "Will merg pre files..\n";
 		systemW $cmd;$cmd="";
+		sleep(10); #can be big opearation.. wait a sec..
 	}
 
 	$cmd .= clusterFNA( "$DB", "$tmpDir/$primaryClusterFNA" ,0.0,0.0,"$cdhID",$numCor0,0,$tmpDir."/fullCL/",$clustMMseq,$totMem);
@@ -790,90 +791,86 @@ sub geneCatFlow($ $ $ $ ){
 	my $emapStone = "$stoneDir/10.emap.stone";
 	my $preMGSstone="$stoneDir/11.preMGS.stone";
 	
-	
-	#get list of potential COGs
-	if (-d "$bdir/$COGdir") { #COGs were created
-		opendir(DIR, "$bdir/$COGdir/") or die $!;
-		my @cogfiles = grep {/^preclus\..*\.fna$/ && -f "$bdir/$COGdir/$_" } readdir(DIR); close DIR;
-		for (my $i=0; $i<@cogfiles; $i++){
-			$cogfiles[$i] =~ m/^preclus\.(.*)\.fna$/;
-			$FMGfileList{$1} = "$bdir/$COGdir/".$cogfiles[$i] unless (-e "$bdir/$1.fna.clstr" || -e "$bdir/$1.fna.ctsv");
+	my $COGdep="";my @COGlst=();
+	if (!-e $protStone || !-e $cogStone){
+		#get list of potential COGs
+		if (-d "$bdir/$COGdir") { #COGs were created
+			opendir(DIR, "$bdir/$COGdir/") or die $!;
+			my @cogfiles = grep {/^preclus\..*\.fna$/ && -f "$bdir/$COGdir/$_" } readdir(DIR); close DIR;
+			for (my $i=0; $i<@cogfiles; $i++){
+				$cogfiles[$i] =~ m/^preclus\.(.*)\.fna$/;
+				$FMGfileList{$1} = "$bdir/$COGdir/".$cogfiles[$i] unless (-e "$bdir/$1.fna.clstr" || -e "$bdir/$1.fna.ctsv");
+			}
 		}
-	}
 
-	#load marker gene specific cutoffs
-	my $dir2cutoffs = getProgPaths($speciesCutoff,0);
-	#DEBUG: print "$dir2cutoffs\n\n";open I,"<$dir2cutoffs" or die "Cant open $dir2cutoffs\n";;
-	
-	my %FMGcutoffs = %{readTabbed3($dir2cutoffs,1)};
-	#die;
-	if (0){ #DEBUG
-		my @kk = keys %FMGcutoffs;
-		die "$kk[0]: $FMGcutoffs{$kk[0]} ". @kk ."\n @kk\n";
-	}
-	my $relaxFMG = 0;#0.005;
-
-
-	
-	$cmd .= "rm -rf $tmpDir\n" unless (-e $clnLnStone && !-e $complStone);
-	$cmd .="mkdir -p $tmpDir\n";
-	#die "$clnLnStone\n$complStone\n$cmd\n";
-	if ($submitLocal && !-e $moveStone){systemW $cmd;$cmd="";}
-	
-	#cluster FMGs
-	my %FMGFL2 ; my $dirflag=0; my $cpFromP = -1;
-	my @COGlst = keys %FMGfileList;
-	#die "@COGlst\n";
-	$cmd .= "mkdir -p $bdir/$COGdir/\n" ;
-	$cmd .= "mkdir -p $tmpDir/$COGdir/\n" ;
-	my $preclustMMseq = $clustMMseq;
-	my $useMMSEQs4COG = 1;
-	print "Using mmseqs2 for COG clustering: $useMMSEQs4COG\n";
-	foreach my $cog ( @COGlst){
+		#load marker gene specific cutoffs
+		my $dir2cutoffs = getProgPaths($speciesCutoff,0);
+		#DEBUG: print "$dir2cutoffs\n\n";open I,"<$dir2cutoffs" or die "Cant open $dir2cutoffs\n";;
 		
-		die "can't find $cog in FMGcutoffs list\n" unless (exists $FMGcutoffs{$cog});
-		$FMGFL2{$cog} = "$bdir/$COGdir/$cog.$cdhID.fna";
-		#print "$FMGFL2{$cog} \n";
-		if (!-e $FMGFL2{$cog} || !-s  $FMGFL2{$cog}){#"$bdir/COG/$cog.$cdhID.fna"){
-			#$cmd .= $cdhitBin."-est -i $FMGfileList{$cog} -o $tmpDir/COG/$cog.$cdhID.fna -n 9 -G 1 -aS 0.95 -aL 0.6 -d 0 -c ". $FMGcutoffs{$cog}/100 ." -g 0 -T $numCor\n";
-			# $clustMMseq = 0; #use mmseq, and use it's slow mode instead..  
-			$cmd .= clusterFNA($FMGfileList{$cog},$FMGFL2{$cog},0.9,0.0,($FMGcutoffs{$cog}/100)-$relaxFMG,$numCor3,1,"$NodeTmpDir/$cog/",$useMMSEQs4COG,$totMemL);
-			$cpFromP=0;
-		} else {
-			$cpFromP = 1 if ($cpFromP == -1);
-			#$cmd .= "cp $bdir/COG/$cog.$cdhID.fna* $tmpDir/COG/;"; 
+		my %FMGcutoffs = %{readTabbed3($dir2cutoffs,1)};
+		#die;
+		if (0){ #DEBUG
+			my @kk = keys %FMGcutoffs;
+			die "$kk[0]: $FMGcutoffs{$kk[0]} ". @kk ."\n @kk\n";
+		}
+		my $relaxFMG = 0;#0.005;
+
+
+		
+		$cmd .= "rm -rf $tmpDir\n" unless (-e $clnLnStone && !-e $complStone);
+		$cmd .="mkdir -p $tmpDir\n";
+		#die "$clnLnStone\n$complStone\n$cmd\n";
+		if ($submitLocal && !-e $moveStone){systemW $cmd;$cmd="";}
+		
+		#cluster FMGs
+		my %FMGFL2 ; my $dirflag=0; my $cpFromP = -1;
+		@COGlst = keys %FMGfileList;
+		#die "@COGlst\n";
+		$cmd .= "mkdir -p $bdir/$COGdir/\n" ;
+		$cmd .= "mkdir -p $tmpDir/$COGdir/\n" ;
+		my $preclustMMseq = $clustMMseq;
+		my $useMMSEQs4COG = 1;
+		print "Using mmseqs2 for COG clustering: $useMMSEQs4COG\n";
+		foreach my $cog ( @COGlst){
+			
+			die "can't find $cog in FMGcutoffs list\n" unless (exists $FMGcutoffs{$cog});
+			$FMGFL2{$cog} = "$bdir/$COGdir/$cog.$cdhID.fna";
+			#print "$FMGFL2{$cog} \n";
+			if (!-e $FMGFL2{$cog} || !-s  $FMGFL2{$cog}){#"$bdir/COG/$cog.$cdhID.fna"){
+				#$cmd .= $cdhitBin."-est -i $FMGfileList{$cog} -o $tmpDir/COG/$cog.$cdhID.fna -n 9 -G 1 -aS 0.95 -aL 0.6 -d 0 -c ". $FMGcutoffs{$cog}/100 ." -g 0 -T $numCor\n";
+				# $clustMMseq = 0; #use mmseq, and use it's slow mode instead..  
+				$cmd .= clusterFNA($FMGfileList{$cog},$FMGFL2{$cog},0.9,0.0,($FMGcutoffs{$cog}/100)-$relaxFMG,$numCor3,1,"$NodeTmpDir/$cog/",$useMMSEQs4COG,$totMemL);
+				$cpFromP=0;
+			} else {
+				$cpFromP = 1 if ($cpFromP == -1);
+				#$cmd .= "cp $bdir/COG/$cog.$cdhID.fna* $tmpDir/COG/;"; 
+			}
+		}
+		$clustMMseq = $preclustMMseq;
+		
+		$cmd .= "cp $bdir/$COGdir/*.$cdhID.fna* $tmpDir/$COGdir/\n"; 
+		$cmd .= "touch $cogStone\n";
+		$cmd .= "\n";
+		#die $cpFromP;
+		if ($submitLocal ){ #this loop submits marker gene clusterings
+			if (!$cpFromP){
+				my @preCons = @{$QSBoptHR->{constraint}};
+				push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
+				my $preHDDspace = ${$QSBoptHR}{tmpSpace};
+				${$QSBoptHR}{tmpSpace} = "50G";#"${totMem}G"; #$totMem #doesn't need much, stores on scrach
+				my $memCOG = int($totMemL/2);if ($memCOG < 50){$memCOG=50;}
+				my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/$numCor/2)."G","cCLGC","","",1,[],$QSBoptHR);
+				@{$QSBoptHR->{constraint}} = @preCons;
+				${$QSBoptHR}{tmpSpace} = $preHDDspace;
+				$COGdep = $dep;
+			} else { 
+				systemW $cmd;}
+			
+			$cmd = "";
 		}
 	}
-	$clustMMseq = $preclustMMseq;
-	foreach my $cog ( @COGlst){
-		last; #deactivated.. will be detected in 
-		#my ($tmpCmd,$bwtIdxT) =  buildMapperIdx($FMGFL2{$cog},$numCor,1,3);
-		#if (!-e $bwtIdxT){$cmd .= $tmpCmd."\n";}
-	}
-	
-	$cmd .= "cp $bdir/$COGdir/*.$cdhID.fna* $tmpDir/$COGdir/\n"; 
-	$cmd .= "touch $cogStone\n";
 	#die $cmd."\n";
 #		$cmd .=  "cp $tmpDir/COG/COG*.$cdhID.fna* $bdir/COG\n";
-	$cmd .= "\n";
-	my $COGdep="";
-	#die $cpFromP;
-	if ($submitLocal ){ #this loop submits marker gene clusterings
-		if (-e $FMGstone){
-			$cmd = "";
-		}elsif (!$cpFromP){
-			my @preCons = @{$QSBoptHR->{constraint}};
-			push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
-			my $preHDDspace = ${$QSBoptHR}{tmpSpace};
-			${$QSBoptHR}{tmpSpace} = "50G";#"${totMem}G"; #$totMem #doesn't need much, stores on scrach
-			my $memCOG = int($totMemL/2);if ($memCOG < 50){$memCOG=50;}
-			my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/$numCor/2)."G","cCLGC","","",1,[],$QSBoptHR);
-			@{$QSBoptHR->{constraint}} = @preCons;
-			${$QSBoptHR}{tmpSpace} = $preHDDspace;
-			$COGdep = $dep;
-		} else { systemW $cmd;}
-		$cmd = "";
-	}
 
 	#die "$stoneDir/complCl.stone";
 
@@ -885,7 +882,7 @@ sub geneCatFlow($ $ $ $ ){
 		} else {
 			$cmd .= clusterMultiStep($complStone,$incomplStone,$clnLnStone,$cogStone,$bdir,$OutD,$cmd,$COGdep);
 		}
-	} elsif (!-e $declStone) { #restore files.. for post processing steps
+	} elsif ($doDecluter && !-e $declStone) { #restore files.. for post processing steps
 		$cmd .= "zcat $bdir/$primaryClusterFNA.gz > $tmpDir/$primaryClusterFNA;\n" unless (-e "$tmpDir/$primaryClusterFNA");
 		$cmd .= "zcat $bdir/$primaryClusterCLS.gz > $tmpDir/$primaryClusterCLS;\n" unless (-e "$tmpDir/$primaryClusterCLS");
 		if ($submitLocal){systemW $cmd;$cmd="";}
@@ -986,7 +983,7 @@ sub geneCatFlow($ $ $ $ ){
 	}
 	print "Waiting for protein extraction..\n";
 	qsubSystemJobAlive( \@matDeps,$QSBoptHR ); 
-	die "Prot extraction unsuccessful\n" unless (-e $protStone);
+	die "Prot extraction unsuccessful\n" unless (-e $protStone && -e "$OutD/compl.incompl.$cdhID.prot.faa");
 	#die;
 	
 	#now decluter based on proteins.
@@ -1927,8 +1924,29 @@ sub protExtract{
 	my $protF = $inD."compl.incompl.$cdhID.prot.faa";
 	#my $incl = $inD."$countMatrixP.genes2rows.txt";
 	system("rm -f $protF");
+	
+	print "Checking files for consistency\n";
+
+	#simple check wc -l Matrix.genes2rows.txt rows == grep -c '^>' compl.incompl.95.fna
+	my $mt2gerowsN = `wc -l ${inD}/${countMatrixP}.genes2rows.txt`; 
+	#print "$mt2gerowsN\n";
+	chomp $mt2gerowsN; $mt2gerowsN = int($mt2gerowsN); $mt2gerowsN = 0 if (!defined($mt2gerowsN));
+	#print "$mt2gerowsN\n";
+	my $gcGeneNum =  `grep -c '^>' ${inD}/$primaryClusterFNA`;
+	#print "$gcGeneNum\n";
+	chomp $gcGeneNum; $gcGeneNum = int($gcGeneNum);
+	#print "$gcGeneNum\n";
+	
+	if ( ($mt2gerowsN-1) != $gcGeneNum){
+		die "unequal numbers of gene clusters ($gcGeneNum) and $countMatrixP.genes2rows.txt lines ($mt2gerowsN)\nAborting protExtract..\n";
+	} else {
+		print "protExtract: gene numbers match between fna and txt\n";
+	}
+	
+
 	print "Reading gene index\n";
-	my ($geneIdxH,$numGenes) = readGeneIdxSpl($inD."$countMatrixP.genes2rows.txt","__");
+	my ($geneIdxH,$numGenes) = readGeneIdxSpl($inD."${countMatrixP}.genes2rows.txt","__");
+
 
 	rewriteFastaHdIdx($inD.$primaryClusterFNA,$geneIdxH,$smplSep); #"compl.incompl.$cdhID.fna"
 	#my %geneIdx = %{$geneIdxH};

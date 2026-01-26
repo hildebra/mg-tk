@@ -563,7 +563,10 @@ unless (-e $ABmgsSton2){
 #die;
 #/hpc-home/hildebra/geneCats/Chicken2/Cultured_genomes/99_ani_dRep/*.fasta
 #and just call between MGS treebuild scr
-my $treeMem = "100";
+my $treeMem = "120";
+if ($numSamples > 2000){ #scale with the number of assembly groups
+	$treeMem = "200";
+}
 my $phyloBetween = getProgPaths("MGSPhyloBetween_scr");
 my $baseTreeCmd = "$phyloBetween -GCd $GCd -MGS $finalClustersFilt -mem $treeMem -c $canCore -MSAprogram 4 -fast 0 ";
 my $wait4tree = 2; $wait4tree = 2 if ($doStrains);
@@ -625,14 +628,15 @@ my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
 my $memUsage = 30; #in Gb
 my $NsubJobs = 0 ; #split job up?
 my $preCompCons = 0;
-if ($numSamples > 150){ #scale with the number of assembly groups
-	$memUsage = 50; $NsubJobs = 0; $preCompCons = 5;
-} elsif ($numSamples > 400){
-	$memUsage = 70; $NsubJobs = 4; $preCompCons = 10;
+
+if ($numSamples > 1500){#scale with the number of assembly groups
+	$memUsage = 120; $NsubJobs = 30; $preCompCons = 0; 
 } elsif ($numSamples > 700){
 	$memUsage = 120; $NsubJobs = 10; $preCompCons = 0;#at a certain size it makes more sense to handle  preCompCons this in-job
-} elsif ($numSamples > 1500){
-	$memUsage = 120; $NsubJobs = 30; $preCompCons = 0; 
+} elsif ($numSamples > 400){
+	$memUsage = 70; $NsubJobs = 4; $preCompCons = 10;
+} elsif ($numSamples > 150){ #
+	$memUsage = 50; $NsubJobs = 0; $preCompCons = 5;
 }
 #my $prunTree = "$outD/between_phylo/prunned.nwk";
 #

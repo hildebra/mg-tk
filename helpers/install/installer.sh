@@ -166,15 +166,24 @@ fi
 
 #additional dependencies not in the main yml..
 if ! find_in_mamba_env "MGTKgtdbtk" ; then
-	echo "Installing MGTKgtdbtk environment"
+	echo "Creating MGTKgtdbtk environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/GTDBTK.yml 
 else 
 	echo "Updating MGTKgtdbtk environment"
 	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/GTDBTK.yml 
 fi
 
+if ! find_in_mamba_env "MGTKsemibin" ; then
+	echo "Creating MGTKsemibin environment"
+	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/SemiBin.yml 
+else 
+	echo "Updating MGTKsemibin environment"
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/SemiBin.yml 
+fi
+
+
 if ! find_in_mamba_env "MGTKbinners" ; then
-	echo "Installing MGTKbinners environment"
+	echo "Creating MGTKbinners environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/Binners.yml
 else 
 	echo "Updating MGTKbinners environment"
@@ -187,7 +196,7 @@ CM2DB=$DBdir/CM2/
 MP4DB=$DBdir/MP4/
 
 if ! find_in_mamba_env "MGTKcheckm2" ; then
-	echo "Installing MGTKcheckm2 environment"
+	echo "Creating MGTKcheckm2 environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/checkm2.yml 
 	$MAMBA_E activate MGTKcheckm2
 	#install checkM2 DB

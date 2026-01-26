@@ -1715,14 +1715,14 @@ sub submitGenomeBinner{
 		return;
 	}
 	#die "$MetaBat2out\n";
-	my $totMem = 120;#80;
+	my $totMem = 80;#80;
 	$totMem = 90 if ($CM1done || !$MFopt{useCheckM1});
 	#die "$HDDspL $totMem\n";
 	if ($smplIncl >20 || $inputSizeloc > 1e5 ){$HDDspL = greaterComputeSpace($HDDspL,480);$totMem = greaterComputeSpace($totMem,400);
 	}elsif ($smplIncl >10 || $inputSizeloc > 5e4 ){$HDDspL = greaterComputeSpace($HDDspL,280);$totMem = greaterComputeSpace($totMem,260);
-	}elsif  ($smplIncl >5 || $inputSizeloc > 2e4 ){$HDDspL = greaterComputeSpace($HDDspL,180);$totMem = greaterComputeSpace($totMem,200);
-	}elsif  ($smplIncl >3 || $inputSizeloc > 2e4 ){$HDDspL = greaterComputeSpace($HDDspL,120);$totMem = greaterComputeSpace($totMem,180);
-	}elsif  ($smplIncl >1 || $inputSizeloc > 1e4 ){$HDDspL = greaterComputeSpace($HDDspL,100);$totMem = greaterComputeSpace($totMem,120);
+	}elsif  ($smplIncl >5 || $inputSizeloc > 2e4 ){$HDDspL = greaterComputeSpace($HDDspL,180);$totMem = greaterComputeSpace($totMem,180);
+	}elsif  ($smplIncl >3 || $inputSizeloc > 2e4 ){$HDDspL = greaterComputeSpace($HDDspL,120);$totMem = greaterComputeSpace($totMem,140);
+	}elsif  ($smplIncl >1 || $inputSizeloc > 1e4 ){$HDDspL = greaterComputeSpace($HDDspL,100);$totMem = greaterComputeSpace($totMem,80);
 	}
 	$totMem = greaterComputeSpace($totMem,220) if ($MFopt{useCheckM1});
 	$totMem = greaterComputeSpace($totMem,$MFopt{BinnerMem}) if ($MFopt{BinnerMem} > 0);
@@ -1753,7 +1753,7 @@ sub submitGenomeBinner{
 	my $BinnerName = getBinSubdirName($MFopt{DoMetaBat2});
 
 
-	$QSBoptHR->{useGPUQueue} = 1 if ($MFopt{DoMetaBat2} ==2 || $MFopt{DoMetaBat2} == 4); #semibin/genomeface
+	$QSBoptHR->{useGPUQueue} = 1 if ($MFopt{DoMetaBat2} == 4); #semibin/genomeface   #$MFopt{DoMetaBat2} ==2 || 
 
 	system "rm $MetaBat2out*" if (-e $MetaBat2out && -s $MetaBat2out == 0 && !$CM1done && !$CM2done); #hard flag to just redo calculations..
 	$MBcmd = "" if (-s $MetaBat2out);
@@ -7601,7 +7601,7 @@ sub setDefaultMFconfig{
 	#gene prediction related
 	$MFopt{DoEukGenePred} = 0;
 	$MFopt{GenePredGZ} = 1; #gzip output to reduce storage usage
-	$MFopt{genePredGZenforce}=0;
+	$MFopt{genePredGZenforce}=1; #recheck and rezip if not already done?
 	
 	
 	#MFconfig configuration with defaults

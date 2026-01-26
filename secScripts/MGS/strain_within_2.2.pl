@@ -442,7 +442,7 @@ sub strainNetwork{ #submits Anthony's script to build a network
 		$cmd .= "#consider the following options to change: -c [Column for clustering samples] -e [num shared strains for edges]\n";
 		$cmd .= "touch $networkStone;\n";
 		print "Running network of shared strains..\n$cmd\n";
-		system $cmd;
+		#system $cmd;
 		my $nCore = 1;
 		my ($dep,$qcmd) = qsubSystem($netDir."Network.sh",$cmd,$nCore,"20G","Network","","",1,[],$QSBoptHR);
 
