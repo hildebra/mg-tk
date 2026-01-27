@@ -432,6 +432,13 @@ if ($useRHClust && (!-e "$finalClusters" || $rewrRHCL)){
 
 #die;
 
+printL "---------------------------------------------------------------------\n";
+printL "Stage I clustering done, MGS calculated.\nProgressing to Stage II: annotations, phylogenies and abundances\n";
+printL "Using $finalClustersFilt as MGS rep\n";
+printL "---------------------------------------------------------------------\n";
+
+
+
 #get checkM quality for new Bins
 my $binD = "$outD/Genomes/MGS_GC/";system "mkdir -p  $binD" unless (-d $binD);
 my $binDctg = "$outD/Genomes/MGS_ctg/";system "mkdir -p  $binDctg" unless (-d $binDctg);
@@ -439,31 +446,11 @@ my $binDctgFam = "$outD/Genomes/MGS_ctg_fam/";system "mkdir -p  $binDctgFam" unl
 
 #gget repr genomes for each MGS
 if (!-e $BinExtrSto){
-	print "\n\nCreating reference genome fasta's for all MGS based on contigs in\n$binDctg\n\n";
-
-	if ($doBinCtgsPerFam){
-		print "Also creating family-wise ref genomes\n";
-		createBinCtgs($binDctgFam,$hrM,"$logDir/MAGvsGC.txt.gz",1);
-		#die;
-	}
-
-	createBinCtgs($binDctg,$hrM,"$logDir/MAGvsGC.txt.gz",0);
-	#do I really need per family genomes??
-	
-	#die;
 	print "Creating reference genome fasta's for all MGS based on gene cat genes in\n$binD\n";
 	createBin2($binD,"$finalClustersFilt","$GCd/compl.incompl.95.prot.faa","faa");
 	createBin2($binD,"$finalClustersFilt","$GCd/compl.incompl.95.fna","fna");
-	
-	system "touch $BinExtrSto";
 }
 
-#die;
-
-printL "---------------------------------------------------------------------\n";
-printL "Stage I clustering done, MGS calculated.\nProgressing to Stage II: annotations, phylogenies and abundances\n";
-printL "Using $finalClustersFilt as MGS rep\n";
-printL "---------------------------------------------------------------------\n";
 
 
 #clean up a bit..
@@ -479,15 +466,30 @@ my @jobs2wait=();
 my $GTDBtaxF = "$annoDir/GTDBTK.tax";
 if (!-e $GTDBtaxF || !-e"$annoDir/gtdbtk.summary.tsv" || !-e $GTDBtaxSto){
 	my $GTDBtax = getProgPaths("taxPerMGSgtdb_scr");
-	my $cmd = "$GTDBtax $binD $canCore $nodeTmpD/GTDBmgs/ $outD\n";
+	my $memGTDB = 230; 
+	$memGTDB = 300;#high mem situation..
+	my $cmd = "$GTDBtax $binD $numCore $nodeTmpD/GTDBmgs/ $outD\n";
 	$cmd .= "mv $outD/GTDBTK.tax $outD/gtdbtk.summary.tsv $annoDir\n\ntouch $GTDBtaxSto";
 	#changed mem from 370 to 100 with GTDB-TK 2.1.0
 	my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "150G"; 
-	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$canCore,int(240/$canCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$numCore,int($memGTDB/$numCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
 	$QSBopt{tmpSpace} =$tmpSHDD;
 	push(@jobs2wait,$jobName2);
-	
 }
+
+if (!-e $BinExtrSto){
+	print "\n\nCreating reference genome fasta's for all MGS based on contigs in\n$binDctg\n\n";
+	if ($doBinCtgsPerFam){
+	#do I really need per family genomes??
+		print "Also creating family-wise ref genomes\n";
+		createBinCtgs($binDctgFam,$hrM,"$logDir/MAGvsGC.txt.gz",1);
+		#die;
+	}
+
+	createBinCtgs($binDctg,$hrM,"$logDir/MAGvsGC.txt.gz",0);
+	system "touch $BinExtrSto";
+}
+
 #wait for checkm/GTDB
 qsubSystemJobAlive( \@jobs2wait,\%QSBopt );
 die "GTDBtax missing\n$GTDBtaxF\n" if ( !-e $GTDBtaxF);

@@ -4,11 +4,11 @@ channels:
 - conda-forge
 #- https://repo.anaconda.com/pkgs/main
 dependencies:
-  - conda-forge::numpy
-  - conda-forge::scipy
-  #- bioconda::comebin>=1.0.4
+#  - conda-forge::numpy
+#  - conda-forge::scipy
+#  - bioconda::comebin>=1.0.4 -> required separate env
 #  - blas[build=openblas]
-  - bioconda::semibin=2.2.0
+#  - bioconda::semibin=2.2.0 -> required separate env
 #  - conda-forge::python-igraph=0.10.4
   - canopy>=0.25
   - metabat2=2.17

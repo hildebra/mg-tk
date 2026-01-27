@@ -421,9 +421,10 @@ sub createBinCtgs{
 	
 	my $hr;
 	if ($perFam){
-		print "Getting per family ref genomes\n";
+		print "Getting per family ref genomes for MAGs\n";
 		$hr = getRepresentBinsPerFamily($guideF,$hrMap);
 	} else {
+		print "Getting per AssmblGrp ref genomes for MAGs\n";
 		$hr = getRepresentBins($guideF);
 	}
 	my %repBins = %{$hr};
@@ -435,13 +436,13 @@ sub createBinCtgs{
 	foreach my $MGS (@allReps){
 		my $MAG = $repBins{$MGS};
 		if ($MAG =~ m/^Cano__/){
-			print "Could not retrieve MAG for $MGS : $MAG , because is Canopy\n";
+			print STDERR "Could not retrieve MAG for $MGS : $MAG , because is Canopy\n";
 			next;
 		}
 		my $smpl = ""; my $bin= "";
 		if ($MAG =~ m/^(.+)__(.+)$/){  $smpl = $1;  $bin=$2;
 		} else { #skip this MAG completely.. but not good
-			print "Could not match \"$MAG\" to sample and contig!\n";
+			print STDERR "Could not match \"$MAG\" to sample and contig!\n";
 			next;
 		}
 			
@@ -449,7 +450,7 @@ sub createBinCtgs{
 		$smpl = $map{altNms}{$smpl} if ( defined($map{altNms}{$smpl}) );
 		if ($lastSmpl ne $smpl){
 			$lastSmpl = $smpl;
-			print "Reading $smpl\n";
+			#print "Reading $smpl\n";
 			my $dirIn = $map{$smpl}{wrdir}; 
 			my $assDir = getAssemblPath($dirIn);
 			my $BinDir = "$assDir/Binning/SB/"; my $BinFile = "$BinDir/$smpl";
@@ -508,6 +509,7 @@ sub createBin2{
 		}
 		close O;
 	}
+	print "----------------------\nDone\nWrote representative MAGs (genes) to $binD\n----------------------\n";
 	
 }
 
