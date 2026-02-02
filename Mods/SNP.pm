@@ -327,8 +327,6 @@ sub SNPconsensus_vcf{
 		$scrDir = $tmpdir;
 	}
 	
-	#return if (-e $SNPstone && 
-
 
 	my $saveVCF=1;
 	if ($vcfFile eq ""){
@@ -375,7 +373,7 @@ sub SNPconsensus_vcf{
 			 ($refAR,$refAR2) = getRegionsBam($splitFAsize,$refFA,$tmpdir);
 		}
 		@curReg = @{$refAR}; 
-		@regOrd = @{$refAR2};  #use .fai instead for this..
+		#@regOrd = @{$refAR2};  #use .fai instead for this..
 		if (@curReg == 0){return("");}
 		
 		#open O,">$refFA.reg" or die "can't open region file $refFA.reg\n";		print O join("\n",@regOrd);		close O;
@@ -558,17 +556,10 @@ sub SNPconsensus_vcf{
 
 	$cmdAll .= "\n$postcmd\n" ;#always needs to run, to create seq stats in log file#if ($run2ctg != 0);
 
-	if (0&& #python script no longer used..
-			exists($SNPIHR->{gffFile}) && !-e $SNPIHR->{genefna}){
-		#requires python3 environment
-		$cmdAll .= "echo \"converting fasta to FNA and AA genes\"\n";
-		$cmdAll .= "\n$ctg2fas --gff $SNPIHR->{gffFile} --contig $ofasCons.gz --outFNA $SNPIHR->{genefna} --outFAA $SNPIHR->{genefaa};\n";
-		$cmdAll .= "\necho \"Finished contig to fasta\"\n\n";
-		#die $cmdAll."\n";
-	}
+
 	if ($cmdAll ne ""){
-	$cmdAll .= "touch $SNPstone\n" ;# unless (-e $SNPstone);
-	$cmdAll .= "touch $SNPsuppStone\n" if ($SNPsuppStone ne "");
+		$cmdAll .= "touch $SNPstone\n" ;# unless (-e $SNPstone);
+		$cmdAll .= "touch $SNPsuppStone\n" if ($SNPsuppStone ne "");
 	}
 	
 	#die "$run2ctg\n$cmdAll\n";

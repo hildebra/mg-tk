@@ -905,7 +905,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		system "rm -rf $smplTmpDir &" if ($MFconfig{rmScratchTmp} );
 		#system "rm -f $smplLockF" if (-e $smplLockF);
 		
-		if ( ($boolAssemblyOK || ($doPreAssmFlag && $ePreAssmbly && !$ePreAssmblPck)) && !$locRedoAssMapping ){#causes a lot of overhead but mainly to avoid unpacking reads again..
+		if ( ($boolAssemblyOK || ($doPreAssmFlag && $ePreAssmbly && !$ePreAssmblPck)) && !$locRedoAssMapping ){ #causes a lot of overhead but mainly to avoid unpacking reads again..
 			print "present: $curOutDir \n"; $presentAssemblies ++;#= $AsGrps{$cAssGrp}{CntAimAss};
 			#base is present, but is the additions? 
 
@@ -931,8 +931,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		loop2C_check($cAssGrp,\@sampleDeps);next;
 	}
 	
-	
-	
+
 
 	#report for debugging:
 	#print "!$calcConsSNP && !$calcBinning && !$calc2ndMapSNP && $boolAssemblyOK && $boolScndCoverageOK \n	&& $boolScndMappingOK && !$MFopt{DoCalcD2s} && !$DoUploadRawReads \n	&& !$calcRibofind && !$calcRiboAssign && !$MFopt{calcOrthoPlacement} && !$calcGenoSize && !$calcDiamond && !$calcDiaParse && \n	!$calcMetaPhlan && !$calcTaxaTar && !$calcMOTU2 && !$calcKraken && $scaffTarExternal eq \n $allMapDone\n $eFinMapCovGZ && $eCovAsssembly && !$calcCoverage\n";
@@ -1252,6 +1251,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#-----------------   secondary mapping -----------------
 	#2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd 2nd
 	# maps on given reference genome(s)
+	
 	if (@bwt2outD>0 && $MappingGo && (!$boolScndMappingOK || !$boolScndCoverageOK || $calc2ndMapSNP) ){#map reads to specific tar
 		scndMap2Genos($SmplName,$cleanSeqSetHR,$cMapGrp,$cAssGrp,$curOutDir,$nodeSpTmpD,$smplTmpDir,
 			\@sampleDeps,$hrefSeqSet->{samplReadLength},$calc2ndMapSNP,$boolScndCoverageOK);
@@ -1409,6 +1409,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		if ($calcSuppConsSNP){
 			$SNPinfo{STOconSNPsupp} = $STOsnpSuppCons   ; #trigger for also looking at cons SNP for support reads
 		}
+		
 		my $consSNPdep = createConsSNPandSVs(\%SNPinfo); #SNP calls on assembly
 		add2SampleDeps(\@sampleDeps, [$consSNPdep]);
 		#push(@sampleDeps, $consSNPdep) if (defined $consSNPdep && $consSNPdep ne "");
@@ -1784,6 +1785,7 @@ sub submitGenomeBinner{
 
 sub createConsSNPandSVs{
 	my ($SNPinfohr) = @_;
+	
 	my %SNPinfo = %{$SNPinfohr};
 	my $preHDDspace=${$QSBoptHR}{tmpSpace};
 	$SNPinfo{qsubDir} = "$logDir/SNP/" unless (exists($SNPinfo{qsubDir}));
@@ -1824,6 +1826,8 @@ sub createConsSNPandSVs{
 		my ($jdep2) = SVcall_vcf(\%SNPinfo);
 		$jdep .= ";$jdep2" if ($jdep2 ne "");
 	}
+		#die;
+
 	
 	return $jdep;
 }

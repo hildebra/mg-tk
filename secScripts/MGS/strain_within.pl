@@ -21,6 +21,9 @@ sub reportingsMGS;
 sub prepRun;
 sub filterMultiCopyGenes;
 sub createAGlist; sub preComputeConsSNP;
+sub timeNice;
+
+
 die "Not enough args!\n" unless (@ARGV > 1);
 
 #v.14: reworked massively how many genes get included
@@ -144,6 +147,9 @@ GetOptions(
 	"preCompConsSNP=i"   => \$preCompCons,
 
 );
+
+
+#die timeNice(20) ." ".timeNice(12252)."\n"; #TEST
 
 #define global vars
 my $QSBoptHR = emptyQsubOpt($doSubmit,"",$subMode);
@@ -1032,6 +1038,19 @@ sub reportingsMGS{
 	
 }
 
+sub timeNice($){
+	my ($tIN) = @_;
+	$tIN = int($tIN);
+	if ($tIN > (3600)){
+		my $remMin = ($tIN%3600);
+		return int($tIN/3600)."h".int($remMin/60)."m" . ($remMin%60) . "s";
+	}
+	if ($tIN > 60){
+		return int($tIN/60)."m" . ($tIN%60) . "s";
+	}
+	return $tIN . "s";
+}
+
 
 
 
@@ -1039,14 +1058,15 @@ sub reportingsMGS{
 #and save them to be later written per specI
 sub extractFNAFAA2genes{
 	my %perMGScnts;
-	my %totGnes;
+	my $gnCnt=0;
+	#my %totGnes;
 	#create gene to genes list
 	foreach my $sm (keys %cl2gene2){
 		#my @locGenes;
 		#print "$sm ";
-		my $gnCnt=0;my $MGSgeneCnt=0;
+		my $MGSgeneCnt=0;
 		foreach my $gn (keys %{$cl2gene2{$sm}}){
-			$totGnes{$gn} = 1;
+			#$totGnes{$gn} = 1;
 			$gnCnt++;
 			if (exists($Gene2MGS->{$gn})){
 				$perMGScnts{$Gene2MGS->{$gn}}{$gn}=1;
@@ -1065,7 +1085,8 @@ sub extractFNAFAA2genes{
 	#DBUG
 	#print "\n@histoMGScnts\n";
 	#print scalar(keys(%perMGScnts)). " \n";
-	print "Genes per MGS (prefiltering, N= ".  scalar(keys(%totGnes)) ." genes, " .scalar(keys(%perMGScnts)) . " MGS, avg " . int(0.5+scalar(keys(%totGnes))/scalar(keys(%perMGScnts))) . " genes/MGS):\n";
+	#scalar(keys(%totGnes))
+	print "Genes per MGS (prefiltering, N= ". $gnCnt  ." genes, " .scalar(keys(%perMGScnts)) . " MGS, avg " . int(0.5+ $gnCnt /scalar(keys(%perMGScnts))) . " genes/MGS):\n";
 	#show_histogram(\@histoMGScnts,10);
 	
 	histoMGS(\@histoMGScnts,"Theorectical best Bin sizes: ");
@@ -1106,7 +1127,7 @@ sub extractFNAFAA2genes{
 	my $sttime = time;	
 	foreach my $sm (@srtdSmpls){
 
-		print "\nAT SMPL:: $smCnt/" . scalar(@srtdSmpls) ." $sm - ". "Elapsed time : ", time - $sttime . "\n";
+		print "\nAT SMPL:: $smCnt/" . scalar(@srtdSmpls) ." $sm - ". "Elapsed time : ", timeNice(time - $sttime) . "\n";
 		readGenesSample_Singl($sm, $OFstrHR, $OAstrHR, $OCstrHR, $OLstrHR, $writeLink);
 		$smCnt++; $appCnt++;
 		if ($appCnt >= $appendWriteTrigger){
