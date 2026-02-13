@@ -200,7 +200,7 @@ Comment: usually ‘0’ means switching a mode off, and ‘1’ means switching
 	"m|mode=s" 			possible modes: mergeCLs CANOPY specI kraken kaiju FMG_extr FOAM ABR FuncAssign protExtract ntMatchGC geneCat
 
 #cluster options
-	"clusterID=i" 			identity at which to cluster gene catalog, default: 0.95
+	"clusterID=i" 			identity at which to cluster gene catalog, default: 95
 	"minGeneL=i" 			minimal gene length for gene to be included in gene catalog, default: 100
 	"extraGenesNT=s" 		add genes (nt) from external sources, e.g. from complete genomes
 	"extraGenesAA=s" 		add genes (AA) from external sources, e.g. from complete genomes
