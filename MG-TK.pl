@@ -3202,17 +3202,22 @@ sub prepPreAssmbl{
 	my $ePreAssmblPck = 0; if (-s $finAssLoc && -e "$mvD/moved.sto") {$ePreAssmbly=1;$ePreAssmblPck = 1;}
 	my $doPreAssmFlag = 0;
 	if ($efinAssLoc){
+		#die;
 		return ($ePreAssmbly,$doPreAssmFlag,0,$ePreAssmblPck);
 	}
 	my $eCOV = 0; $eCOV = 1 if (-e "$CSdir/Coverage.percontig.gz");
+	my $eCOVmv = 0; $eCOVmv = 1 if (-e "$mvD/Coverage.percontig.gz");
 	#print "$eCOV $CSdir/Coverage.percontig\n";
-	if ($MFopt{DoAssembly} == 5 && $AsGrps{$cAssGrp}{SupportReads} =~ m/PB:/){#$map{$curSmpl}{"SupportReads"} =~ m/PB:/ ){ #condition: right assembly mode and actually secondary support reads
+	if ($MFopt{DoAssembly} == 5 && $AsGrps{$cAssGrp}{SupportReads} =~ m/PB:/){#$map{$curSmpl}{"SupportReads"} =~ m/PB:/ ){ 
+		#condition: right assembly mode and actually secondary support reads
 		$doPreAssmFlag = 1 ;
-		if (!$eCOV || !$ePreAssmbly){
-			#print "preAssmbl: nothing done yet.. \n";#$mvD\n$metagD";
+		if ((!$eCOVmv && !$eCOV) || !$ePreAssmbly){
+			#print "preAssmbl: nothing done yet.. \n$mvD\n$metagD\n";
+			#die;
 			return ($ePreAssmbly,$doPreAssmFlag, 0, $ePreAssmblPck );
 		}
 	} else {
+		#die;
 		return (0,0,0,0); 
 	}
 	#die "$mvD\n";
@@ -3234,6 +3239,7 @@ sub prepPreAssmbl{
 		push(@{$AsGrps{$cAssGrp}{preAsmblDir}}, $mvD);
 	}
 	my $PostAssemblyGo = 0;
+	print "UUU $doPreAssmFlag\n";
 	$PostAssemblyGo = 1 if (!$doPreAssmFlag && ($AsGrps{$cAssGrp}{CntPreAss} >= $AsGrps{$cAssGrp}{CntAimAss}) ); #has already seen enough complete preAssmblies
 	$doPreAssmFlag = 1 if (!$PostAssemblyGo); 
 	#print "-e $CSdir/Coverage.percontig   $metagD/$STOpreAssmblDone\n" ;
@@ -6900,7 +6906,7 @@ sub longRdAssembly{
 	my ($asHr,$cAsGrp,$nodeTmp,$finalOut,$helpAssembl,$smplName, $useSupportRds,$LassP) = @_;
 	
 	my ($p1ar,$p2ar,$singlAr,$cReadTecAr) = getCleanSeqsAssmGrp($asHr, $cAsGrp, $useSupportRds);
-	if (@{$p1ar} > 0){print "Paired reads defined (@{$p1ar}), but long read assemblies rely on singleton reads!\nAborting\n";die;}
+	if (@{$p1ar} > 0 &&$p1ar->[0] ne ""){print "Paired reads defined (@{$p1ar}), but long read assemblies rely on singleton reads!\nAborting\n";die;}
 	my $numInLibs = scalar @{$singlAr};
 	#print "$numInLibs libs\n";
 		
@@ -6925,19 +6931,22 @@ sub longRdAssembly{
 	
 	my $nodeTmp2 = "$nodeTmp/tmpRawRds/";
  	my $cmd = "rm -rf $nodeTmp\nmkdir -p $nodeTmp $finalOut $nodeTmp2\n\n"; #\n  mkdir -p $nodeTmp/tmp\n
-	$cmd .= "echo \"Starting $nameProg assembly\"\n";
 	#input reads for assembly .. expected unpaired, long reads
 	my @inRds;# = @{$singlAr};
 	
 	#metaMDBG "hack" to impute illumina assemblies:
 	my $cmdPre = "";
 	if ($helpAssembl eq "hybridmMDBG" && $MFopt{DoAssembly} == 5){
+		#$cmd .= "echo \"Hybrid Assembly prep\"\n";
 		my $spl4m = getProgPaths("split_fasta4metaMDBG_scr");
+		my $runPar=1;
 		#my $illPathS = ;
 		my @illDirs = @{$AsGrps{$cAsGrp}{preAsmblDir}}; #split /,/,$illPathS;
-		$cmdPre .= "#presplitting helper assembly:\n";
+		$cmdPre .= "echo \"presplitting helper assembly\"\n";
 		#die "preLib num (" .@illDirs . ") != read libs (" . @inRds . ")!" if (@illDirs != @inRds);
 		die "preLib num (" .@illDirs . ") < read libs (" . @inRds . ")!" if (@illDirs < @inRds);
+		my $locXtrCmd = ""; $locXtrCmd = " &" if ($runPar);
+		my $cmdLater = "";
 		#condition is not correct: there might be cases where there are less inRds (PB runs), but additional assmblGrp samples have illumina..
 		for (my $i=0;$i<@illDirs;$i++){
 			my $illD = $illDirs[$i];
@@ -6945,13 +6954,19 @@ sub longRdAssembly{
 			my $contigCov = "$illD/Coverage.median.percontig.gz"; 
 			my $dupiAssmbl = "$nodeTmp2/assmbl.$i.pre.fastq.gz";
 			my $preAssmbl = "$illD/scaffolds.fasta.filt";
-			$cmdPre .= "$spl4m $preAssmbl $contigCov $dupiAssmbl;\n";
+			$cmdPre .= "$spl4m $preAssmbl $contigCov $dupiAssmbl $locXtrCmd\n";
 			#merge this split with single reads in tmp dir..
-			$cmdPre .= "cat $singlAr->[$i] >> $dupiAssmbl;\n" if (@{$singlAr} > $i);
+			if (@{$singlAr} > $i && defined($singlAr->[$i]) &&  $singlAr->[$i] ne ""){
+				#print "\nXX $i\n";
+				$cmdLater .= "cat $singlAr->[$i] >> $dupiAssmbl;\n" ;
+			}
 			$inRds[$i] = $dupiAssmbl;
 		}
 		#transfer commands to main #cmd stream..
-		$cmd .= $cmdPre."#presplitting done\n\n";
+		$cmdPre .= "\nwait \$(jobs -p);\n\n" if ($runPar);
+
+		$cmd .= $cmdPre.$cmdLater."echo \"presplitting done\"\n\n";
+		#die "$cmd\n";
 	} else {
 		@inRds = @{$singlAr};
 	}
@@ -6959,6 +6974,7 @@ sub longRdAssembly{
 	#die "@inRds\n";
 	#die $cmd;
 	
+	$cmd .= "echo \"Starting $nameProg assembly\"\n";
 	
 	my $contigRecovery = "";
 	if ($MFopt{DoAssembly}==3){#FLYE

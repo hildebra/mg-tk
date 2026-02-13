@@ -843,20 +843,35 @@ sub getCleanSeqsAssmGrp{
 	my ($asG, $grp, $support) = @_;
 	my $specSmpl = "";$specSmpl = $_[3] if (@_ >= 4); #specific sample only??
 	my @smpls = ();@smpls = ($specSmpl) if ($specSmpl ne "");
-
-	my @pa1; my @pa2; my @pas; my @readTec;
+	
+	my $sizOut = scalar(@smpls);
+	my @pa1; $#pa1=$sizOut; my @pa2; $#pa2=$sizOut;my @pas; $#pas=$sizOut;my @readTec;$#readTec=$sizOut;
 	my %raws = %{${$asG}{$grp}{CleanSeqs}};
 	my @terms = ("arp1","arp2","singAr", "readTec","is3rdGen");
 	@terms = ("arpX1","arpX2","singArX", "readTecX","is3rdGenX") if ($support);
 	@smpls = keys %raws if (!@smpls);
+	my $cnt=0;
 	foreach my $smpl (@smpls){
-	#	print "$smpl\n";
-		push(@pa1, @{${$raws{$smpl}}{ $terms[0] }});
-		push(@pa2, @{${$raws{$smpl}}{ $terms[1] }});
-		push(@pas, @{${$raws{$smpl}}{ $terms[2] }});
-		push(@readTec, ${$raws{$smpl}}{ $terms[3] });
+		#print "$smpl\n";
+		
+		my $R1 = ""; 
+		if (defined( ${${$raws{$smpl}}{ $terms[0] }}[0] )){
+			$R1 = ${${$raws{$smpl}}{ $terms[0] }}[0] ;# && @{$raws{$smpl}}{ $terms[0] } > 0);
+			if (scalar(@{${$raws{$smpl}}{ $terms[0] }})>1){
+				print STDERR "Warning getCleanSeqsAssmGrp: detected >1 clean input read.. currently not supported!!\n @{${$raws{$smpl}}{ $terms[0] }}\nasG:$asG grp:$grp support:$support\n";
+			}
+		}
+		$pa1[$cnt] =  $R1;
+		my $R2 = ""; $R2 = ${${$raws{$smpl}}{ $terms[1] }}[0] if (defined( ${${$raws{$smpl}}{ $terms[1] }}[0] ) );# && @{$raws{$smpl}}{ $terms[1] } > 0);
+		$pa2[$cnt] = $R2;
+		my $single = ""; $single = ${${$raws{$smpl}}{ $terms[2] }}[0] if (defined( ${${$raws{$smpl}}{ $terms[2] }}[0] ));# && @{$raws{$smpl}}{ $terms[2] } > 0);
+		$pas[$cnt] =  $single;#$single;
+		#print "$cnt $single\n";
+		#my $rT = ""; $rT = ${$raws{$smpl}}{ $terms[3] } if (defined(${$raws{$smpl}}{ $terms[3] }));
+		$readTec[$cnt] = ${$raws{$smpl}}{ $terms[3] } ;
+		$cnt++;
 	}
-	#die "@pa1 - $grp - $support\n@pa2\n@pas\n";
+	#die "getCleanSeqsAssmGrp::\n@pa1 - $grp - $support\n@pa2\n@pas\n";
 	return (\@pa1, \@pa2, \@pas, \@readTec);
 }
 

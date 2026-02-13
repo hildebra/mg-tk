@@ -48,7 +48,6 @@ my $doPhym= 0;
 my $version = 5.03;
 
 my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
-#die $pal2nal;
 my $fasta2phylip = getProgPaths("fasta2phylip_scr");
 my $phymlBin = getProgPaths("phyml");
 my $trimalBin = getProgPaths("trimal");
@@ -205,7 +204,6 @@ GetOptions(
 print "BuildTree 5 script v$version\nOutDir: $outD\n";
 ##DEBUG
 #die if ($useAA4tree == 0);
-
 
 
 

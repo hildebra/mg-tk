@@ -381,10 +381,12 @@ sub inputFmtSpades($ $ $ $ $){
 	my $sprds = "";
 	if ($doYAML==0){
 		for (my $i =0; $i<@p1;$i++){
+			next if ($p1[$i] eq "");
 			my $peTerm = "--pe";$peTerm = "--gemcode" if ($readTec[$i] =~ m/SLR/);
 			$sprds .= " ${peTerm}".($i+1) ."-1 $p1[$i] ${peTerm}".($i+1) ."-2 $p2[$i]";
 		}
 		for (my $i=0;$i<@singl;$i++){
+			next if ($singl[$i] eq "");
 			my $peTerm = "--pe";$peTerm = "--gemcode" if ($readTec[$i] =~ m/SLR/);
 			$sprds .= " ${peTerm}".($i+1) ."-s $singl[$i]";
 		}
@@ -392,10 +394,12 @@ sub inputFmtSpades($ $ $ $ $){
 		open O,">$logDir/spadesInput.yaml";
 		print O "  [\n      {\n        orientation: \"fr\",\n        type: \"paired-end\",\n        left reads: [\n";
 		for (my $i =0; $i<@p2;$i++){
+			next if ($p1[$i] eq ""); #use p1 as guide here..
 			if (($i+1) == @p2){	print O "          \"$p1[$i]\"\n";	} else { print O "          \"$p1[$i]\",\n";}
 		}
 		print O "     ],\n        right reads: [\n";
 		for (my $i =0; $i<@p1;$i++){
+			next if ($p1[$i] eq "");
 			if (($i+1) == @p1){	print O "          \"$p2[$i]\"\n";	} else { print O "          \"$p2[$i]\",\n";}
 			#print O "          \"$p2[$i]\"\n";
 		}
@@ -403,6 +407,7 @@ sub inputFmtSpades($ $ $ $ $){
 		if (@singl > 0){
 			print O ",\n      {\n        type: \"single\",\n        single reads: [\n";
 			for (my $i=0;$i<@singl;$i++){
+			next if ($singl[$i] eq "");
 				if (($i+1) == @singl){	print O "          \"$singl[$i]\"\n";	} else { print O "          \"$singl[$i]\",\n";}
 				#print O  "          \"$singl[$i]\"\n";
 			}
@@ -421,8 +426,13 @@ sub inputFmtSpades($ $ $ $ $){
 	my ($p1ar,$p2ar,$singlAr,$logDir) = @_;
 	my @p1 = @{$p1ar}; my @p2 = @{$p2ar};
 	my @singl = @{$singlAr};
-	if (@p1 != @p2){print "Unequal paired read array lengths arrays for Spades\n"; exit(2);}
+	@p1 = grep !/^$/, @p1;
+	@p2 = grep !/^$/, @p2;
+	@singl = grep !/^$/, @singl;
+
+	if (@p1 != @p2 || @p1 != @singl){print "Unequal paired read array lengths arrays for Spades\np1:@p1\np2:@p2\nsingle:@singl\n"; exit(2);}
 	my $sprds = "";
+	
 	if (@p1 > 0){ 
 		$sprds .= "-1 ".join(",",@p1) . " -2 ".join(",",@p2)." ";
 	}
