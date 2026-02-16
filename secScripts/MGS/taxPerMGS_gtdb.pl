@@ -28,21 +28,40 @@ my $oDir = "$tmpD/GTDBTK/";
 system "mkdir -p $oDir" unless (-d $oDir);
 system "mkdir -p $tmpD" unless (-d $tmpD);
 
-my $cmd = "";
-#$cmd .= "$COND\n$py3activate\n";
-#--scratch_dir $tmpD 
-#$cmd .= "export GTDBTK_DATA_PATH=$GTDBtkDB\n";
+
+
 if ($GTDBtkBin =~ m/ activate /){
 	$GTDBtkBin =~ s/activate (\S+)/activate $1\nexport GTDBTK_DATA_PATH=$GTDBtkDB\n/;
 }
 
-my $mashArg="" ;
-if ($GTDBtkMash ne ""){ #for newer GTDBtk versions not supported
+
+#get GTDBtk version
+my $verSt = `$GTDBtkBin --version`;
+$verSt =~ m/version (\S+) /;
+my $GTDBver = $1+0.0;
+
+#print "$verSt\n\n$1\n";
+
+print "Using GTDBtk ver $GTDBver\n";
+#print "$GTDBtkBin --version\n";
+#die;
+
+my $cmd = "";
+#$cmd .= "$COND\n$py3activate\n";
+#--scratch_dir $tmpD 
+#$cmd .= "export GTDBTK_DATA_PATH=$GTDBtkDB\n";
+
+my $mashArg="" ;my $hook = "";
+if ($GTDBtkMash ne "" && $GTDBver >= 2.1){ #for newer GTDBtk versions not supported
 	$mashArg = "--mash_db $GTDBtkMash/\$MVERSION/";
-	$cmd .= "MVERSION=`mash --version`"
+	$hook = "MVERSION=`mash --version`;\n"
 }
 
 $cmd .= "$GTDBtkBin classify_wf -x fna $mashArg --cpus $ncore --pplacer_cpus $pplacer_cores  --genome_dir $refMGd --out_dir $oDir"; #--scratch_dir $tmpD/GTtmp/ --genes
+
+#get hook inserted before command
+$cmd =~ s/gtdbtk classify/${hook}gtdbtk classify/;
+
 print "\n\n".$cmd."\n\n";
 #die;
 systemW $cmd;

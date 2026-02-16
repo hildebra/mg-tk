@@ -799,8 +799,12 @@ if($doDNDS){
 #}
 
 FastGear();
+if ($removeMSA){
+	system "rm -rf $MsaD" ;
+} elsif ($gzipInput){
+	system "$pigzBin -p $ncore $MsaD  ";
 
-system "rm -rf $MsaD" if ($removeMSA);
+}
 if ($gzipInput){
 	system "$pigzBin -p $ncore  $aaFna " unless ($aaFna =~ m/\.gz$/);
 	system "$pigzBin -p $ncore $fnFna  " unless ($fnFna =~ m/\.gz$/);

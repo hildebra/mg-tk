@@ -392,7 +392,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	
 	my $inputFNAsize = fileGZs($FNAtf) / (1024 * 1024); #size in MB
 	if ($inputFNAsize ==0){print "empty input $FNAtf .. next.\n";next;} #empty input
-	if ( $inputFNAsize  > 500 ){ #only if FNA is > X mb
+	if ( $inputFNAsize  > 1200 || ($MSAprog==4 && $inputFNAsize>700) ){ #only if FNA is > X mb
 		$QSBoptHR->{useLongQueue} = 1 ;
 	}
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
@@ -1254,7 +1254,8 @@ sub readGenesSample_Singl{
 
 	unless (exists ($map{$sd2}) ) {
 		print STDERR "Can't find map entry for $sd\n"; #die;
-		next;
+		return;
+		die;
 	}
 	my @subGKs = keys %subG;
 	die "regex failed: $subGKs[0]\n" unless ($subGKs[0] =~ m/^(.*)__/);
