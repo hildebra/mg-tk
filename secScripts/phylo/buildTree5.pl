@@ -11,6 +11,7 @@
 #version 5 added: hyphy fubar, R scripts for theta, guidance2
 #2.1.25: v5.02: reduced threshold for including genes from MGS
 #14.2.25: v5.03: added treshrink
+#18.2.26: 5.04: MSA gz'ping
 
 use warnings;
 use strict;
@@ -45,7 +46,7 @@ sub createTreeOpt;
 sub treePresent;
 
 my $doPhym= 0;
-my $version = 5.03;
+my $version = 5.04;
 
 my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
 my $fasta2phylip = getProgPaths("fasta2phylip_scr");
@@ -802,7 +803,7 @@ FastGear();
 if ($removeMSA){
 	system "rm -rf $MsaD" ;
 } elsif ($gzipInput){
-	system "$pigzBin -p $ncore $MsaD  ";
+	system "$pigzBin -p $ncore $MsaD/*  ";
 
 }
 if ($gzipInput){

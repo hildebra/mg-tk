@@ -205,6 +205,7 @@ sub readGene2tax{
 	open I,"<$inF" or die "Can't open gene 2 tax (specI/MGS) file:\n$inF\n";
 	my $curTax = ""; my $curTcnt=0;
 	
+	#format: "MGS.0   52031098        730     0       1       1"
 	while (my $line = <I>){
 		chomp $line;
 		$totalGenes++;
