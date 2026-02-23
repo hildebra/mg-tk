@@ -17,10 +17,11 @@ use warnings;
 use strict;
 #use threads ('yield','stack_size' => 64*4096,'exit' => 'threads_only','stringify');
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw(gzipopen systemW readFasta readFastHD writeFasta convertMSA2NXS quantile);
+use Mods::GenoMetaAss qw( fileGZe fileGZs gzipopen systemW readFasta readFastHD writeFasta convertMSA2NXS quantile);
 use Mods::phyloTools qw(MSA filterMSA getTreeLeafs calcDisPos2 runRaxML runRaxMLng runQItree 
 			runFasttree fixHDs4Phylo getGenoGenes getFMG readFMGdir );
-
+			
+			
 use Getopt::Long qw( GetOptions );
 #use Mods::ext::TreeIO;
 #use Mods::IO::MaybeXS qw(encode_json decode_json);
@@ -48,16 +49,11 @@ sub treePresent;
 my $doPhym= 0;
 my $version = 5.04;
 
-my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
-my $fasta2phylip = getProgPaths("fasta2phylip_scr");
-my $phymlBin = getProgPaths("phyml");
-my $trimalBin = getProgPaths("trimal");
+my $cmdCall = qx/ps -o args $$/;
+
+
 my $pigzBin  = getProgPaths("pigz");
-my $trDist = getProgPaths("treeDistScr");
-my $msaFbin = getProgPaths("MSAfix");
-my $RpogenS = getProgPaths("pogenStats");
-my $eteBin = getProgPaths("ete3");
-my $stBin = getProgPaths("supertree",0);
+#my $trDist = getProgPaths("treeDistScr");
 
 
 my $gubbinsBin = "/g/bork3/home/hildebra/bin/gubbins/python/scripts/run_gubbins.py";
@@ -66,11 +62,6 @@ my $pamlBin = "";#getProgPaths("codeml"); #PAML: currently unused
 
 
 
-my $fastgearBin = "/g/bork3/home/luetge/softs/fastGEARpackageLinux64bit/run_fastGEAR.sh";
-my $matlabBin = "/g/bork3/home/luetge/softs/matlab/v901";
-my $fastgearSummaryBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_collectRecombinationStatistics.sh";
-my $fastgearReconstrBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_startAncestryReconstruction.sh";
-my $fastgearReorderBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_reorderMultipleGenes.sh";
 my $partiExt=".partition.RAXML";
 
 #die "TODO $trimalBin\n";
@@ -258,6 +249,7 @@ if($clusterName eq ""){$outD_clust = "$outD/MSA_FG";}
 #------------------------------------------
 #sorting by COG, MSA & syn position extraction
 if ($Ete){
+	my $eteBin = getProgPaths("ete3");
 	$cmd = "$eteBin build -n $fnFna -a $aaFna -w clustalo_default-none-none-none  -m sptree_raxml_all --cpu $ncore -o $outD/tree --clearall --nt-switch 0.0 --noimg  --tools-dir /g/bork3/home/hildebra/bin/ete/ext_apps-latest"; #--no-seq-checks
 	$cmd .= " --cogs $cogCats" unless ($cogCats eq "");
 	print "Running tree analysis ..";
@@ -312,12 +304,19 @@ my @MSrm;
 my %FAA ; my %FNA ; my @geneList; my @geneListF;
 my $doMSA = 1;
 my $treesDone =0; $treesDone=1 if (treePresent($tOhr) && treePresent($tOhrNSun) && treePresent($tOhrSyn));
-my $calcMSA=1; $calcMSA=0 if ($treesDone || -e $multAli || !$continue);
+my $calcMSA=1; $calcMSA=0 if ($treesDone || fileGZe( $multAli) || !$continue);
 if (!$treesDone){#cleanup, avoid checkpoints..
 	system "rm -f $treeD/*";
 }
 $doMSA =0 if ($isAligned || (
-			$continue && (-e $multAli || !$calcMSA) && (-e $multAliSyn ||!$calcSyn)&& (-e $multAliNonSyn ||!$calcNonSyn)) );  ## checks if MSA already exists
+			$continue && (fileGZe($multAli) || !$calcMSA) && (fileGZe($multAliSyn) ||!$calcSyn)&& (fileGZe($multAliNonSyn) ||!$calcNonSyn)) );  ## checks if MSA already exists
+			
+#test if MSA is gzed
+if (!-e $multAli && -e "${multAli}.gz"){
+	my $gunCmd = "$pigzBin -p $ncore -d ${multAli}.gz\n";
+	
+	system $gunCmd;
+}
 #die "$doMSA $calcMSA $treesDone $continue $multAli\n";
 #die "$doDNDS\n";
 #my @xx = keys %FAA; die "$xx[0] $xx[1]\n$FAA{HM29_COG0185}\n";
@@ -340,12 +339,14 @@ if ($isAligned){
 	############# test length of fna sequences can be divided by 3 ##############################
 		
 	if($doLengthCheck){
+		my @notThrees;
 		my $FNAseq; my $length; my $div;
 		while (($FNAseq) = each (%FNA)){
 			$length = length($FNA{$FNAseq});
 			$div = $length/3;
-			print "AA seq can not divided by 3 in $FNAseq\n" if($div =~ /\D/);
+			push(@notThrees, $FNAseq) if($div =~ /\D/);
 		}
+		print "FNA seq not divisible by 3 (N=". scalar(@notThrees) . "): @notThrees\n" if (@notThrees);
 	}
 
 	############# test if enough seq in Sample to add to tree (avoids confusion in MSA) ##############################
@@ -577,6 +578,7 @@ if ($isAligned){
 		$seqLength /= @spl;
 		#print "$tmpInMSA,$tmpOutMSA2\n";
 		$tmpOutMSA2 = MSA($tmpInMSA,$tmpOutMSA2,$ncore,$clustalUse,$continue,$numSeq);
+		#zorro/macse filter.. by default not used ("")
 		$tmpOutMSA2 = filterMSA($tmpInMSA,$tmpOutMSA2,$ncore,$postFilter,$useAA4tree);
 		if ($tmpOutMSA2 eq ""){ #filter failed...
 			print "skipped protein, too many bad positions\n";
@@ -604,6 +606,7 @@ if ($isAligned){
 			convertMultAli2NT($tmpOutMSA2,$tmpInMSAnt,$tmpOutMSA);
 			my ($tmpOutMSAsyn,$tmpOutMSAnonsyn) = synPosOnly($tmpOutMSA,$tmpOutMSA2,0,$ogrGenes,$calcSyn,$calcNonSyn);
 			#this will not affect 4-fold only etc..
+			my $msaFbin = getProgPaths("MSAfix");
 			$cmd = "$msaFbin -i $tmpOutMSA  -maskLowID -maskBorderGap -rmGapColsGreater ".$maxGapPerCol." -minGoodPosFrac 0.6\n";
 			systemW $cmd;
 			push (@MSAs,$tmpOutMSA);
@@ -660,6 +663,8 @@ if (!$useAA4tree) {
 if ( $doGenesToPh){ 
 	my $phylipD = "$outD/phylip/";
 	system "mkdir -p  $phylipD" unless(-d $phylipD || (!$doGenesToPh ));
+	my $fasta2phylip = getProgPaths("fasta2phylip_scr");
+
 	foreach my $MSAfn (@MSAs){
 		#my $MSAfn = $tmpOutMSA;
 		system "rm -f $phylipD/$MSAfn.ph*\n";
@@ -701,6 +706,7 @@ if ($doSuperTree || $doSuperCheck){#can be for 2 reasons: 1) build actual super 
 		open OU,">$specFile";
 		print OU join "\n",keys (%specList);
 		close OU;
+		my $stBin = getProgPaths("supertree",0);
 		my $cmd = "$stBin -s $specFile -F -o - @treeCol  | grep '\\[F01\\]' | cut -f2 -d' ' > $outST"; #-F
 		#die "ST:\n$cmd\n";
 		systemW $cmd;
@@ -888,6 +894,7 @@ sub createTreeOpt{
 					fastTrOut => "$treeD/FASTTREE${tcnt}_${siteTag}.nwk",
 					RAXtreeout => "$treeD/RXML${tcnt}_${siteTag}$BStag.nwk",
 					RAXNGtreeout => "$treeD/RXng${tcnt}_${siteTag}$BStag.nwk",
+					runSafe => 0,
 					);
 	return \%treeOpts;
 }
@@ -898,6 +905,7 @@ sub treeAtHeart{
 	my %treeOpts = %{$hr};
 	my $consTree = $treeOpts{constraintTree}; my $multF = $treeOpts{inMSA};
 	my $silent = $treeOpts{silent}; my $tcnt = $treeOpts{tcnt};
+	
 	if ($consTree ne ""){
 		die "ref tree $consTree does not exist\n" unless (-e $consTree);
 		
@@ -945,6 +953,7 @@ sub treeAtHeart{
 	#format conversion for raxml..
 	if ($doRAXML){
 		my $f = $treeOpts{inMSA};
+		my $fasta2phylip = getProgPaths("fasta2phylip_scr");
 		my $tcmd = "rm -f $f.ph*; $fasta2phylip -c 50 $f > $f.ph\n";
 		systemW $tcmd;#) {die "fasta2phylim failed:\n$tcmd\n";}
 	}
@@ -991,6 +1000,8 @@ sub treeAtHeart{
 		my @thrs;
 		my $tcmd = "";
 		my $nwkFile = $treeOpts{PhymTree};#"$treeD/phyml${tcnt}_${siteTag}.nwk";
+		my $phymlBin = getProgPaths("phyml");
+
 		$tcmd = "$phymlBin --quiet -m GTR --no_memory_check -d nt -f m -v e -o tlr --nclasses 4 -b 2 -a e -i $multF.ph > $nwkFile\n";
 		push(@thrs, threads->create(sub{system $tcmd;}));
 		for (my $t=0;$t<@thrs;$t++){
@@ -1051,6 +1062,7 @@ sub singleGeneMSAprocess($){
 
 	if ($tmpInMSA ne "" && !$useAA4tree){
 		convertMultAli2NT($tmpOutMSA2,$fnFna,$multAli);
+		my $msaFbin = getProgPaths("MSAfix");
 		$cmd = "$msaFbin -i $multAli  -maskLowID -maskBorderGap -rmGapColsGreater ".$maxGapPerCol." -minGoodPosFrac 0.6\n";
 		systemW $cmd;
 		($multAliSyn, $multAliNonSyn) = synPosOnly($multAli,$tmpOutMSA2,0,"",$calcSyn,$calcNonSyn);
@@ -1071,6 +1083,9 @@ sub singleGeneMSAprocess($){
 #### fastgear ##
 
 sub FastGear{
+	my $fastgearSummaryBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_collectRecombinationStatistics.sh";
+	my $fastgearReconstrBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_startAncestryReconstruction.sh";
+	my $fastgearReorderBin = "/g/bork3/home/luetge/softs/fastGearPostprocessingLinux64bit/run_reorderMultipleGenes.sh";
 
 	if($doFastGear){
 #		open I,"<$cogCats" or die "Can't open cogcats $cogCats\n"; 
@@ -1142,7 +1157,7 @@ sub FastGear{
 			close T2;
 			#die "@genomeListFG\n";
 		}
-
+		my $matlabBin = "/g/bork3/home/luetge/softs/matlab/v901";
 		# reorder files -> required for further steps?
 		my $reorder_cmd = "$fastgearReorderBin $matlabBin $FGDataD fastGear_ allNamesFromTop.txt both";
 		#die "$reorder_cmd\n";
@@ -1555,6 +1570,9 @@ sub convertMultAli2NT($ $ $){
 	my $tmpMSA=0;
 	if ($inMSA eq $outMSA){$outMSA .= ".tmp"; $tmpMSA=1;}
 	my $cmd = "";
+	my $trimalBin = getProgPaths("trimal");
+	#my $pal2nal = getProgPaths("pal2nal"); #"perl /g/bork3/home/hildebra/bin/pal2nal.v14/pal2nal.pl";
+
 	#"$pal2nal $inMSA $NTs -output fasta -nostderr -codontable 11 > $outMSA\n";
 	
 	#$cmd = "$trimalBin -in $inMSA -out $outMSA -backtrans $NTs -keepheader -keepseqs -noallgaps -automated1 -ignorestopcodon\n";
@@ -1820,6 +1838,8 @@ sub pogenStatsFilter{
 	system "rm -f $codemlOutD/PopStats.*";
 	my $condaAct = getProgPaths("CONDA");
 	my $cmd = "";
+	my $RpogenS = getProgPaths("pogenStats");
+
 	#$cmd .= "$condaAct\nconda activate r_env\n"; #this was a workaround since the packages didn't run correctly on R cluster and different env was needed..
 	$cmd .= "$RpogenS $outD $mapF $codemlOutD $MSAsubsD $subsetPopgenStats\n";
 	#$cmd .= "conda deactivate\n";
@@ -1846,6 +1866,7 @@ sub hyphy{
 sub pruneTree($ $ $){
 	my ($nwkFile,$aR,$nwkFile_gene) = @_;
 	my @genomeList = @{$aR};
+	my $eteBin = getProgPaths("ete3");
 	my $cmd_prune = "$eteBin mod -t $nwkFile --prune @genomeList --unroot -o $nwkFile_gene";
 	systemW $cmd_prune . " > $nwkFile_gene";
 }
@@ -2096,6 +2117,9 @@ sub fillGeneList{
 ### Fastgear -> test for recombination 
 sub runFastgear($ $ $ $){
 	my ($geneFG, $outFile, $inD, $parFile) = @_;
+	my $fastgearBin = "/g/bork3/home/luetge/softs/fastGEARpackageLinux64bit/run_fastGEAR.sh";
+	my $matlabBin = "/g/bork3/home/luetge/softs/matlab/v901";
+
 	$cmd = "$fastgearBin $matlabBin $inD/$geneFG.fna $outFile $parFile";
 	#die "$cmd\n";
 	system $cmd; 

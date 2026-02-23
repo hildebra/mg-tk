@@ -205,7 +205,6 @@ sub readFasta{
 	if (@_ > 3){
 		my $hr = $_[3]; %subs = %{$hr};
 		$doSubs = 1;
-		
 	}
 	my $Hseq = {}; 
 	
@@ -214,26 +213,29 @@ sub readFasta{
 	foreach my $fil (@files){
 		#next unless (-e $fil);
 		#my $FAS; my $status=0; 
-		my $doAdd = 1;
+		#my $doAdd = 1;
 		#open($FAS,"<","$fil") || die ("Couldn't open FASTA file $fil\n");
 		my ($FAS ,$status) = gzipopen($fil,"fasta file to readFasta",0);
 		if (@files == 1 && $status == 0){die "Can't open fasta file $fil\n";}
 		next if ($status==0);
 		my $temp; my $line; 
-		my $trHe =<$FAS>;  
+		my $trHe =<$FAS>;  my $srcHe = "";
 		if (!defined $trHe){#could be empty file
 			print "Empty:: $fil $status\n";
 			close $FAS;return $Hseq;
 		}
 		$trHe = substr($trHe,1);
-		if ($cutHd) {$trHe =~ s/$sepChr.*//;} chomp ($trHe); $trHe = "".$trHe;
+		if ($cutHd) {$trHe =~ s/$sepChr.*//;} 
+		elsif ($doSubs) {$srcHe = $trHe;$srcHe =~ s/$sepChr.*//;}
+		chomp ($trHe); $trHe = "".$trHe;
 		while($line = <$FAS>){
 			chomp($line);
 			if ($line =~ m/^>/){
 				#check if fasta within set..
-				if ($doSubs ){ 
-					if ( exists($subs{$trHe})){$doAdd = 1;} else {$doAdd =0;} 
-					$Hseq->{$trHe} = $temp if ($doAdd); 
+				if ($doSubs ){
+					if ( exists($subs{$trHe}) || ($srcHe ne "" && exists($subs{$srcHe})) ){
+						$Hseq->{$trHe} = $temp ;
+					}
 				} else { #a lot faster..
 					#finish old fas`
 					$Hseq->{$trHe} = $temp;

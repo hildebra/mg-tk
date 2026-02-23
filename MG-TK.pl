@@ -4946,7 +4946,7 @@ sub getRgStr{
 	my $rgStr ="noReg";
 	if ($mapper > 1 || $mapper == -2){ #bwa/minimap2 have same format..
 		$rgStr = '\'@RG\\tID:$smpl\\tSM:$smpl\\tPL:ILLUMINA';
-		$rgStr .= "\\\tLB:$libsOri";
+		$rgStr .= '\\tLB:$libsOri\'';
 	}
 	if ($mapper==1 || $mapper ==5){ #bowtie2 & strobealign
 		my $sep=" "; $sep = "=" if ($mapper ==5);

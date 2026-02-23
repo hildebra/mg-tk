@@ -9,7 +9,7 @@ use strict;
 use Exporter qw(import);
 our @EXPORT_OK = qw(runRaxMLng runRaxML readFMGdir prep40MGgenomes prepNOGSETgenomes getE100 getGenoGenes getFMG renameFMGs 
 			runFasttree runQItree fixHDs4Phylo getGenoName calcDisPos2 getTreeLeafs filterMSA MSA);
-use Mods::GenoMetaAss qw(systemW readFasta renameFastHD gzipwrite gzipopen);
+use Mods::GenoMetaAss qw(filsizeMB systemW readFasta renameFastHD gzipwrite gzipopen);
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Mods::FuncTools qw(assignFuncPerGene readGene2Func);
 
@@ -143,20 +143,22 @@ sub fixHDs4Phylo ($){
 
 sub runQItree{
 	my ($hr) = @_; my %treeOpts = %{$hr};
-	my ($inMSA,$treeOut,$ncore,$outgr,$bootStrap,$useAA,$fast,$autoModel,$partiF) = 
+	my ($inMSA,$treeOut,$ncore,$outgr,$bootStrap,$useAA,$fast,$autoModel,$partiF,$runSafe) = 
 		($treeOpts{inMSA},$treeOpts{IQtreeout},$treeOpts{ncore},$treeOpts{outgr},$treeOpts{bootStrap},$treeOpts{useAA},
-		$treeOpts{iqtreeFast},$treeOpts{autoModel},$treeOpts{partition});
+		$treeOpts{iqtreeFast},$treeOpts{autoModel},$treeOpts{partition},$treeOpts{runSafe});
 	
 	#die "AA use $useAA\n";
+	my $inSize = filsizeMB($inMSA);
+	if ($inSize>700){$runSafe=1;} #greater input size than 700 Mb? needs to use safe likelihood kernel..
 	my $constraintTree = $treeOpts{constraintTree};
 	die ("Constraint tree $constraintTree does not exist") if ($constraintTree ne "" && !-e $constraintTree);
 	my $iqTree  = getProgPaths("iqtree");
 	my $vcheck = `$iqTree --version`;
-	unless ($vcheck =~ m/version 2/){die "Needs iqtree version 2\n:$vcheck\n";}
+	unless ($vcheck =~ m/version [23]/){die "Needs iqtree version 2 or 3\n:$vcheck\n";}
 	$treeOut =~ s/\.nwk$//;
 	my $treNM = "IQtree";
 	my $cmd = "$iqTree -s $inMSA -T $ncore -pre $treeOut -seed 678 "; #-nt AUTO -ntmax $ncore
-	$cmd .= " -p $partiF " unless ($partiF eq "");
+	$cmd .= " -Q $partiF --merge " unless ($partiF eq "");
 	$cmd .= "-o $outgr " unless ($outgr eq "" && $outgr !~ m/,/);
 	$cmd .= "-g $constraintTree " unless ($constraintTree eq "");
 	$cmd .= "--quiet " if (exists($treeOpts{silent}) && $treeOpts{silent});
@@ -175,6 +177,9 @@ sub runQItree{
 			$cmd .= "-m GTR+F+I+G4 "; #default model, as spotted on 40 MG for phylo tree..
 			#$cmd .= "-m HKY+F+G "; 
 		}
+	}
+	if ($runSafe){
+		$cmd .= " --safe ";
 	}
 	if ($bootStrap >0){
 		if ($bootStrap < 1000){
