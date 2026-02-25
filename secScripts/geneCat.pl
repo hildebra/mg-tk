@@ -516,7 +516,7 @@ sub clusterMultiStep{
 			my @preCons = @{$QSBoptHR->{constraint}};
 			push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);#--constraint=sse4
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."mainCDhit.sh",$cmd,$numCor,int($totMem/$numCor)."G","MCLGC","","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."mainCDhit.sh",$cmd,$numCor,int($totMem)."G","MCLGC","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$QSBoptHR->{useLongQueue} = 0;
 			@{$QSBoptHR->{constraint}} = @preCons;
@@ -547,7 +547,7 @@ sub clusterMultiStep{
 		$bwtIdx = $bwtIdxT;
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."mapperIdx.sh",$cmd,$numCor3,int($totMem3/$numCor)."G","IDXmGC","","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."mapperIdx.sh",$cmd,$numCor3,int($totMem3)."G","IDXmGC","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$cmd = ""; $mapIdxJob = $dep;
 		}
@@ -604,7 +604,7 @@ sub clusterMultiStep{
 	 }
 	if ($submitLocal && $cmd ne ""){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."mini35.sh",$cmd,$numCor3,int($totMem3/$numCor3)."G","m35GC",$mapIdxJob,"",1,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDir."mini35.sh",$cmd,$numCor3,int($totMem3)."G","m35GC",$mapIdxJob,"",1,[],$QSBoptHR);
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$cmd = ""; push(@miniParJobs,$dep); #qsubSystemJobAlive( [$dep],$QSBoptHR ); 
 	}
@@ -639,7 +639,7 @@ sub clusterMultiStep{
 
 	if ($submitLocal && $cmd ne ""){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."miniIncom.sh",$cmd,$numCor3,int($totMem3/$numCor3)."G","mInGC",$mapIdxJob,"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."miniIncom.sh",$cmd,$numCor3,int($totMem3)."G","mInGC",$mapIdxJob,"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		push(@miniParJobs,$dep); #
 	}
@@ -663,7 +663,7 @@ sub clusterMultiStep{
 		my @preCons = @{$QSBoptHR->{constraint}};
 		push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."mergeIncom.sh",$cmd,$numCor,int($totMem3/$numCor)."G","mEInGC",join(";",@miniParJobs,$dep1),"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."mergeIncom.sh",$cmd,$numCor,int($totMem3)."G","mEInGC",join(";",@miniParJobs,$dep1),"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$QSBoptHR->{useLongQueue} = 0;
 		@{$QSBoptHR->{constraint}} = @preCons;
@@ -738,7 +738,7 @@ sub clusterSingleStep{
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
 		push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
 		$QSBoptHR->{useHiMemQueue} = 1 if ($totMem > 1000);
-		my ($dep,$qcmd) = qsubSystem($qsubDir."fullClust.sh",$cmd,$numCor0,int($totMem/$numCor0)."G","fullGC",$dep,"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."fullClust.sh",$cmd,$numCor0,int($totMem)."G","fullGC",$dep,"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$QSBoptHR->{useHiMemQueue} = 0;
 		@{$QSBoptHR->{constraint}} = @preCons;
@@ -859,7 +859,7 @@ sub geneCatFlow($ $ $ $ ){
 				my $preHDDspace = ${$QSBoptHR}{tmpSpace};
 				${$QSBoptHR}{tmpSpace} = "50G";#"${totMem}G"; #$totMem #doesn't need much, stores on scrach
 				my $memCOG = int($totMemL/2);if ($memCOG < 50){$memCOG=50;}
-				my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/$numCor/2)."G","cCLGC","","",1,[],$QSBoptHR);
+				my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/2)."G","cCLGC","","",1,[],$QSBoptHR);
 				@{$QSBoptHR->{constraint}} = @preCons;
 				${$QSBoptHR}{tmpSpace} = $preHDDspace;
 				$COGdep = $dep;
@@ -913,7 +913,7 @@ sub geneCatFlow($ $ $ $ ){
 		my $cmdL = "$pigzBin -p $numCor $bdir/*\n";
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."pigz1_GC.sh",$cmdL,$numCor3,int(20/$numCor3)."G","pigzGC","","",1,[],$QSBoptHR); 
+			my ($dep,$qcmd) = qsubSystem($qsubDir."pigz1_GC.sh",$cmdL,$numCor3,int(20)."G","pigzGC","","",1,[],$QSBoptHR); 
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		} else {$cmd .= $cmdL;}
 	}
@@ -939,9 +939,9 @@ sub geneCatFlow($ $ $ $ ){
 		
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep1,$qcmd1) = qsubSystem($qsubDir."genemat1.sh",$cmd1,$numCorL,int($totMem3/$numCorL)."G","GM1","","",1,[],$QSBoptHR);
-			my ($dep2,$qcmd2) = qsubSystem($qsubDir."genemat2.sh",$cmd2,$numCorL,int($totMem3/$numCorL)."G","GM2","","",1,[],$QSBoptHR);
-			my ($dep3,$qcmd3) = qsubSystem($qsubDir."genemat3.sh",$cmd3,$numCorL,int($totMem3/$numCorL)."G","GM3","","",1,[],$QSBoptHR);
+			my ($dep1,$qcmd1) = qsubSystem($qsubDir."genemat1.sh",$cmd1,$numCorL,int($totMem3)."G","GM1","","",1,[],$QSBoptHR);
+			my ($dep2,$qcmd2) = qsubSystem($qsubDir."genemat2.sh",$cmd2,$numCorL,int($totMem3)."G","GM2","","",1,[],$QSBoptHR);
+			my ($dep3,$qcmd3) = qsubSystem($qsubDir."genemat3.sh",$cmd3,$numCorL,int($totMem3)."G","GM3","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			@matDeps = ($dep1,$dep2,$dep3);
 			#qsubSystemJobAlive( [$dep1,$dep2,$dep3],$QSBoptHR ); 
@@ -1041,7 +1041,7 @@ sub geneCatFlow($ $ $ $ ){
 		if ($submitLocal && $cmd ne ""){
 			print "submitting specI tax abundance..\n";
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."specI_GC.sh",$cmd,1,int(1/$numCor3)."G","SIGC","$depExtr","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."specI_GC.sh",$cmd,1,int(5)."G","SIGC","$depExtr","",1,[],$QSBoptHR);
 			$cmd="";$SIdep = $dep;
 			$QSBoptHR->{tmpSpace} = $tmpSHDD;
 		}
@@ -1080,7 +1080,7 @@ sub geneCatFlow($ $ $ $ ){
 	if ($submitLocal && $cmd ne ""){
 		print "submitting kraken tax abundance..\n";
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."krak_GC.sh",$cmd,$numCor3,int($totMem5/$numCor3)."G","krakGC","","",1,[],$QSBoptHR); $cmd="";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."krak_GC.sh",$cmd,$numCor3,int($totMem5)."G","krakGC","","",1,[],$QSBoptHR); $cmd="";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 
 	}
@@ -1201,7 +1201,7 @@ sub geneCatFlow($ $ $ $ ){
 		print $qsubDir."CDHITexe.sh\n";
 		my $jobd = "";
 		$QSBoptHR->{useLongQueue} = 1;
-		my ($dep,$qcmd) = qsubSystem($qsubDir."CDHITexe.sh",$cmd,$numCor,int($totMem/$numCor)."G",$jobName,$jobd,"",$qsubNow,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDir."CDHITexe.sh",$cmd,$numCor,int($totMem)."G",$jobName,$jobd,"",$qsubNow,[],$QSBoptHR);
 		if ($qsubNow==0){
 			print "$qcmd\n";
 		}
@@ -1233,7 +1233,7 @@ sub ntMatchGC{
 	$cmd .= "$smtBin view $iTO | cut -f1,3 > $iTO2 \n";
 
 	$cmd .= "$rareBin sumMat -i $GCdir/$countMatrixF.gz -o $out.mat -t $numCor -refD $iTO2 \n"; #$rtkFunDelims
-	my ($dep,$qcmd) = qsubSystem($qsubDir."NucMap.sh",$cmd,$numCor,int($totMem5/$numCor)."G","IDXmGC","","",1,[],$QSBoptHR);
+	my ($dep,$qcmd) = qsubSystem($qsubDir."NucMap.sh",$cmd,$numCor,int($totMem5)."G","IDXmGC","","",1,[],$QSBoptHR);
 	#die $cmd;
 }
 
@@ -1609,7 +1609,7 @@ sub prepCDhit(){
 			#systemW $cmd."\n";
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
 			my $numCor = 3;
-			my ($jdep,$txtBSUB) = qsubSystem($qsubDir."/preprocess/Preprocess.$batch.sh",$cmd,$numCor,int(30/$numCor)."G","PrPr$batch","","",1,[],$QSBoptHR);
+			my ($jdep,$txtBSUB) = qsubSystem($qsubDir."/preprocess/Preprocess.$batch.sh",$cmd,$numCor,int(30)."G","PrPr$batch","","",1,[],$QSBoptHR);
 			push(@jobs,$jdep);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$lastLocTo = $locTo;
@@ -1842,7 +1842,7 @@ sub canopyCluster{
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};
 		$QSBoptHR->{tmpSpace} = "0"; #set option how much tmp space is required, and reset afterwards
 
-		my ($jdep,$txtBSUB) = qsubSystem($qsubDir."Canopy2CL.sh",$cmd,$NC,int($canMem/$NC)."G","CAN",$jdeps,"",1,[],$QSBoptHR);
+		my ($jdep,$txtBSUB) = qsubSystem($qsubDir."Canopy2CL.sh",$cmd,$NC,int($canMem)."G","CAN",$jdeps,"",1,[],$QSBoptHR);
 		print "Canopy MGS call send off\n"; 
 		$QSBoptHR->{useLongQueue} = 0;
 		$QSBoptHR->{tmpSpace} = $tmpSHDD;
@@ -2445,7 +2445,7 @@ sub geneCatFunc_emapper{
 			if ($calcDia && (!-e $outF || !-s $outF) ){
 				#print "$cmd\n";
 				if ($doQsub){
-					my ($jobName,$mptCmd) = qsubSystem($qsubDir2."D$shrtDB.$i.sh",$cmd,$ncore,($mem/$ncore)."G","eMAP$i","","",1,[],$QSBoptHR); #$jdep.";".
+					my ($jobName,$mptCmd) = qsubSystem($qsubDir2."D$shrtDB.$i.sh",$cmd,$ncore,($mem)."G","eMAP$i","","",1,[],$QSBoptHR); #$jdep.";".
 					push(@jdeps,$jobName);
 					#die "$jobName\n";
 				} else {
@@ -2472,7 +2472,7 @@ sub geneCatFunc_emapper{
 		$cmd .= "#splitting eggNOG annotations in multiple categories that can be summed up to matrices\n$eSpl $tarAnno3\n";
 		#run 
 		#$cmd = "" if (-e "$tarAnno3");
-		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CombineEMAP.sh",$cmd,$ncore2,(80/$ncore2)."G","${shrtDB}_comb",join(";",@jdeps),"",1,[],$QSBoptHR); 
+		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CombineEMAP.sh",$cmd,$ncore2,(80)."G","${shrtDB}_comb",join(";",@jdeps),"",1,[],$QSBoptHR); 
 		#$jdep.";".
 		
 		$jdep = $jobName;
@@ -2489,7 +2489,7 @@ sub geneCatFunc_emapper{
 		my $cmd = "$rareBin sumMat -i $GCd/$countMatrixF.gz -o $outD/$shrt -t $matThr -refD $outD/$EMC.geneAss $rtkFunDelims -extHiera -hieraSrtDown\n";
 		$cmd .= "echo \"DONE matrix creation\"\n";
 		#my $jobName = "sum$shrt";
-		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."$shrt.sh",$cmd,$matThr,(50/$matThr)."G","${shrt}_mat",$jdep,"",1,[],$QSBoptHR); #$jdep.";".
+		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."$shrt.sh",$cmd,$matThr,(50)."G","${shrt}_mat",$jdep,"",1,[],$QSBoptHR); #$jdep.";".
 		push(@jdeps,$jobName);
 	}
 	#clean up and marking stone that all worked out fine..
@@ -2498,7 +2498,7 @@ sub geneCatFunc_emapper{
 	$cmd .= "\ntouch $stone\n\n";
 	$cmd .= "$pigzBin -p $clnCores $tarAnno3 $outD/*.geneAss;\n";
 	$cmd .= "rm -f -r $GLBtmp/eggNOGmapper  $splDir;\n" ; #unless (-e $tarAnno && -s $tarAnno)
-	my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CleanEMAP.sh",$cmd,$clnCores,(70/$clnCores)."G","${shrtDB}_CLN",join(";",@jdeps),"",1,[],$QSBoptHR); #$jdep.";".
+	my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CleanEMAP.sh",$cmd,$clnCores,(70)."G","${shrtDB}_CLN",join(";",@jdeps),"",1,[],$QSBoptHR); #$jdep.";".
 
 
 

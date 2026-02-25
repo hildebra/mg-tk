@@ -790,10 +790,18 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#print "Conta: $calcContamination   \"$locStats{contamination}\"\n";
 
 	
-	#die "XX $calcDiamond $calcDiaParse\n";
 	
+	
+	
+	#check on processes not dependent on assemblies
 	my ($calcKraken,$calcDiamond,$calcDiaParse,$calcRibofind,$calcRiboAssign,$calcGenoSize,
 			$calcMetaPhlan, $calcMOTU2,$calcTaxaTar) = checkRawProgsFin($curOutDir,$SmplName);
+	#not complete yet? Then delete..
+	if ($MFconfig{redoFails} && ($calcRibofind||$calcDiamond || $calcDiaParse ||$calcMOTU2 || $calcMetaPhlan || $calcTaxaTar)){
+		die "now recalc $curSmpl\n";
+		system ("rm -r -f $assDir $finalCommAssDir");
+		system("rm -f -r $curOutDir $smplTmpDir $collectFinished ");
+	}
 
 
 
@@ -802,18 +810,12 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#die "$allMapDone\n-e $finalMapDir/$SmplName-smd.$bamcramMap && $eCovAsssembly && !$ePreAssmbly && ($eSuppCovAsssembly || !$locMapSup2Assembly) && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/\n";
 	
 	my $calcBinning = 0;
-	if ($MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e "$BinningOut.cm" && !-s "$BinningOut.cm2") ) {
+	if ($MFopt{DoMetaBat2} && $boolAssemblyOK && !$doPreAssmFlag && !$ePreAssmblPck && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e "$BinningOut.cm" && !-s "$BinningOut.cm2") ) {
 		$calcBinning=$MFopt{DoMetaBat2};
 		#die "$MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e $BinningOut.cm || !-s $BinningOut.cm2\n";
 	}
 	#die "$calcBinning\n";
 	
-	#not complete yet? Then delete..
-	if ($MFconfig{redoFails} && ($calcRibofind||$calcDiamond || $calcDiaParse ||$calcMOTU2 || $calcMetaPhlan || $calcTaxaTar)){
-		die "now recalc $curSmpl\n";
-		system ("rm -r -f $assDir $finalCommAssDir");
-		system("rm -f -r $curOutDir $smplTmpDir $collectFinished ");
-	}
 
 
 
@@ -843,21 +845,19 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	#print "build $assemblyBuildIndexFlag   $MFopt{DoAssembly} && !$assemblyFlag && $MFopt{map2Assembly} && $mapAssFlag && $MFopt{MapperProg}\n";
 	#requires only bam/cram && assembly
 	my $calcConsSNP=0; 
-	if ($MFopt{DoConsSNP}){
+	if ($MFopt{DoConsSNP} && !$doPreAssmFlag && !$ePreAssmblPck){
 		my $exSNPf= fileGZe($vcfSNP);
 		if ($exSNPf && fileGZs($vcfSNP) == 0){system "rm -f $vcfSNP*";$exSNPf=0;} #some old versions produced an empty vcf file..
 		$calcConsSNP=0; $calcConsSNP =1 if ( !-e $STOsnpCons || ($MFopt{saveConsFastas} &&  fileGZe($genePredSNP)==0  ) || ($MFopt{saveVCF} &&  !$exSNPf ) ) ;
 	}
-				
-				
-	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if ($locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
+	my $calcSuppConsSNP=0; $calcSuppConsSNP =1 if (!$doPreAssmFlag && !$ePreAssmblPck && $locMapSup2Assembly && $MFopt{DoSuppConsSNP} && (!-e  $STOsnpSuppCons  ));
 	
 	
 	
 	#structural variants calcs
-	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{callSVs} && !-e $vcfSV );
-	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ($locMapSup2Assembly && $MFopt{callSVsSupp} && !-e $vscSVsupp );
-	if (($calcConsSNP || $calcSVsSupp || $calcSVs || $calcSuppConsSNP) && $eFinMapCovGZ && !$allMapDone && !$mapAssFlag){
+	my $calcSVs = 0; $calcSVs = 1 if ( $MFopt{callSVs} && !-e $vcfSV && !$doPreAssmFlag && !$ePreAssmblPck);
+	my $calcSVsSupp = 0; $calcSVsSupp = 1 if ($locMapSup2Assembly && !$doPreAssmFlag && !$ePreAssmblPck && $MFopt{callSVsSupp} && !-e $vscSVsupp );
+	if (!$mapAssFlag && ($calcConsSNP || $calcSVsSupp || $calcSVs || $calcSuppConsSNP) && $eFinMapCovGZ && !$allMapDone ){
 		#die $mapAssFlag;
 		$mapAssFlag = 1; #reactivate mapping of assembly, to allow SNP consensus calling..
 		$eFinMapCovGZ = 0;
@@ -1776,7 +1776,7 @@ sub submitGenomeBinner{
 	#die "$AsGrps{$cAssGrp}{BinDeps}  , $cAssGrp\n";
 	my $deps = ""; $deps = $AsGrps{$cAssGrp}{BinDeps} if (defined($AsGrps{$cAssGrp}{BinDeps}));
 	my ($jobName2, $tmpCmd) = qsubSystem($paths[-1]."LOGandSUB/Binner$BinnerName.sh", $MBcmd.$postCmd,
-			$MB2coresL, int($totMem/$MB2coresL)."G" , $jobName, $deps,"",1,[],$QSBoptHR);
+			$MB2coresL, int($totMem)."G" , $jobName, $deps,"",1,[],$QSBoptHR);
 	$QSBoptHR->{tmpSpace} = $preHDDspace;$QSBoptHR->{useGPUQueue} = 0;
 #	die $jobName2;
 	return $jobName2;
@@ -2468,7 +2468,7 @@ sub prepDiamondDB($ $ $ $){#takes care of copying the respective DB over to scra
 			my @preConstr = @{$QSBoptHR->{constraint}};
 			#push(@{$QSBoptHR->{constraint}}, "intel");
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
-			($jN, $tmpCmd) = qsubSystem($logDir."DiamondDBprep$shrtDB.sh",$DBcmd,$ncoreDB,int(100/$ncoreDB)."G",$jN,"","",1,$QSBoptHR->{General_Hosts},$QSBoptHR);
+			($jN, $tmpCmd) = qsubSystem($logDir."DiamondDBprep$shrtDB.sh",$DBcmd,$ncoreDB,int(100)."G",$jN,"","",1,$QSBoptHR->{General_Hosts},$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$MFopt{globalDiamondDependence}->{$curDB} = $jN;
 			@{$QSBoptHR->{constraint}} = @preConstr;
@@ -2676,7 +2676,7 @@ sub map2ndPrep{
 			my ($cmd,$DBbtRef, $chkFile) = buildMapperIdx($map2ndTogRefDB{DB},$bwtDBcore,$MFopt{largeMapperDB},$MFopt{MapperProg}) ;
 			if (!-e $chkFile ){
 				my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
-				($bwt2ndMapDep,$cmd) = qsubSystem("$baseOut/GlbMap/LOGandSUB/builBwtIdx_comp.sh",$cmd,$bwtDBcore,(int(25/$bwtDBcore)+1) ."G","BWI_compe","","",1,[],$QSBoptHR) ;
+				($bwt2ndMapDep,$cmd) = qsubSystem("$baseOut/GlbMap/LOGandSUB/builBwtIdx_comp.sh",$cmd,$bwtDBcore,(int(25)+1) ."G","BWI_compe","","",1,[],$QSBoptHR) ;
 				$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			}
 		}
@@ -2763,7 +2763,7 @@ sub map2ndPrep{
 	if ($DBsubmCnt>0){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
 		my $mapperMemDB= 20; $mapperMemDB = 40 if ($MFopt{largeMapperDB});
-		my ($bwt2ndMapDep2,$cmd2) = qsubSystem($bwt2outDl."/builBwtIdxBIG.sh",$cmdBIG,$bwtDBcore,(int($mapperMemDB/$bwtDBcore)+1) ."G","BWIbig","","",1,[],$QSBoptHR) ;
+		my ($bwt2ndMapDep2,$cmd2) = qsubSystem($bwt2outDl."/builBwtIdxBIG.sh",$cmdBIG,$bwtDBcore,(int($mapperMemDB)+1) ."G","BWIbig","","",1,[],$QSBoptHR) ;
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$bwt2ndMapDep .= ";$bwt2ndMapDep2";
 	}
@@ -3050,7 +3050,7 @@ sub runContigStats{
 	#$cmd .= "mkdir -p $cwd\n" unless ($cwd eq "" );
 	$cmd .= "$sepCtsScript -inD $path -assD $assD -subparts $subprts -readLength $readL -readLengthSup $readLX -tmpD $tmpD -threads $Nthr";
 	#$jobName = "_CS$JNUM"; 
-	($jobDep,$tmpCmd) = qsubSystem($logDir."ContigStats.sh",$cmd,$Nthr,int(50/$Nthr)."G",$jobName,$jobd,"",$immSubm,[],$QSBoptHR);
+	($jobDep,$tmpCmd) = qsubSystem($logDir."ContigStats.sh",$cmd,$Nthr,int(50)."G",$jobName,$jobd,"",$immSubm,[],$QSBoptHR);
 	$tmpCmd = "" if ($immSubm);
 	#die "$cmd\n$logDir.ContigStats.sh,$cmd,$Nthr,int(50/$Nthr).G,$jobName,$jobd,$cwd,$immSubm\n";
 	return ($jobDep,$tmpCmd, 1);
@@ -3153,7 +3153,7 @@ sub GapFillCtgs{
 	if ($cmd ne ""){
 		my $tmpCmd;
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = 0; 
-		($dep, $tmpCmd) = qsubSystem($logDir."GapFill_ext_$xtrTag.sh",$cmd,$numCore,int(80/$numCore)."G","_GFE$JNUM",$dep,"",1,[],$QSBoptHR);
+		($dep, $tmpCmd) = qsubSystem($logDir."GapFill_ext_$xtrTag.sh",$cmd,$numCore,int(80)."G","_GFE$JNUM",$dep,"",1,[],$QSBoptHR);
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 	}
 	return $dep;
@@ -3239,7 +3239,7 @@ sub prepPreAssmbl{
 		push(@{$AsGrps{$cAssGrp}{preAsmblDir}}, $mvD);
 	}
 	my $PostAssemblyGo = 0;
-	print "UUU $doPreAssmFlag\n";
+	#print "UUU $doPreAssmFlag\n";
 	$PostAssemblyGo = 1 if (!$doPreAssmFlag && ($AsGrps{$cAssGrp}{CntPreAss} >= $AsGrps{$cAssGrp}{CntAimAss}) ); #has already seen enough complete preAssmblies
 	$doPreAssmFlag = 1 if (!$PostAssemblyGo); 
 	#print "-e $CSdir/Coverage.percontig   $metagD/$STOpreAssmblDone\n" ;
@@ -3342,7 +3342,7 @@ sub scaffoldCtgs{
 #die "scaff cmd $cmd\n";
 	if ($cmd ne ""){
 		my $tmpCmd;
-		($dep, $tmpCmd) = qsubSystem($logDir."BesstScaff_ext_$xtraTag.sh",$algCmd.$cmd,$Ncore,int(50/$Ncore)."G","_BBE$JNUM$xtraTag",$dep,"",1,[],$QSBoptHR);
+		($dep, $tmpCmd) = qsubSystem($logDir."BesstScaff_ext_$xtraTag.sh",$algCmd.$cmd,$Ncore,int(50)."G","_BBE$JNUM$xtraTag",$dep,"",1,[],$QSBoptHR);
 	}
 	return ($newScaffFNA,$dep);
 }
@@ -3988,7 +3988,7 @@ sub uploadRawFilePrep{
 		$QSBoptHR->{tmpSpace} = int($totalInputSizeMB/1024*6)+30  ."G";
 #		$QSBoptHR->{tmpSpace} = $HDDspace{prepPub}; #increase local space..  # use $totalInputSizeMB ??
 		#print "$QSBoptHR->{tmpSpace}\n";
-		my ($jobN, $tmpCmd) = qsubSystem("$logDir/prepEBI$tag.sh",$cmd,$numThr,int(50/$numThr) . "G","EBI$tag$JNUM","$jdep;$krakDeps","",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
+		my ($jobN, $tmpCmd) = qsubSystem("$logDir/prepEBI$tag.sh",$cmd,$numThr,int(50) . "G","EBI$tag$JNUM","$jdep;$krakDeps","",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 		$QSBoptHR->{tmpSpace} = $preHDDspace;
 		$retJob = $jobN;
 	} else {
@@ -5453,7 +5453,7 @@ sub mapReadsToRef{
 		$jobN = "_MAP$JNUM$supTag.$outNms[0]"; $bamFresh = 1; 
 		($jobN,$tmpCmd) = qsubSystem($qdir.$bashN."map$supTag.sh",
 				$unzipcmd.$algCmd.$nodeCln,  #$unalignCmd
-				$Ncore,int($MFopt{MapperMemory}/$Ncore+1)."G",$jobN,$jDepe,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
+				$Ncore,int($MFopt{MapperMemory}+1)."G",$jobN,$jDepe,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 		$retCmds .= $tmpCmd;
 		$QSBoptHR->{tmpSpace}=$preHDDspace;
 	#die "\nBAM  $bamFresh\n$immediateSubm\n";
@@ -5627,7 +5627,7 @@ sub bamDepth{
 			
 		($jobN2,$retCmds) = qsubSystem($qdir.$bashN."map2$supTag.sh",
 				$cmd."\n".$covCmd."\n".$CRAMcmd."\n$nodeCln\n"#.$covCmd2
-				,$numCore,  (int($locSrtMem/$numCore)+1)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
+				,$numCore,  (int($locSrtMem)+1)."G",$newJobN,$jDep,"",$immediateSubm,$QSBoptHR->{General_Hosts},$QSBoptHR);
 		$QSBoptHR->{tmpSpace}=$preHDDspace;
 		} else {
 			$cmd =~ s/sleep \d+//;
@@ -6660,7 +6660,7 @@ sub scndMap2Genos{
 	}
 	
 	#actual job submission of concatenated sort & cov jobs..
-	my ($sortJD,$tmpCmd) = qsubSystem($dirset{qsubDir}."SRTB$SmplName.sh",$bigSort,$MFopt{bamSortCores},int(20/$MFopt{bamSortCores})."G",$SmplName."SRT2nd",$map2CtgsX,"",1,[],$QSBoptHR);
+	my ($sortJD,$tmpCmd) = qsubSystem($dirset{qsubDir}."SRTB$SmplName.sh",$bigSort,$MFopt{bamSortCores},int(20)."G",$SmplName."SRT2nd",$map2CtgsX,"",1,[],$QSBoptHR);
 	($sortJD,$tmpCmd) = qsubSystem($dirset{qsubDir}."COV$SmplName.sh",$bigCov,1,int(20)."G",$SmplName."COV2nd",$sortJD,"",1,[],$QSBoptHR);
 
 	$AsGrps{$cMapGrp}{MapDeps} .= $sortJD.";";
@@ -6711,12 +6711,12 @@ sub buildAssemblyMapIdx{
 		my ($par1,$par2,$parS,$liar,$rear) = getRawSeqsAssmGrp(\%AsGrps,$cAssGrp,$suppRds,$smpl);
 		my $MapperProgLoc = decideMapper($MFopt{MapperProg},${$liar}[0]);
 		my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx($finAssLoc,$MFopt{MapperCores},$MFopt{largeMapperDB},$MapperProgLoc);#$nCores);
-		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdxSupp.sh",$cmdDB,(int($MFopt{MapperCores})),(int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores})+1)."G","DBidx$JNUM","","",1,[],$QSBoptHR) ;
+		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdxSupp.sh",$cmdDB,(int($MFopt{MapperCores})),(int($MFopt{bwtIdxAssMem})+1)."G","DBidx$JNUM","","",1,[],$QSBoptHR) ;
 		$AsGrps{$cAssGrp}{AssemblJobName} .= ";$jname";
 	}
 	if ($mainRds){
 		my ($cmdDB,$bwtIdx,$chkFile) = buildMapperIdx($finAssLoc,$MFopt{MapperCores},$MFopt{largeMapperDB},$MFopt{MapperProg});#$nCores);
-		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdx.sh",$cmdDB,(int($MFopt{MapperCores})),1+(int($MFopt{bwtIdxAssMem}/$MFopt{MapperCores}))."G","bwtIdx$JNUM","","",1,[],$QSBoptHR) ;
+		my ($jname,$tmpCmd) = qsubSystem($logDir."mapperIdx.sh",$cmdDB,(int($MFopt{MapperCores})),1+(int($MFopt{bwtIdxAssMem}))."G","bwtIdx$JNUM","","",1,[],$QSBoptHR) ;
 		$AsGrps{$cAssGrp}{AssemblJobName} .= ";$jname";
 	}
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
@@ -7351,7 +7351,7 @@ sub genePredictions($ $ $ $ $) {
 		$inputBac = "$scrathD/bact.kraken.fasta";
 		#die "$inputEuk || !-e $inputBac\n";
 		if (!-e $inputEuk || !-e $inputBac || !-e "$scrathD/bac.euk.split.sto"){
-			($splitDep,$tmpCmd) = qsubSystem($logDir."splitAssembly.sh",$scmd,$splCores,int(50/$splCores)."G","_SC$JNUM","$jobDepend;$krakDeps","",1,$QSBoptHR->{General_Hosts},$QSBoptHR); 
+			($splitDep,$tmpCmd) = qsubSystem($logDir."splitAssembly.sh",$scmd,$splCores,int(50)."G","_SC$JNUM","$jobDepend;$krakDeps","",1,$QSBoptHR->{General_Hosts},$QSBoptHR); 
 		}
 	}
 

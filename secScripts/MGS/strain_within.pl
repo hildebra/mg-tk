@@ -7,6 +7,9 @@ use strict;
 
 use Getopt::Long qw( GetOptions );
 use List::Util qw/shuffle/;
+use File::Path qw(make_path);
+use File::Glob qw(bsd_glob);
+
 
 
 use Mods::GenoMetaAss qw(fileGZe fileGZs readClstrRev systemW median mean readMapS readFasta getAssemblPath getAssemblGFF getAssemblContigs checkSeqTech);
@@ -24,7 +27,7 @@ sub prepRun;
 sub prepGene2MGS;
 sub createAGlist; sub preComputeConsSNP;
 sub timeNice;
-
+sub combineMGSgenes;
 
 
 #v.14: reworked massively how many genes get included
@@ -42,7 +45,9 @@ sub timeNice;
 #.26: 28.12.25: code refactor to later enable parallelization of main gene-collecting routine
 #.27: 12.2.26: made code faster and more stable. changed default MSA aligner
 #.28: 22.2.26: claude suggested code improvements
-my $version = 0.28;
+#.29: 24.2.26: switched to multi output file for subjobs (waits were to long/inconsistent performance and errors with file blocks)
+#.30: 25.2.26: new code for combining files, subfiles written to scratch to improve speed further
+my $version = 0.30;
 
 die "Not enough args!\n" unless (@ARGV > 1);
 
@@ -64,8 +69,14 @@ my $reSubmit=0;
 my $treeFile = "";
 my $doSubmit=0;
 my $subMode="";
-my $multiGeneSmplMax = 0.15; #no higher than this rate in single samples conspec genes..
+my $multiGeneSmplMax = 0.25; #no higher than this rate in single samples conspec genes..
+my $maxOrthoNum = 1; #don't include gene if multiple orthologues
 my $conspGeneSmplMax = 0.05; #no higher than this conspecific genes/MGS/sample
+my $minDepthGene  = 1;
+
+
+
+my $repairCAT=0;
 
 my $maxNGenes = 400;
 my $MSAprog = 2; ##(0) MSAprobs, (1) clustalO, (2) mafft, (4) MUSCLE5
@@ -92,7 +103,7 @@ my $multiCpyThr = 0.2; #kick out specific genes if too many copies / genome: sho
 my $multCpyMGSthr = 0.7; #kick out entire MGS, if it has too many multicopy genes at above threshhold
 my $MGStoolowGsThr = 10; #less genes than this in a single sample -> rm MGS from sample for strains
 my $mode = "MGS";
-my $appendWriteTrigger = 20; #every Xth samples, genes are written (to manage memory); #limit this, perl seems to have some issues with too large strings..
+my $appendWriteTrigger = 200; #every Xth samples, genes are written (to manage memory); #limit this, perl seems to have some issues with too large strings..
 my $startSubFromMGS = ""; #debug option: only start resubmitting tree building from this MGS (e.g. "MGS.1382" )
 #define local files..
 my $lSNPdir="SNP"; my $lMAPdir = "mapping";
@@ -126,6 +137,7 @@ GetOptions(
 	"selfMemGb=i"    => \$selfMemGb,
 	"onlySubmit=i"   => \$onlySubmit, #submit only jobs, or also recreate input fna/faa files? (can take days)
 	"reSubmit=i"     => \$reSubmit, #for all MGS: resubmit tree phylo building
+	"repairCAT=i"    => \$repairCAT,
 	#workflow HPC usage
 	"subjob=i"       => \$subJob,
 	"maxSubJob=i"    => \$maxSubJob,
@@ -140,7 +152,7 @@ GetOptions(
 	"MGSminGenesPSmpl=i" => \$MGStoolowGsThr, #less genes than this in a single sample -> rm MGS from sample for strains. default 10
 	"multiGeneSmplMax=f" => \$multiGeneSmplMax, #default 0.15
 	"conspGeneSmplMax=f" => \$conspGeneSmplMax, #default 0.05
-
+	
 	"MGSphylo=s"     => \$treeFile,
 	"submissionMode=s"      => \$subMode,
 	"MSAprog=i"      => \$MSAprog,
@@ -173,6 +185,7 @@ my %map; my %AsGrps;my @samples;#map and assembly groups
 my %ConspecificMGS; #list of conspecific MGS
 
 my $gene2taxF; #where to find info what genes (gene cat)
+my $sttime = time;	
 
 prepRun();
 
@@ -212,14 +225,14 @@ my %sis; foreach (@specis){m/(\d+)$/; $sis{$_}=$1;}
 
 
 #die "specis::\n@specis\n";
-my $cnt=0; my $SaSe = "|"; my $dirsNOTPrepped = 0; my $CatFileMiss = 0;my $CatNotPrepped = 0;
+my $cnt=0; my $SaSe = "|"; my $dirsNOTPrepped = 0; my $CatFileMiss = 0;my $CatNotPrepped = 0; my $treeAbsent=0;
 my $doneDirs=0;
 my $PhylosExist = 1;
 
-foreach my $SI (@specis){ #loop creates per specI file structure to run buildTreeScript on..
+foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
 	#PART I: create fasta files required by tree
-	my $outD2 = "$outD/$SI/";
-	$SIdirs{$SI} = $outD2;
+	my $outD2 = "$outD/$MGS/";
+	$SIdirs{$MGS} = $outD2;
 	#print "$outD2\n";
 	if (-d $outD2 && $onlySubmit == 0){#don't delete folders if we want to submit a job later..
 		system "rm -rf $outD2/*";
@@ -230,22 +243,25 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 #		$dirsNOTPrepped ++;
 #	} els
 	
-	if (!fileGZe("$SIdirs{$SI}/$CATstdof")){
+	if (!fileGZe("$SIdirs{$MGS}/$CATstdof")){
 		$CatFileMiss ++ ; 
 		if ( -e "$outD2/all.cat.tmp" ){
 			$CatNotPrepped ++; #needs Part II
 		} else {
 			$dirsNOTPrepped ++; #needs Part I
 		}
-		#print "$SIdirs{$SI}\n";
-		#system "rm $SIdirs{$SI}\n";
+		#print "$SIdirs{$MGS}\n";
+		#system "rm $SIdirs{$MGS}\n";
+	}elsif(!fileGZe("$SIdirs{$MGS}/phylo/IQtree_allsites.treefile")){
+		$treeAbsent++;
+		
 	} else {
 		$doneDirs++;
 	}
 }
 $PhylosExist = 0 if ($CatFileMiss/$#specis > 0.1); #only activate if more than 10% missing..
 
-print "Output dirs status: \nCatFileFinalMiss: $CatFileMiss, CatFileConvert: $CatNotPrepped, Dir not done: $dirsNOTPrepped : Dir done: $doneDirs, Phylo complete: $PhylosExist \n";
+print "Output dirs status: \nCatFileFinalMiss: $CatFileMiss, CatFileConvert: $CatNotPrepped, Dir not done: $dirsNOTPrepped, phylo absent: $treeAbsent,  Dir done: $doneDirs, Phylo complete: $PhylosExist \n";
 #die;
 
 my %smplsPerMGS; #stats: MGS is represented in how many different samples?
@@ -258,7 +274,7 @@ if (($dirsNOTPrepped/$#specis > 0.1) || $onlySubmit == 0
 			|| $subJob){
 	#$PhylosExist=0;
 	
-	print "\n\n----------------------------------------------------\nPart I:: extracting relevant core MGS genes (SNP consensus called) from original assemblies\n----------------------------------------------------\n\n";
+	print "\n\n----------------------------------------------------\nPart I:: extracting relevant core MGS genes (SNP consensus called) from original assemblies". "Elapsed time : ", timeNice(time - $sttime) . "\n----------------------------------------------------\n\n";
 	
 	prepGene2MGS();
 	$Gene2COG = {}; #delete, no longer needed..
@@ -310,6 +326,7 @@ if (($dirsNOTPrepped/$#specis > 0.1) || $onlySubmit == 0
 			unlink $checkF; #and delete..
 		}
 		
+		combineMGSgenes();
 	}
 	
 	print "\nGene extraction & redistribution finished, ready to proceed to phylogeny jobs\n";
@@ -324,12 +341,12 @@ if (($dirsNOTPrepped/$#specis > 0.1) || $onlySubmit == 0
 #load some log files..
 #if (scalar(keys(%genesWrite)) == 0) { #load genes found..
 #	#read logs of found genes etc.
-#	foreach my $SI (@specis){
-#		my $outD2 = $SIdirs{$SI}; my $llogF="$outD2/geneFnd.log";
+#	foreach my $MGS (@specis){
+#		my $outD2 = $SIdirs{$MGS}; my $llogF="$outD2/geneFnd.log";
 #		next unless (-e $llogF);
 #		my $Lstr = `cat $llogF`; $Lstr =~ m/Total genes write (\S+): (\d+)/; 
 #		$genesWrite{$1} = $2;
-#		die "$llogF incorrect: $1 != $SI\n" if ($1 ne $SI);
+#		die "$llogF incorrect: $1 != $MGS\n" if ($1 ne $MGS);
 #		$PhylosExist =0 if (!-d "$outD2/pjylo/");
 #	}
 #}
@@ -348,7 +365,7 @@ my %SIgenes_OG; #later reads in SIgenes again, but no restriction to length
 
 my $geneCatLoaded=0;
 #read in genecat to create outgroup fasta sequences..
-if (1 && (($CatNotPrepped/$#specis > 0.1) || $deepRepair || $dirsNOTPrepped || $onlySubmit == 0 || $redoSubmissionData == 1)){
+if (1 && (($CatNotPrepped/$#specis > 0.1) || ($treeAbsent/$#specis > 0.1)  || $deepRepair || $dirsNOTPrepped || $onlySubmit == 0 || $redoSubmissionData == 1)){
 	#also read reference gene seqs (for outgroup)
 	my $refFNA = ""; my $refFAA = ""; my $refNameL = "unknw";
 	if ($mode eq "MGS" || $mode eq "MGSall"){
@@ -372,29 +389,31 @@ if (1 && (($CatNotPrepped/$#specis > 0.1) || $deepRepair || $dirsNOTPrepped || $
 
 
 
-print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogenies for " . scalar(@specis) . " MGS\n----------------------------------------------------\n\n";
+print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogenies for " . scalar(@specis) . " MGS ". "Elapsed time : ", timeNice(time - $sttime) ."\n----------------------------------------------------\n\n";
 
 
 die "Tree for outgroup specified, but file not found:$treeFile\nAborting..\n" if  ($treeFile ne "" && !-e $treeFile);
 
+
+
 #die;
 #go through every SpecI;
 $cnt=0; my $lcnt=0; my @jobs;
-foreach my $SI (@specis){ #loop creates per specI file structure to run buildTreeScript on..
-	last if (!$reSubmit && !$redoSubmissionData && ($CatNotPrepped==0 || $PhylosExist)); 
+foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
+	last if (!$reSubmit && !$redoSubmissionData && $CatNotPrepped==0 && $treeAbsent ==0); 
 	# previous condition was too lax: ( ($CatNotPrepped/$#specis) < 0.1)  , just check if we can resubmit anything here..
-	if (exists($ConspecificMGS{$SI}) && $ConspecificMGS{$SI}->[0] =~ m/multicopy/){print "Skipping $SI due to inclusion in conspecific MGS list.\n";next;}
+	if (exists($ConspecificMGS{$MGS}) && $ConspecificMGS{$MGS}->[0] =~ m/multicopy/){print "Skipping $MGS due to inclusion in conspecific MGS list.\n";next;}
 	$lcnt++;
 	if ($startSubFromMGS ne "" ){
-		if ($SI ne $startSubFromMGS){next;
+		if ($MGS ne $startSubFromMGS){next;
 		} else { $startSubFromMGS = "";} #deactivate now
 	}
 	qsubSystemWaitMaxJobs($checkMaxNumJobs);
-	#print "$SI  XX "; die;
-	#print "$SI\n";
+	#print "$MGS  XX "; die;
+	#print "$MGS\n";
 	#next unless ($lcnt>10);
 	#PART I: create fasta files required by tree
-	my $outD2 = $SIdirs{$SI};
+	my $outD2 = $SIdirs{$MGS};
 	my $treeStone = "$outD2/treeDone.sto";
 	#next if (-e "$outD2/phylo/IQtree_allsites.treefile");
 	#print "$outD2\n";
@@ -403,11 +422,12 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	my $FNAtf = "$outD2/$FNAstdof"; my $FAAtf = "$outD2/$FAAstdof";
 	my $CATtf = "$outD2/$CATstdof"; #my $Linkf = "$outD2/$LINKstdof";
 	my $IQtreef= "$outD2/phylo/IQtree_allsites.treefile";
+	my $MSAdir = "$outD2/MSA/";
 	
 	#job done..
-	print "${SI}::"; 
-	#if (!exists($genesWrite{$SI}) ) { print "$SI does not exist in genesWrite object\n";
-	#}elsif ($genesWrite{$SI} <10){print "WARNING: $SI has too few genes that could be found! Skipping..\n";next;}
+	print "${MGS}:: ". timeNice(time - $sttime) . " :"; 
+	#if (!exists($genesWrite{$MGS}) ) { print "$MGS does not exist in genesWrite object\n";
+	#}elsif ($genesWrite{$MGS} <10){print "WARNING: $MGS has too few genes that could be found! Skipping..\n";next;}
 	if (-e $treeStone && -e $IQtreef ){print "Skipping (tree exists?)..\n";next;}
 	
 	my $outgS = "";my $OG = "";
@@ -417,13 +437,14 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	#main command to build within species strain tree.. missing outgroup so far ($outgS)
 	
 	my $inputFNAsize = fileGZs($FNAtf) / (1024 * 1024); #size in MB
+	$inputFNAsize*=5 if ($FNAtf =~ m/\.gz$/); #account for compressed input
 	if ($inputFNAsize ==0){print "empty input $FNAtf .. next.\n";next;} #empty input
 	if (  ($MSAprog==4 && $inputFNAsize>700) ){ #only if FNA is > X mb   #$inputFNAsize  > 1200 ||
 		$QSBoptHR->{useLongQueue} = 1 ;
 		#deactivate for now, not needed really..
 	}
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-	my $totMem = int($inputFNAsize /150*40)+10;$totMem = 20 if ($totMem < 20);
+	my $totMem = int($inputFNAsize *120)+10;$totMem = 6000 if ($totMem < 6000);
 	my $numCoreL = $numCores;	
 	if ($maxCores >0){ #scale cores according to used memory size
 		$numCoreL = int($maxCores * (sqrt($totMem) / sqrt(180)));
@@ -437,7 +458,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	$Tcmd .= "-subsetSmpls $subsSmpl -fracMaxGenes90pct 0.7 "; #concentrate on almost complete gene groups.. can yield more samples overall and speeds up calc..
 	$Tcmd .= "-rmMSA $rmMSA -gzInput 1 "; #save more diskspace..
 	$Tcmd .= "-SynTree 0 -NonSynTree 0 -MSAprogram $MSAprog -continue $contPhylo -AutoModel 0 -iqFast 1 -superTree $useSuperTree ";
-	$Tcmd .= "-runDNDS 0 -runTheta 0 -tmpD $scratchD/$SI/ -map $mapF ";
+	$Tcmd .= "-runDNDS 0 -runTheta 0 -tmpD $scratchD/$MGS/ -map $mapF ";
 	my $postCmd = "\n\ntouch $treeStone\n";
 		#die "$cmd\n" if ($cnt ==10);
 	
@@ -448,16 +469,15 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	}
 	
 	#early submission.. no further work needed here!
-	if ( (!$deepRepair || $OG ne "") && $redoSubmissionData == 0 && $onlySubmit==1 && !-e "$CATtf.tmp" && !$dirsNOTPrepped ){
+	if ( !$repairCAT && !$deepRepair && $OG ne "" && $redoSubmissionData == 0 && $onlySubmit==1 && !-e "$CATtf.tmp" && -e $CATtf ){
 		$cnt ++;
 		$outgS = " -outgroup $OG " ;
 		#die "$totMem ;; $inputFNAsize\n\n";
-		my ($dep,$qcmd) = qsubSystem($outD2."treeCmd.sh",$Tcmd.$outgS.$postCmd,$numCoreL,int(($totMem*1024)/$numCoreL) ."M","FT$cnt","","",1,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($outD2."treeCmd.sh",$Tcmd.$outgS.$postCmd,$numCoreL,int($totMem) ."M","FT$cnt","","",1,[],$QSBoptHR);
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$QSBoptHR->{useLongQueue} = 0;
 		push (@jobs,$dep);
-#		qsubSystem2($outD2."treeCmd.sh",$QSBoptHR,{cores => $numCores*2 .",".$numCores});
-		#die "$outD2";
+		#print "M=${totMem}Mb ";
 		next;
 	}
 	die "Gene cat wasn't loaded, check program logic.\n!$deepRepair && $redoSubmissionData == 0 && $onlySubmit==1 && !$dirsNOTPrepped && !-e $CATtf.tmp \n" if (!$geneCatLoaded);
@@ -471,9 +491,9 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 				next;
 			}
 			#translation SIcat:
-			##print OC "$SI\t$cog\t$sd3\t$ng\n";
-			##$SIcat{$SI}{$cog}{$sd3} = $ng;
-			die "$_\n$spl[0] not eq $SI\n" unless ($spl[0] eq $SI);
+			##print OC "$MGS\t$cog\t$sd3\t$ng\n";
+			##$SIcat{$MGS}{$cog}{$sd3} = $ng;
+			die "$_\n$spl[0] not eq $MGS\n" unless ($spl[0] eq $MGS);
 			$SIcatLoc {$spl[1]} {$spl[2]} = $spl[3];
 		}
 		close ICT;
@@ -482,6 +502,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 		#print "Reconstructing tmp cat file.";
 		open ICT,"<$CATtf" or die "Can't open (precompiled) cat file $CATtf\nConsider deleting strain dir and rerunning strainMGS script\n";
 		my $catLines=0;my $cntItems=0;
+		#  $repairCAT .. auto implemented..
 		while (<ICT>){
 			chomp; my @spl = split /\t/;
 			foreach my $tags (@spl){
@@ -495,25 +516,28 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 			$catLines++;
 		}
 		close ICT;
-		print "${SI}:: $catLines cat lines, $cntItems items: $CATtf\n";
+		if ($catLines != keys (%SIcatLoc)){ #redo MSA
+			system "rm -rf $MSAdir;";
+		}
+		print "${MGS}:: $catLines cat lines (should: ". keys (%SIcatLoc) .", $cntItems items: $CATtf\n";
 	} else {
-		print "WARNING:: ${SI}:: possible error: neither .cat nor .cat.tmp exists in $outD2\n";
+		print "WARNING:: ${MGS}:: possible error: neither .cat nor .cat.tmp exists in $outD2\n";
 		next;
 
 	}
 	
 	
-	#my @curCogs = sort keys %{$SIcat{$SI}};
+	#my @curCogs = sort keys %{$SIcat{$MGS}};
 	my @curCogs = sort keys %SIcatLoc;
 	if (scalar(@curCogs) < 10){
-		die "$SI error: \@curCogs is empty or < 10 members\n$CATtf\n";
+		die "$MGS error: \@curCogs is empty or < 10 members\n$CATtf\n";
 	}
 	#print "COGs: $curCogs[0] $curCogs[1]\n";
 	
 	#include outgroup?
 	if ($treeFile ne ""){
 		my $neiTree = getProgPaths("neighborTree");
-		my $call = "$neiTree $treeFile $SI";
+		my $call = "$neiTree $treeFile $MGS";
 		#print "$call\n";
 		my $OG1 = `$call`; chomp $OG1;
 		die "Can't find outgroup from call $call\n\n" if (!defined $OG1);
@@ -539,7 +563,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 			#last if ($cntX >= @sspl || $cntShrCogs >= 10);
 		}
 		if ($cntShrCogs < 1 && $cntX>0){
-			print "Could not find outgroup for $SI!!\n@sspl\n@curCogs[1..10]\n";
+			print "Could not find outgroup for $MGS!!\n@sspl\n@curCogs[1..10]\n";
 		}
 		unless (exists($SIgenes->{$OG})){
 			print "can't find speci $OG\n$OG1\n";
@@ -564,7 +588,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 			my $ng = "$OG$SaSe$cog";
 			push(@tmpFNAog, ">$ng\n$FNAref{$SIgenes_OG{$OG}{$cog}}\n");
 			push(@tmpFAAog , ">$ng\n$FAAref{$SIgenes_OG{$OG}{$cog}}\n");
-			#$SIcat{$SI}{$cog}{$OG} = $ng;
+			#$SIcat{$MGS}{$cog}{$OG} = $ng;
 			$SIcatLoc{$cog}{$OG} = $ng;
 			$OGgenesUsed++;
 			#if ($new){ print OC "$ng";$new=0;
@@ -582,7 +606,7 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 		my $cntL=0;
 		foreach my $smpl (sort keys %{$SIcatLoc{$cog}}){
 			if ($cntL==0){
-				#print OC $SIcat{$SI}{$cog}{$smpl};
+				#print OC $SIcat{$MGS}{$cog}{$smpl};
 				push(@tmpCAT, $SIcatLoc{$cog}{$smpl});
 			} else {
 				push(@tmpCAT, "\t".$SIcatLoc{$cog}{$smpl});
@@ -590,7 +614,8 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 			$cntL++;
 			$uniqSmpls{$smpl} = 1;
 		}
-		print OC "\n";
+		#print OC "\n";
+		push(@tmpCAT,"\n");
 	}
 	open OC,">$CATtf" or die "Can't open cat file $CATtf\n";
 	print OC join("",@tmpCAT);
@@ -604,14 +629,14 @@ foreach my $SI (@specis){ #loop creates per specI file structure to run buildTre
 	system "echo \"OG:$OG\" > $outD2/data.log";
 	$multiSmpl = scalar(keys %uniqSmpls);
 	if ($multiSmpl>2){
-		print "$SI: multiSmpls:\t$multiSmpl\tpotential genes: ". scalar(@curCogs) ."\tcores:$numCoreL mem:$totMem\n";
-	} else {print "\n$SI: too few samples ($multiSmpl) for tree stats\n";next;}
+		print "$MGS: multiSmpls:\t$multiSmpl\tpotential genes: ". scalar(@curCogs) ."\tcores:$numCoreL mem:$totMem\n";
+	} else {print "\n$MGS: too few samples ($multiSmpl) for tree stats\n";next;}
 	
-	unlink "$CATtf.tmp\n";
+	unlink "$CATtf.tmp\n" if (-e "$CATtf.tmp");
 	#PART II: qsub tree build command
 	
 	#die "$cmd\n" if ($cnt ==10);
-	my ($dep,$qcmd) = qsubSystem($outD2."treeCmd.sh",$Tcmd.$outgS.$postCmd,$numCoreL,int($totMem*1024/$numCoreL)+1 ."M","FT$cnt","","",1,[],$QSBoptHR);
+	my ($dep,$qcmd) = qsubSystem($outD2."treeCmd.sh",$Tcmd.$outgS.$postCmd,$numCoreL,int($totMem) ."M","FT$cnt","","",1,[],$QSBoptHR);
 	$QSBoptHR->{tmpSpace} =$tmpSHDD;
 	$QSBoptHR->{useLongQueue} = 0;
 	$cnt ++;
@@ -1027,44 +1052,171 @@ sub histoMGS{#specifically for MGS..
 }
 
 
+sub combineMGSgenes {
 
-sub appendWriteMGSgenes{
+    print "Combining all files across " . scalar(@specis) .
+          " MGS .. Elapsed time : ", timeNice(time - $sttime), "\n";
+
+    foreach my $MGS (@specis) {
+
+        my $outD2 = $SIdirs{$MGS};
+        my $tmpD  = "$scratchD/outs/$MGS/";
+
+        my @filesets = (
+            [$FNAstdof,      "$tmpD/$FNAstdof",      "$outD2/$FNAstdof"],
+            [$FAAstdof,      "$tmpD/$FAAstdof",      "$outD2/$FAAstdof"],
+            [$LINKstdof,     "$tmpD/$LINKstdof",     "$outD2/$LINKstdof"],
+            ["$CATstdof.tmp","$tmpD/$CATstdof.tmp",  "$outD2/$CATstdof.tmp"],
+        );
+
+        for my $set (@filesets) {
+
+            my ($name, $prefix, $outfile) = @$set;
+            my @parts = bsd_glob("$prefix.*");
+            next unless @parts;
+
+            open my $out, ">", $outfile or die $!;
+            binmode $out;
+
+            for my $file (@parts) {
+                open my $in, "<", $file or die $!;
+                binmode $in;
+
+                my $buf;
+                while (sysread($in, $buf, 1_048_576)) {
+                    syswrite($out, $buf);
+                }
+
+                close $in;
+                unlink $file;
+            }
+
+            close $out;
+        }
+    }
+
+    print " Done Elapsed time : ", timeNice(time - $sttime), "\n";
+}
+
+
+sub combineMGSgenes_old{
+
+	print "Combining all files across " . scalar(@specis) . " samples .. " . "Elapsed time : ", timeNice(time - $sttime) . "\n";
+	foreach my $MGS (@specis){
+		my $outD2 = $SIdirs{$MGS};
+		my $tmpD = "$scratchD/outs/$MGS/";
+
+		my $FNAtf = "$tmpD/$FNAstdof"; my $FAAtf = "$tmpD/$FAAstdof";my $Linkf = "$tmpD/$LINKstdof";
+		my $CATtf = "$tmpD/$CATstdof.tmp";
+		my $FNAout = "$outD2/$FNAstdof"; my $FAAout = "$outD2/$FAAstdof";my $Linkfout = "$outD2/$LINKstdof";
+		my $CATout = "$outD2/$CATstdof.tmp";
+		#my $blockF = "$outD2/block.tmp";
+		system "cat $FNAtf.* > $FNAout; rm -f $FNAtf.*;\n";
+		system "cat $FAAtf.* > $FAAout; rm -f $FAAtf.*;\n";
+		system "cat $Linkf.* > $Linkfout; rm -f $Linkf.*;\n";
+		system "cat $CATtf.* > $CATout; rm -f $CATtf.*;\n";
+	}
+	print " Done" .  "Elapsed time : ", timeNice(time - $sttime) . "\n";
+}
+
+
+sub appendWriteMGSgenes {
+    my ($writeLink) = @_;
+    print "Append write start\n";
+
+    my $wrMGS = 0;
+    my $suffix = ".$subJob";
+    my $baseOut = "$scratchD/outs";
+
+    foreach my $MGS (keys %OFstrH) {
+
+        my $nt = $OFstrH{$MGS} or next;
+		next if ($nt eq "");
+
+        my $aa   = $OAstrH{$MGS};
+        my $cat  = $OCstrH{$MGS};
+        my $link = $OLstrH{$MGS};
+
+        my $outD = "$baseOut/$MGS";
+        make_path($outD) unless -d $outD;
+
+        my $FNAtf = "$outD/$FNAstdof$suffix";
+        my $FAAtf = "$outD/$FAAstdof$suffix";
+        my $CATtf = "$outD/$CATstdof.tmp$suffix";
+
+        open my $fh_nt, ">>", $FNAtf or die $!;
+        print $fh_nt $nt;
+        close $fh_nt;
+
+        open my $fh_aa, ">>", $FAAtf or die $!;
+        print $fh_aa $aa;
+        close $fh_aa;
+
+        if ($writeLink) {
+            my $Linkf = "$outD/$LINKstdof$suffix";
+            open my $fh_link, ">>", $Linkf or die $!;
+            print $fh_link $link;
+            close $fh_link;
+        }
+
+        open my $fh_cat, ">>", $CATtf or die $!;
+        print $fh_cat $cat;
+        close $fh_cat;
+
+        $OFstrH{$MGS} = "";
+        $OAstrH{$MGS} = "";
+        $OCstrH{$MGS} = "";
+        $OLstrH{$MGS} = "";
+
+        $wrMGS++;
+    }
+
+    print "\nwrote for $wrMGS MGS data..\n";
+}
+
+
+sub appendWriteMGSgene_olds{
 	#write genes to respective MGS intra phyla..
 	my ($writeLink) = @_;
+	print "Append write start\n";
 	my $wrMGS=0;
-	my @smplSet = keys(%OFstrH);
-	my @smplSetS = shuffle(@smplSet); #shuffle to further reduce chance of multiple jobs writing consistently to the same files..
-
-	foreach my $SI (@smplSetS){
-		next if ($OFstrH{$SI} eq "");
+	my @SpecSet = keys(%OFstrH);
+	my @specSetS = shuffle(@SpecSet); #shuffle to further reduce chance of multiple jobs writing consistently to the same files..
+	my $FileSuff = ""; 
+	$FileSuff = ".$subJob";# if ($subJob);
+	foreach my $MGS (@specSetS){
+		next if ($OFstrH{$MGS} eq "");#(!exists($OFstrH{$MGS}) || scalar(@{$OFstrH{$MGS}}) == 0 );
 		my $hasSlept=0;
 		#handle file paths..
-		my $outD2 = $SIdirs{$SI};
-		my $FNAtf = "$outD2/$FNAstdof"; my $FAAtf = "$outD2/$FAAstdof";my $Linkf = "$outD2/$LINKstdof";
-		my $CATtf = "$outD2/$CATstdof.tmp";
+		my $outD2 = $SIdirs{$MGS};
+		$outD2 = "$scratchD/outs/$MGS/";
+		system "mkdir -p $outD2" unless (-d $outD2);
+		my $FNAtf = "$outD2/$FNAstdof$FileSuff"; my $FAAtf = "$outD2/$FAAstdof$FileSuff";my $Linkf = "$outD2/$LINKstdof$FileSuff";
+		my $CATtf = "$outD2/$CATstdof.tmp$FileSuff";
 		my $blockF = "$outD2/block.tmp";
 		
 		#block sample for other writes..
-		while (-e $blockF){sleep(5);$hasSlept=1;}
-		while ($hasSlept && -e $blockF){sleep(8);}#second security layer..
-		system "touch $blockF";
-		sleep(2) if ($hasSlept);#security that other process has finished writes completely
+		#while (-e $blockF){sleep(5);$hasSlept=1;}while ($hasSlept && -e $blockF){sleep(8);}#second security layer..
+		#system "touch $blockF";sleep(4) if ($hasSlept);#security that other process has finished writes completely
+		#deactivate, go for unique file instead..
 
 		#writing strings out..
-		#open OF,">>$FNAtf" or die "Can't append NT file $FNAtf\n";print OF $OFstrH{$SI}; close OF;
-		#open OA,">>$FAAtf" or die "Can't append AA file $FAAtf\n";print OA $OAstrH{$SI}; close OA;
-		#if ($writeLink){open OL,">>$Linkf" or die "Can't append link file $Linkf\n" ; print OL $OLstrH{$SI}; close OL;}
+		open OF,">>$FNAtf" or die "Can't append NT file $FNAtf\n";print OF $OFstrH{$MGS}; close OF;
+		open OA,">>$FAAtf" or die "Can't append AA file $FAAtf\n";print OA $OAstrH{$MGS}; close OA;
+		if ($writeLink){open OL,">>$Linkf" or die "Can't append link file $Linkf\n" ; print OL $OLstrH{$MGS}; close OL;}
 		#this is only a temp file, that needs to be rewritten later..
-		#open OC,">>$CATtf" or die "Can't append to CAT file $CATtf\n";print OC $OCstrH{$SI} ; close OC;
+		open OC,">>$CATtf" or die "Can't append to CAT file $CATtf\n";print OC $OCstrH{$MGS} ; close OC;
 		
-		open OF,">>$FNAtf" or die "Can't append NT file $FNAtf\n";print OF join("",@{$OFstrH{$SI}}); close OF;
-		open OA,">>$FAAtf" or die "Can't append AA file $FAAtf\n";print OA join("",@{$OAstrH{$SI}}); close OA;
-		if ($writeLink){open OL,">>$Linkf" or die "Can't append link file $Linkf\n" ; print OL join("",@{$OLstrH{$SI}}); close OL;}
+		#open OF,">>$FNAtf" or die "Can't append NT file $FNAtf\n";foreach(@{$OFstrH{$MGS}}){print OF $_;} close OF;
+#		open OA,">>$FAAtf" or die "Can't append AA file $FAAtf\n";print OA join("",@{$OAstrH{$MGS}}); close OA;
+		#open OA,">>$FAAtf" or die "Can't append AA file $FAAtf\n";foreach(@{$OAstrH{$MGS}}){print OA $_;} close OA;#print OA join("",@{$OAstrH{$MGS}}); close OA;
+		#if ($writeLink){open OL,">>$Linkf" or die "Can't append link file $Linkf\n" ; foreach(@{$OLstrH{$MGS}}){print OL $_;}  close OL;}
 		#this is only a temp file, that needs to be rewritten later..
-		open OC,">>$CATtf" or die "Can't append to CAT file $CATtf\n";print OC join("",@{$OCstrH{$SI}}) ; close OC;
+		#open OC,">>$CATtf" or die "Can't append to CAT file $CATtf\n"; foreach(@{$OCstrH{$MGS}}){print OC $_;}   close OC;
 		
 		
-		$OCstrH{$SI} = []; $OFstrH{$SI} = []; $OAstrH{$SI} = []; $OLstrH{$SI} = [];
+		#$OCstrH{$MGS} = []; $OFstrH{$MGS} = []; $OAstrH{$MGS} = []; $OLstrH{$MGS} = [];
+		$OCstrH{$MGS} = ""; $OFstrH{$MGS} = ""; $OAstrH{$MGS} = ""; $OLstrH{$MGS} = "";
 		$wrMGS++;
 		
 		system "rm -f $blockF";
@@ -1176,7 +1328,6 @@ sub extractFNAFAA2genes{
 		#DEBUG	@srtdSmpls = ("PDB3.F");
 	
 	
-	my $sttime = time;	
 	foreach my $sm (@srtdSmpls){
 
 		print "\nAT SMPL:: $smCnt/" . scalar(@srtdSmpls) ." $sm - ". "Elapsed time : ", timeNice(time - $sttime) . "\n";
@@ -1262,10 +1413,10 @@ sub readGenesSample_Singl{
 		#put genes into hash to avoid duplicates..
 		foreach(@{$locCl2G2{$gn}}){$subG{$_} = 1;}
 		
-		my $SI = $Gene2MGS->{$gn};
+		my $MGS = $Gene2MGS->{$gn};
 		#stats collection on MGS usage
-		if (defined $SI){#exists($Gene2MGS->{$gn})){
-			$locMGScnt{$SI}++;
+		if (defined $MGS){#exists($Gene2MGS->{$gn})){
+			$locMGScnt{$MGS}++;
 		}
 	}
 	print scalar(keys(%subG))." genes, " . scalar(keys(%locMGScnt)). " MGS\n";
@@ -1377,7 +1528,7 @@ sub readGenesSample_Singl{
 			$FAA{$tmp} = $FAA2->{$k};
 		}
 		$FAA2 = {};
-		print "Time C: " . timeNice(time - $sttime)  . "\n";
+		#print "Time C: " . timeNice(time - $sttime)  . "\n";
 
 		#some stats on gene extractions..
 		my $missGene=0; my $foundGene=0; my $SInum=0; my $conspGen=0;my $SNPresFail=0;
@@ -1389,17 +1540,17 @@ sub readGenesSample_Singl{
 		#3rd part: genes were read and renamed.. now write them out already here to save mem overall
 		#currently takes too long in large GCs..
 		
-		foreach my $SI (keys %locMGScnt) {
-		#foreach my $SI (@specis){ #("MGS.128"){#
-			#print "$SI ";
-			my @COGprios1 = @{$COGprios->{$SI}};
-			#die "Can't find $SI in COGprios!\n" unless (defined(@COGprios1));#exists($COGprios->{$SI}));
+		foreach my $MGS (keys %locMGScnt) {
+		#foreach my $MGS (@specis){ #("MGS.128"){#
+			#print "$MGS ";
+			my @COGprios1 = @{$COGprios->{$MGS}};
+			#die "Can't find $MGS in COGprios!\n" unless (defined(@COGprios1));#exists($COGprios->{$MGS}));
 			next if (scalar(@COGprios1) == 0);
-			#next if (exists($ConspecificMGS{$SI}));
-			#print "MGSsmplConsp{$SI}{$sd3}\n";
-			#if (exists($MGSsmplConsp{$SI}{$sd}) ||  exists($MGSsmplConsp{$SI}{$sd3} )){next;}#print " DIIIIIIIIIIIIIIIID\n\n"; next;}
+			#next if (exists($ConspecificMGS{$MGS}));
+			#print "MGSsmplConsp{$MGS}{$sd3}\n";
+			#if (exists($MGSsmplConsp{$MGS}{$sd}) ||  exists($MGSsmplConsp{$MGS}{$sd3} )){next;}#print " DIIIIIIIIIIIIIIIID\n\n"; next;}
 			
-			my $locConSpecGen=0; my $accAbu=0; my $Gtrials=0; my $LmissG=0; my $doubleCntL=0; 
+			my $locConSpecGen=0; my $accAbu=0;  my $LmissG=0; my $doubleCntL=0; 
 			 my $LmuissAbu=0;
 			#get actual gene & gene2assmblname
 			my @genes2 = (); #stores semi-final list of genes
@@ -1413,34 +1564,31 @@ sub readGenesSample_Singl{
 			
 			foreach my $cog (@COGprios1){ 
 				next if ($cog eq "");
+				my $tar = "";
+				$tar = $SIgenes->{$MGS}{$cog};
 				
-				my $tar = "";my @genes ; 
-				$tar = $SIgenes->{$SI}{$cog};
 				next unless (exists($locCl2G2{$tar}));
+				my @genes ; 
 				@genes = @{$locCl2G2{$tar}};
 				#my $bestCOGcnt=0; next unless (scalar(@genes) > $bestCOGcnt);$bestCOGcnt = scalar(@genes);
 				
-
-				my $curG = "";my $maxAB =0;my $bestAB=100000;
+				my $curG = ""; my $bestAB=0;
 				#if (1 ){#@genes > 1){
 				#$doubleGenes++ if (@genes > 1); #95%gene is represented by >1 gene in sample.. potentially conspecific
 					#if several genes: select most abundant from $abunHR->{}
 				my $gX ; my $nonZeroCnt=0;
 				foreach $gX (  @genes ){
-					$Gtrials++;
 					next if ($gX eq "");
 					if ( !exists($FAA{$gX})){ #(exists($gene2genes{$gX}) && !exists($FAA{$gene2genes{$gX}} )) && 
 						$LmissG++; 
-						#die "$gene2genes{$gX} $gX\n";
 						next;
 					}
 					#my $gX2 = $gX;if (exists($gene2genes{$gX}) && exists($FAA{$gene2genes{$gX}}) ){$gX2 = $gene2genes{$gX} ;} 
 					#my $abundLoc = $abunHR->{$gX};
 					my $abundLoc = $depths{$gX};
-					if (defined($abundLoc)){
-						$nonZeroCnt++ if ( $abundLoc > 0 );
-						if ($abundLoc > $maxAB) {
-							$maxAB = $abundLoc;
+					if (defined($abundLoc) && $abundLoc >= $minDepthGene){
+						$nonZeroCnt++ ;
+						if ($abundLoc > $bestAB) {
 							$curG = $gX ;
 							$bestAB = $abundLoc;
 						}
@@ -1448,9 +1596,10 @@ sub readGenesSample_Singl{
 						$LmuissAbu++;
 					}
 				}
-				next if ($curG eq "");
+				
+
+				
 				#first layer filtering: gene represented by too many multi occurring genes?
-				$doubleCntL++ if ($nonZeroCnt>1);
 				#second layer: conspecific SNPs detected??
 				if ($curG ne "" ){
 					if (exists($conspSc{$curG})){
@@ -1459,8 +1608,9 @@ sub readGenesSample_Singl{
 						}
 					} else {print "Can't find CSP for  \"$curG\" \n";}
 				}
-				if ($nonZeroCnt != 1 ){ #either 0 (gene not present) or >1 (too many copies) is not wanted
+				if ($nonZeroCnt > $maxOrthoNum ){ #either 0 (gene not present) or >1 (too many copies) is not wanted
 					$curG = ""; #deactivate COG repri altogether..
+					$doubleCntL++ ;
 				}  
 				next if ($curG eq "");
 				
@@ -1493,7 +1643,7 @@ sub readGenesSample_Singl{
 					# || (($locConSpecGen+$doubleCntL)/$MGSgcnt) >= (($conspGeneSmplMax +$multiGeneSmplMax)/2)
 			){
 				#print "$doubleCntL/$MGSgcnt > $multiGeneSmplMax\n";
-				push(@{$ConspecificMGS{$SI}}, "$sd3" ); 
+				push(@{$ConspecificMGS{$MGS}}, "$sd3" ); 
 				if (($doubleCntL/$MGSgcnt) > $multiGeneSmplMax){$doubleGsFail++;}
 				elsif (($locConSpecGen/$MGSgcnt) >= $conspGeneSmplMax){$conSpecFail++;}
 				#elsif ((($locConSpecGen+$doubleCntL)/$MGSgcnt) >= (($conspGeneSmplMax +$multiGeneSmplMax)/2)){$doubleGsFail++;$conSpecFail++;}
@@ -1542,9 +1692,9 @@ sub readGenesSample_Singl{
 				push(@OAstr ,">$ng\n$strCpy\n"); #FAA
 				$locCnt++;
 				#add to category for later..
-				push(@OCstr , "$SI\t$curcgs{$gX}\t$sd3\t$ng\n");
-				#$SIcat{$SI}{$cog}{$sd3} = $ng;
-				#$genesWrite{$SI}++;
+				push(@OCstr , "$MGS\t$curcgs{$gX}\t$sd3\t$ng\n");
+				#$SIcat{$MGS}{$cog}{$sd3} = $ng;
+				#$genesWrite{$MGS}++;
 				
 				if ($writeLink){
 					push(@OLstr, $linkStr{$gX});
@@ -1554,20 +1704,20 @@ sub readGenesSample_Singl{
 			
 			if (scalar(@OFstr) == 0 || $locCnt < $MGStoolowGsThr){ #5 genes is really too little to be considered valid as good strain rep..
 				$MGStoolowGskip++;
-				#delete $locMGSgenes{$SI};
+				#delete $locMGSgenes{$MGS};
 				next;
 			}
-			$locMGSgenes{$SI} = $locCnt;
+			$locMGSgenes{$MGS} = $locCnt;
 			
-			if (!exists($OAstrH{$SI})){#set up base strings
-				$OAstrH{$SI} = [];$OFstrH{$SI} = [];$OLstrH{$SI} = [];$OCstrH{$SI} = [];
+			if (!exists($OAstrH{$MGS})){#set up base strings
+				$OAstrH{$MGS} = "";$OFstrH{$MGS} = "";$OLstrH{$MGS} = "";$OCstrH{$MGS} = "";
 			}
 			if ($locCnt>0){
 				#save in tmp hash (faster than opening bunch of files..
-				#$OAstrH{$SI} .= join("",@OAstr);$OFstrH{$SI} .= join("",@OFstr);
-				#$OLstrH{$SI} .= join("",@OLstr);$OCstrH{$SI} .= join("",@OCstr);
-				push(@{$OAstrH{$SI}},join("",@OAstr));push(@{$OFstrH{$SI}},join("",@OFstr));
-				push(@{$OLstrH{$SI}}, join("",@OLstr));push(@{$OCstrH{$SI}},join("",@OCstr));
+				$OAstrH{$MGS} .= join("",@OAstr);$OFstrH{$MGS} .= join("",@OFstr);
+				$OLstrH{$MGS} .= join("",@OLstr);$OCstrH{$MGS} .= join("",@OCstr);
+				#push(@{$OAstrH{$MGS}},join("",@OAstr));push(@{$OFstrH{$MGS}},join("",@OFstr));
+				#push(@{$OLstrH{$MGS}}, join("",@OLstr));push(@{$OCstrH{$MGS}},join("",@OCstr));
 				$SInum ++ ;
 				$foundGene+=$locCnt;
 			}
@@ -1579,7 +1729,7 @@ sub readGenesSample_Singl{
 		my @genesPmgs = values %locMGSgenes; 	@genesPmgs = sort { $a <=> $b}  @genesPmgs;
 		histoMGS(\@genesPmgs,"Detected Bin Genes:");
 		
-		print "$sd3 - Missed/MissAbund/lost/abundFilterFail/SNPresFail Gs: ${missGene}/${missAbundance}/${geneLost}/${abundFail}/$SNPresFail\tConspecGs/doublGs/consMGS/failcMGS: ${conspGen}/${doubleGenes}/$conSpecFail/$doubleGsFail\tFoundGs: $foundGene/". scalar %FAA . "\tMGS/skipped MGS: ${SInum}/$MGStoolowGskip\t";
+		print "$sd3 - Missed/MissAbund/lost/abundFilterFail/SNPresFail Gs: ${missGene}/${missAbundance}/${geneLost}/${abundFail}/$SNPresFail\tConspecGs/consMGS/doublGs/failcMGS: ${conspGen}/$conSpecFail/${doubleGenes}/$doubleGsFail\tFoundGs: $foundGene/". scalar %FAA . "\tMGS/skipped MGS: ${SInum}/$MGStoolowGskip\t";
 		print "GperMGS (median,mean): " . median(@genesPmgs) . "/". int(mean(@genesPmgs)+0.5);#int($foundGene/$SInum) if ($SInum);
 		print "\n";
 	}

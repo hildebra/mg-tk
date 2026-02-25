@@ -318,7 +318,7 @@ foreach my $Doo (@DoosD){ #this loops ensures Binner predictions exist for each 
 	#print "$MBout\n";
 	#die "$bef$MBcmd$postCmd";
 	print "$paths[-1]\n";
-	my ($jobName2, $tmpCmd) = qsubSystem($paths[-1]."LOGandSUB/${BinnerShrt}_bin.sh",$bef.$MBcmd.$postCmd,$numCore,int($memG/$numCore)."G",$jobName,"","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($paths[-1]."LOGandSUB/${BinnerShrt}_bin.sh",$bef.$MBcmd.$postCmd,$numCore,int($memG)."G",$jobName,"","",1,[],\%QSBopt);
 	$cnt++;
 	push (@jobs, $jobName2);
 	#die $paths[-1]."LOGandSUB/MB2_bin.sh";
@@ -472,7 +472,7 @@ if (!-e $GTDBtaxF || !-e"$annoDir/gtdbtk.summary.tsv" || !-e $GTDBtaxSto){
 	$cmd .= "mv $outD/GTDBTK.tax $outD/gtdbtk.summary.tsv $annoDir\n\ntouch $GTDBtaxSto";
 	#changed mem from 370 to 100 with GTDB-TK 2.1.0
 	my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "150G"; 
-	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$numCore,int($memGTDB/$numCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$numCore,int($memGTDB)."G","GTDB_MGS","","",1,[],\%QSBopt);
 	$QSBopt{tmpSpace} =$tmpSHDD;
 	push(@jobs2wait,$jobName2);
 }
@@ -1013,7 +1013,7 @@ sub refine_Rhcl_MGS(){
 		my $req_CMmem = 200;	my $cmC = "";
 		$cmC .= runCheckM($binDpre,$ChkMevalF,"$nodeTmpD/cmMGS/",$numCore,0) ;	
 		$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM.Rhclst.sh",$cmC,$numCore,int($req_CMmem/$numCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM.Rhclst.sh",$cmC,$numCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 
@@ -1023,7 +1023,7 @@ sub refine_Rhcl_MGS(){
 		my $req_CMmem = 50;	my $cmC = "";
 		$cmC .= runCheckM2($binDpre,$ChkMevalF,"$nodeTmpD/cmMGS/",$canCore,0) ;	
 		$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.Rhclst.sh",$cmC,$canCore,int($req_CMmem/$canCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.Rhclst.sh",$cmC,$canCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 
@@ -1275,7 +1275,7 @@ sub CanopyPrep{
 		my $req_CMmem = 50;	my $cmC = "";
 		$cmC .= runCheckM2($binCanDir,$ChkMevalF,"$nodeTmpD/cmCANO/",$canCore,0) ;	
 		#$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.cano0.sh",$cmC,$canCore,int($req_CMmem/$canCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.cano0.sh",$cmC,$canCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 
