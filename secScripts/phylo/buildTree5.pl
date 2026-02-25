@@ -47,7 +47,7 @@ sub createTreeOpt;
 sub treePresent;
 
 my $doPhym= 0;
-my $version = 5.04;
+my $version = 5.05;
 
 my $cmdCall = qx/ps -o args $$/;
 

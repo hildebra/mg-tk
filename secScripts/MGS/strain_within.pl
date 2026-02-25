@@ -27,7 +27,8 @@ sub prepRun;
 sub prepGene2MGS;
 sub createAGlist; sub preComputeConsSNP;
 sub timeNice;
-sub combineMGSgenes;
+#sub combineMGSgenes;
+sub combineMGSgenesDir;
 
 
 #v.14: reworked massively how many genes get included
@@ -80,6 +81,7 @@ my $repairCAT=0;
 
 my $maxNGenes = 400;
 my $MSAprog = 2; ##(0) MSAprobs, (1) clustalO, (2) mafft, (4) MUSCLE5
+my $GenesPerSpecies = 0.3; #was previously 0.1.. maybe too low?
 my $presortGenes = 1200;
 my $checkMaxNumJobs = 600;
 my $useGTDBmg = "GTDB";
@@ -152,6 +154,9 @@ GetOptions(
 	"MGSminGenesPSmpl=i" => \$MGStoolowGsThr, #less genes than this in a single sample -> rm MGS from sample for strains. default 10
 	"multiGeneSmplMax=f" => \$multiGeneSmplMax, #default 0.15
 	"conspGeneSmplMax=f" => \$conspGeneSmplMax, #default 0.05
+	
+	#transferred to buildTRee script..
+	"GenesPerSpecies=f" => \$GenesPerSpecies,
 	
 	"MGSphylo=s"     => \$treeFile,
 	"submissionMode=s"      => \$subMode,
@@ -326,7 +331,7 @@ if (($dirsNOTPrepped/$#specis > 0.1) || $onlySubmit == 0
 			unlink $checkF; #and delete..
 		}
 		
-		combineMGSgenes();
+		#combineMGSgenes();
 	}
 	
 	print "\nGene extraction & redistribution finished, ready to proceed to phylogeny jobs\n";
@@ -400,7 +405,10 @@ die "Tree for outgroup specified, but file not found:$treeFile\nAborting..\n" if
 #go through every SpecI;
 $cnt=0; my $lcnt=0; my @jobs;
 foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
-	last if (!$reSubmit && !$redoSubmissionData && $CatNotPrepped==0 && $treeAbsent ==0); 
+	if (!$reSubmit && !$redoSubmissionData && $CatNotPrepped==0 && $treeAbsent ==0){
+		print "All submission dirs prepared, nothing to do..\n";
+		last;
+	}
 	# previous condition was too lax: ( ($CatNotPrepped/$#specis) < 0.1)  , just check if we can resubmit anything here..
 	if (exists($ConspecificMGS{$MGS}) && $ConspecificMGS{$MGS}->[0] =~ m/multicopy/){print "Skipping $MGS due to inclusion in conspecific MGS list.\n";next;}
 	$lcnt++;
@@ -408,12 +416,13 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 		if ($MGS ne $startSubFromMGS){next;
 		} else { $startSubFromMGS = "";} #deactivate now
 	}
-	qsubSystemWaitMaxJobs($checkMaxNumJobs);
+
 	#print "$MGS  XX "; die;
 	#print "$MGS\n";
 	#next unless ($lcnt>10);
 	#PART I: create fasta files required by tree
 	my $outD2 = $SIdirs{$MGS};
+	combineMGSgenesDir($MGS,$outD2);
 	my $treeStone = "$outD2/treeDone.sto";
 	#next if (-e "$outD2/phylo/IQtree_allsites.treefile");
 	#print "$outD2\n";
@@ -447,14 +456,14 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 	my $totMem = int($inputFNAsize *120)+10;$totMem = 6000 if ($totMem < 6000);
 	my $numCoreL = $numCores;	
 	if ($maxCores >0){ #scale cores according to used memory size
-		$numCoreL = int($maxCores * (sqrt($totMem) / sqrt(180)));
+		$numCoreL = int($maxCores * sqrt($inputFNAsize/2000));
 		$numCoreL = 4 if ($numCoreL < 4);		$numCoreL = $maxCores if ($numCoreL > $maxCores);
 	}
 	
 	my $subsSmpl = -1;my $useSuperTree = 0;
 	my $bts = getProgPaths("buildTree_scr");
 	my $Tcmd= "$bts -fna $FNAtf -aa $FAAtf -smplSep '\\$SaSe' -cats $CATtf -outD $outD2  -runIQtree 1 -runFastTree 0 -cores $numCoreL  "; 
-	$Tcmd .= "-AAtree 0 -bootstrap 0 -NTfiltCount 400 -NTfilt 0.07 -NTfiltPerGene 0.5 -GenesPerSpecies 0.1 -runRaxMLng 0 -minOverlapMSA 2 ";
+	$Tcmd .= "-AAtree 0 -bootstrap 0 -NTfiltCount 400 -NTfilt 0.07 -NTfiltPerGene 0.5 -GenesPerSpecies $GenesPerSpecies -runRaxMLng 0 -minOverlapMSA 2 ";
 	$Tcmd .= "-subsetSmpls $subsSmpl -fracMaxGenes90pct 0.7 "; #concentrate on almost complete gene groups.. can yield more samples overall and speeds up calc..
 	$Tcmd .= "-rmMSA $rmMSA -gzInput 1 "; #save more diskspace..
 	$Tcmd .= "-SynTree 0 -NonSynTree 0 -MSAprogram $MSAprog -continue $contPhylo -AutoModel 0 -iqFast 1 -superTree $useSuperTree ";
@@ -468,6 +477,7 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 		next;
 	}
 	
+	qsubSystemWaitMaxJobs($checkMaxNumJobs);
 	#early submission.. no further work needed here!
 	if ( !$repairCAT && !$deepRepair && $OG ne "" && $redoSubmissionData == 0 && $onlySubmit==1 && !-e "$CATtf.tmp" && -e $CATtf ){
 		$cnt ++;
@@ -894,7 +904,7 @@ sub prepRun{
 		print "ContTests=$contTests\n" unless ($contTests eq "");
 		print "familyVar=$familyVar\n" unless ($familyVar eq "");
 		print "groupStabilityVars=$groupStabilityVars\n" unless ($groupStabilityVars eq "");
-		print "MSAaligner: $MSAprog\n";
+		print "MSAaligner: $MSAprog, GenesPerSpecies: $GenesPerSpecies\n";
 		
 		
 		if ($takeAll){print "**************** Take all genes MGS mode\n";}
@@ -1051,55 +1061,94 @@ sub histoMGS{#specifically for MGS..
 	#print @cnts." : @cnts\n";
 }
 
+#	combineMGSgenesDir($MGS,$outD2);
+sub combineMGSgenesDir{
+	my ($MGS,$outD2) = @_;
+	my $tmpD  = "$scratchD/outs/$MGS/";
+	return if (-e "$outD2/$FNAstdof" && -e "$outD2/$FAAstdof");
+
+	my $outD3 = $tmpD; #work locally, copy later..
+	my @filesets = (
+		[$FNAstdof,      "$tmpD/$FNAstdof",      "$outD3/$FNAstdof"],
+		[$FAAstdof,      "$tmpD/$FAAstdof",      "$outD3/$FAAstdof"],
+		[$LINKstdof,     "$tmpD/$LINKstdof",     "$outD3/$LINKstdof"],
+		["$CATstdof.tmp","$tmpD/$CATstdof.tmp",  "$outD3/$CATstdof.tmp"],
+	);
+
+	for my $set (@filesets) {
+
+		my ($name, $prefix, $outfile) = @$set;
+		my @parts = bsd_glob("$prefix.*");
+		next unless @parts;
+
+		open my $out, ">", $outfile or die $!;
+		binmode $out;
+
+		for my $file (@parts) {
+           open my $in, "<", $file or die "Cannot read $file: $!";
+
+            while (my $line = <$in>) {
+                print $out $line;
+            }
+
+            close $in;
+            unlink $file;
+		}
+
+		close $out;
+	}
+	system "cp $outD3/* $outD2/;";
+}
 
 sub combineMGSgenes {
-
+	die "strain_within.pl::combineMGSgenes:No longer used!\n";
     print "Combining all files across " . scalar(@specis) .
           " MGS .. Elapsed time : ", timeNice(time - $sttime), "\n";
 
     foreach my $MGS (@specis) {
 
-        my $outD2 = $SIdirs{$MGS};
-        my $tmpD  = "$scratchD/outs/$MGS/";
+		my $outD2 = $SIdirs{$MGS};
+		my $tmpD  = "$scratchD/outs/$MGS/";
 
-        my @filesets = (
-            [$FNAstdof,      "$tmpD/$FNAstdof",      "$outD2/$FNAstdof"],
-            [$FAAstdof,      "$tmpD/$FAAstdof",      "$outD2/$FAAstdof"],
-            [$LINKstdof,     "$tmpD/$LINKstdof",     "$outD2/$LINKstdof"],
-            ["$CATstdof.tmp","$tmpD/$CATstdof.tmp",  "$outD2/$CATstdof.tmp"],
-        );
+		my @filesets = (
+			[$FNAstdof,      "$tmpD/$FNAstdof",      "$outD2/$FNAstdof"],
+			[$FAAstdof,      "$tmpD/$FAAstdof",      "$outD2/$FAAstdof"],
+			[$LINKstdof,     "$tmpD/$LINKstdof",     "$outD2/$LINKstdof"],
+			["$CATstdof.tmp","$tmpD/$CATstdof.tmp",  "$outD2/$CATstdof.tmp"],
+		);
 
-        for my $set (@filesets) {
+		for my $set (@filesets) {
 
-            my ($name, $prefix, $outfile) = @$set;
-            my @parts = bsd_glob("$prefix.*");
-            next unless @parts;
+			my ($name, $prefix, $outfile) = @$set;
+			my @parts = bsd_glob("$prefix.*");
+			next unless @parts;
 
-            open my $out, ">", $outfile or die $!;
-            binmode $out;
+			open my $out, ">", $outfile or die $!;
+			binmode $out;
 
-            for my $file (@parts) {
-                open my $in, "<", $file or die $!;
-                binmode $in;
+			for my $file (@parts) {
+				open my $in, "<", $file or die $!;
+				binmode $in;
 
-                my $buf;
-                while (sysread($in, $buf, 1_048_576)) {
-                    syswrite($out, $buf);
-                }
+				my $buf;
+				while (sysread($in, $buf, 1_048_576)) {
+					syswrite($out, $buf);
+				}
 
-                close $in;
-                unlink $file;
-            }
+				close $in;
+				unlink $file;
+			}
 
-            close $out;
-        }
-    }
+			close $out;
+		}
+	}
 
     print " Done Elapsed time : ", timeNice(time - $sttime), "\n";
 }
 
 
 sub combineMGSgenes_old{
+	die "strain_within.pl::combineMGSgenes:No longer used!\n";
 
 	print "Combining all files across " . scalar(@specis) . " samples .. " . "Elapsed time : ", timeNice(time - $sttime) . "\n";
 	foreach my $MGS (@specis){
