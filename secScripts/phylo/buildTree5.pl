@@ -503,7 +503,7 @@ if ($isAligned){
 	
 	print "------------------------------------------------\n";
 	print "Per species: MaxGenes: $maxGenes, Qtl90Genes: $qtl90Genes, MaxAA: $maxNtCntTotal, Qtl90 NTs: $qtl90NTcntAll\n";
-	print "Species/Smpls removed: <NTs($ntFrac,$ntCntTotal):$tooFewNTs,$tooFewNTs2 ; <genes($GeneFracPSpec):$tooFewGenes\n";
+	print "Species/Smpls removed: <NTs($ntFrac,$ntCntTotal):$tooFewNTs,$tooFewNTs2 ; <genes/species($GeneFracPSpec):$tooFewGenes\n";
 	print "Remaining Smpls/Strains: $specsRemain/".scalar(keys%specList)."\n";
 	print "------------------------------------------------\n";
 	#die "$maxGenes\n";

@@ -28,7 +28,8 @@ sub prepGene2MGS;
 sub createAGlist; sub preComputeConsSNP;
 sub timeNice;
 #sub combineMGSgenes;
-sub combineMGSgenesDir;
+sub combineMGSgenesDir; sub getInputSize;
+sub evalFileStatus;
 
 
 #v.14: reworked massively how many genes get included
@@ -48,7 +49,8 @@ sub combineMGSgenesDir;
 #.28: 22.2.26: claude suggested code improvements
 #.29: 24.2.26: switched to multi output file for subjobs (waits were to long/inconsistent performance and errors with file blocks)
 #.30: 25.2.26: new code for combining files, subfiles written to scratch to improve speed further
-my $version = 0.30;
+#.31: 26.2.26: better integration new temp files, pick up from previous job, sorting jobs
+my $version = 0.31;
 
 die "Not enough args!\n" unless (@ARGV > 1);
 
@@ -83,7 +85,7 @@ my $maxNGenes = 400;
 my $MSAprog = 2; ##(0) MSAprobs, (1) clustalO, (2) mafft, (4) MUSCLE5
 my $GenesPerSpecies = 0.3; #was previously 0.1.. maybe too low?
 my $presortGenes = 1200;
-my $checkMaxNumJobs = 600;
+my $checkMaxNumJobs = 400;
 my $useGTDBmg = "GTDB";
 my $selfMemGb = 10;
 my $redoSubmissionData = 0;
@@ -230,44 +232,13 @@ my %sis; foreach (@specis){m/(\d+)$/; $sis{$_}=$1;}
 
 
 #die "specis::\n@specis\n";
-my $cnt=0; my $SaSe = "|"; my $dirsNOTPrepped = 0; my $CatFileMiss = 0;my $CatNotPrepped = 0; my $treeAbsent=0;
-my $doneDirs=0;
-my $PhylosExist = 1;
+my $cnt=0; my $SaSe = "|"; 
 
-foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
-	#PART I: create fasta files required by tree
-	my $outD2 = "$outD/$MGS/";
-	$SIdirs{$MGS} = $outD2;
-	#print "$outD2\n";
-	if (-d $outD2 && $onlySubmit == 0){#don't delete folders if we want to submit a job later..
-		system "rm -rf $outD2/*";
-	}
-	system "mkdir -p $outD2" unless (-d $outD2);
-	
-#	if ( !-d $outD2 ||){ # first phase only has "all.cat.tmp" file..
-#		$dirsNOTPrepped ++;
-#	} els
-	
-	if (!fileGZe("$SIdirs{$MGS}/$CATstdof")){
-		$CatFileMiss ++ ; 
-		if ( -e "$outD2/all.cat.tmp" ){
-			$CatNotPrepped ++; #needs Part II
-		} else {
-			$dirsNOTPrepped ++; #needs Part I
-		}
-		#print "$SIdirs{$MGS}\n";
-		#system "rm $SIdirs{$MGS}\n";
-	}elsif(!fileGZe("$SIdirs{$MGS}/phylo/IQtree_allsites.treefile")){
-		$treeAbsent++;
-		
-	} else {
-		$doneDirs++;
-	}
-}
-$PhylosExist = 0 if ($CatFileMiss/$#specis > 0.1); #only activate if more than 10% missing..
 
-print "Output dirs status: \nCatFileFinalMiss: $CatFileMiss, CatFileConvert: $CatNotPrepped, Dir not done: $dirsNOTPrepped, phylo absent: $treeAbsent,  Dir done: $doneDirs, Phylo complete: $PhylosExist \n";
-#die;
+my ($dirsNOTPrepped , $CatFileMiss , $CatNotPrepped , $treeAbsent, $doneDirs, $PhylosExist) 
+			= evalFileStatus();
+#DEBUG:getInputSize();
+
 
 my %smplsPerMGS; #stats: MGS is represented in how many different samples?
 
@@ -370,7 +341,7 @@ my %SIgenes_OG; #later reads in SIgenes again, but no restriction to length
 
 my $geneCatLoaded=0;
 #read in genecat to create outgroup fasta sequences..
-if (1 && (($CatNotPrepped/$#specis > 0.1) || ($treeAbsent/$#specis > 0.1)  || $deepRepair || $dirsNOTPrepped || $onlySubmit == 0 || $redoSubmissionData == 1)){
+if (1 && $CatNotPrepped || $treeAbsent  || $deepRepair || $dirsNOTPrepped || $onlySubmit == 0 || $redoSubmissionData == 1){
 	#also read reference gene seqs (for outgroup)
 	my $refFNA = ""; my $refFAA = ""; my $refNameL = "unknw";
 	if ($mode eq "MGS" || $mode eq "MGSall"){
@@ -394,23 +365,30 @@ if (1 && (($CatNotPrepped/$#specis > 0.1) || ($treeAbsent/$#specis > 0.1)  || $d
 
 
 
-print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogenies for " . scalar(@specis) . " MGS ". "Elapsed time : ", timeNice(time - $sttime) ."\n----------------------------------------------------\n\n";
+print "\n\n----------------------------------------------------\nPart II:: resort .cat files, submit intraStrain phylogenies for " . scalar(@specis) . " MGS. ". "Elapsed time : ", timeNice(time - $sttime) ."\n----------------------------------------------------\n\n";
 
 
 die "Tree for outgroup specified, but file not found:$treeFile\nAborting..\n" if  ($treeFile ne "" && !-e $treeFile);
 
+#sort by largest dir first..
+my @sizeOfDirs = getInputSize();
+my @idx = sort { $sizeOfDirs[$b] <=> $sizeOfDirs[$a] } 0 .. $#sizeOfDirs;
+@specis=@specis[@idx];@sizeOfDirs=@sizeOfDirs[@idx];
+#print "SIZE2:: $sizeOfDirs[0] $sizeOfDirs[1] $specis[0] $specis[1]\n"; die;
 
 
 #die;
 #go through every SpecI;
 $cnt=0; my $lcnt=0; my @jobs;
 foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
-	if (!$reSubmit && !$redoSubmissionData && $CatNotPrepped==0 && $treeAbsent ==0){
-		print "All submission dirs prepared, nothing to do..\n";
+	if (!$reSubmit && !$redoSubmissionData && $CatFileMiss==0 && $CatNotPrepped==0 && $treeAbsent ==0){
+		print "\nAll submission dirs prepared, nothing to do..\n";
 		last;
 	}
 	# previous condition was too lax: ( ($CatNotPrepped/$#specis) < 0.1)  , just check if we can resubmit anything here..
-	if (exists($ConspecificMGS{$MGS}) && $ConspecificMGS{$MGS}->[0] =~ m/multicopy/){print "Skipping $MGS due to inclusion in conspecific MGS list.\n";next;}
+	if (exists($ConspecificMGS{$MGS}) && $ConspecificMGS{$MGS}->[0] =~ m/multicopy/){
+		print "Skipping $MGS due to inclusion in conspecific MGS list.\n";next;
+	}
 	$lcnt++;
 	if ($startSubFromMGS ne "" ){
 		if ($MGS ne $startSubFromMGS){next;
@@ -422,12 +400,12 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 	#next unless ($lcnt>10);
 	#PART I: create fasta files required by tree
 	my $outD2 = $SIdirs{$MGS};
+	system "mkdir -p $outD2" unless (-d $outD2);
 	combineMGSgenesDir($MGS,$outD2);
 	my $treeStone = "$outD2/treeDone.sto";
 	#next if (-e "$outD2/phylo/IQtree_allsites.treefile");
 	#print "$outD2\n";
 	my $multiSmpl=0;
-	system "mkdir -p $outD2" unless (-d $outD2);
 	my $FNAtf = "$outD2/$FNAstdof"; my $FAAtf = "$outD2/$FAAstdof";
 	my $CATtf = "$outD2/$CATstdof"; #my $Linkf = "$outD2/$LINKstdof";
 	my $IQtreef= "$outD2/phylo/IQtree_allsites.treefile";
@@ -456,7 +434,7 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 	my $totMem = int($inputFNAsize *120)+10;$totMem = 6000 if ($totMem < 6000);
 	my $numCoreL = $numCores;	
 	if ($maxCores >0){ #scale cores according to used memory size
-		$numCoreL = int($maxCores * sqrt($inputFNAsize/2000));
+		$numCoreL = int($maxCores * sqrt($inputFNAsize/$sizeOfDirs[0]));
 		$numCoreL = 4 if ($numCoreL < 4);		$numCoreL = $maxCores if ($numCoreL > $maxCores);
 	}
 	
@@ -950,6 +928,9 @@ sub prepRun{
 	return;
 }
 
+
+
+
 sub preComputeConsSNP{
 	my $inputChkd = 0;
 	my $inputChk = "$outD/stones/0.fileChk.sto";
@@ -1059,6 +1040,82 @@ sub histoMGS{#specifically for MGS..
 	print "\n";
 	#DEBUG
 	#print @cnts." : @cnts\n";
+}
+
+sub getInputSize{
+	my @out; my @missedMGS;
+	foreach my $MGS (@specis){
+		my $tmpD  = "$scratchD/outs/$MGS/";
+		my $FNAtf = "$tmpD/$FNAstdof";
+		my $inputFNAsize=0;
+		my @multiM = glob("$FNAtf*");
+		if (@multiM){
+			foreach(@multiM){
+			$inputFNAsize += fileGZs($_) / (1024 * 1024) ;
+			}
+		} elsif (fileGZe( "$SIdirs{$MGS}/$FNAstdof")) {
+			#$FNAtf = "$SIdirs{$MGS}/$FNAstdof";
+			#fileGZs
+			if (-e "$SIdirs{$MGS}/$FNAstdof"){
+				$inputFNAsize = fileGZs("$SIdirs{$MGS}/$FNAstdof") / (1024 * 1024) ;
+			} elsif (-e "$SIdirs{$MGS}/$FNAstdof.gz"){
+				$inputFNAsize = fileGZs("$SIdirs{$MGS}/$FNAstdof.gz") / (1024 * 1024)*6 ;
+			}
+		} else {
+			push(@missedMGS,$MGS);
+			$inputFNAsize = 100;
+		}
+		push(@out, $inputFNAsize); 
+	}
+	if (@missedMGS){print "\ngetInputSize:: could not find FNA for: @missedMGS\n";}
+	#print "SIZE: @out\n";
+	#die;
+	return @out;
+}
+
+
+sub evalFileStatus{
+	my $dirsNOTPrepped = 0; my $CatFileMiss = 0;my $CatNotPrepped = 0; my $treeAbsent=0;
+	my $doneDirs=0;
+	my $PhylosExist = 1;
+
+	foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTreeScript on..
+		#PART I: create fasta files required by tree
+		my $outD2 = "$outD/$MGS/";
+		$SIdirs{$MGS} = $outD2;
+		#print "$outD2\n";
+		if (-d $outD2 && $onlySubmit == 0){#don't delete folders if we want to submit a job later..
+			system "rm -rf $outD2/*";
+		}
+		system "mkdir -p $outD2" unless (-d $outD2);
+		
+	#	if ( !-d $outD2 ||){ # first phase only has "all.cat.tmp" file..
+	#		$dirsNOTPrepped ++;
+	#	} els
+		
+		if (!fileGZe("$SIdirs{$MGS}/$CATstdof")){
+			$CatFileMiss ++ ; 
+			my @multiM=glob("$scratchD/outs/$MGS/all.cat.tmp*");
+			if ( -e "$outD2/all.cat.tmp" || @multiM ){
+				$CatNotPrepped ++; #tmp file exists, needs Part II
+			} else {
+				print "$scratchD/outs/$MGS\n";
+				$dirsNOTPrepped ++; #needs Part I
+			}
+			#print "$SIdirs{$MGS}\n";
+			#system "rm $SIdirs{$MGS}\n";
+		}elsif(!fileGZe("$SIdirs{$MGS}/phylo/IQtree_allsites.treefile")){
+			$treeAbsent++;
+			
+		} elsif(fileGZe("$SIdirs{$MGS}/phylo/IQtree_allsites.treefile")) {
+			$doneDirs++;
+		}
+	}
+	$PhylosExist = 0 if ($CatFileMiss/$#specis > 0.1); #only activate if more than 10% missing..
+
+	print "Output dirs status: \nCatFileFinalMiss: $CatFileMiss, CatFileConvert: $CatNotPrepped, Dir not done: $dirsNOTPrepped, phylo absent: $treeAbsent,  Dir done: $doneDirs, Phylo complete: $PhylosExist \n";
+	#die;
+	return($dirsNOTPrepped , $CatFileMiss , $CatNotPrepped , $treeAbsent, $doneDirs, $PhylosExist);
 }
 
 #	combineMGSgenesDir($MGS,$outD2);
