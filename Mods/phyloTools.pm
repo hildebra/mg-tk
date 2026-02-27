@@ -158,7 +158,8 @@ sub runQItree{
 	$treeOut =~ s/\.nwk$//;
 	my $treNM = "IQtree";
 	my $cmd = "$iqTree -s $inMSA -T $ncore -pre $treeOut -seed 678 "; #-nt AUTO -ntmax $ncore
-	$cmd .= " -Q $partiF --merge " unless ($partiF eq "");
+	#$cmd .= " -Q $partiF --merge " unless ($partiF eq "");
+	$cmd .= " -p $partiF --merge " unless ($partiF eq "");
 	$cmd .= "-o $outgr " unless ($outgr eq "" && $outgr !~ m/,/);
 	$cmd .= "-g $constraintTree " unless ($constraintTree eq "");
 	$cmd .= "--quiet " if (exists($treeOpts{silent}) && $treeOpts{silent});

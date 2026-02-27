@@ -50,7 +50,8 @@ sub evalFileStatus;
 #.29: 24.2.26: switched to multi output file for subjobs (waits were to long/inconsistent performance and errors with file blocks)
 #.30: 25.2.26: new code for combining files, subfiles written to scratch to improve speed further
 #.31: 26.2.26: better integration new temp files, pick up from previous job, sorting jobs
-my $version = 0.31;
+#.32: 27.2.26: allows for subsets of MGS only to be calculated.. (good for testing)
+my $version = 0.32;
 
 die "Not enough args!\n" unless (@ARGV > 1);
 
@@ -76,14 +77,16 @@ my $multiGeneSmplMax = 0.25; #no higher than this rate in single samples conspec
 my $maxOrthoNum = 1; #don't include gene if multiple orthologues
 my $conspGeneSmplMax = 0.05; #no higher than this conspecific genes/MGS/sample
 my $minDepthGene  = 1;
+my $noIndels = 1;
 
 
 
 my $repairCAT=0;
 
 my $maxNGenes = 400;
+my @subsetMGS=(); my $subsMGSstr;
 my $MSAprog = 2; ##(0) MSAprobs, (1) clustalO, (2) mafft, (4) MUSCLE5
-my $GenesPerSpecies = 0.3; #was previously 0.1.. maybe too low?
+my $GenesPerSpecies = 0.2; #was previously 0.1.. maybe too low?
 my $presortGenes = 1200;
 my $checkMaxNumJobs = 400;
 my $useGTDBmg = "GTDB";
@@ -96,7 +99,7 @@ my $familyVar = ""; my $groupStabilityVars = "";
 
 #SNP calling
 my $minSNPDepth = 2; #changed to two: seems to give better results
-my $minSNPCallQual = 20;
+my $minSNPCallQual = 5; #this is very weak evidence, probably no good..
 my $forceVCF2FNA = 0; #force the recalc of cons fasta from vcf..
 my $SNPconsLOGs = ""; #logs for recalculating cons SNPs
 my $preCompCons=0; #if >0, precompute in these blocks
@@ -161,6 +164,7 @@ GetOptions(
 	"GenesPerSpecies=f" => \$GenesPerSpecies,
 	
 	"MGSphylo=s"     => \$treeFile,
+	"MGSsubset=s"    => \$subsMGSstr,
 	"submissionMode=s"      => \$subMode,
 	"MSAprog=i"      => \$MSAprog,
 	"MGset=s"        => \$useGTDBmg,
@@ -176,11 +180,12 @@ GetOptions(
 	#SNP calling
 	"minSNPDepth=i"  => \$minSNPDepth,
 	"minSNPCallQual=i"  => \$minSNPCallQual,
+	"skipIndels=i"     => \$noIndels,
 
 );
 
-
-
+@subsetMGS = split /,/,$subsMGSstr if ($subsMGSstr ne "");
+#print "SUBSMGS:: @subsetMGS\n";
 #die timeNice(20) ." ".timeNice(12252)."\n"; #TEST
 
 #define global vars
@@ -223,7 +228,7 @@ my %MGSsmplConsp; #saves single samples within a MGS that seem to have too high 
 
 #key step to determine with set of genes (representing MGS) is to be MSA'd for strain phylos
 #these might be very limited number of genes here..
-($SIgenes,$Gene2COG,$Gene2MGS,$COGprios) = readGene2tax($gene2taxF,$presortGenes);#$maxNGenes);
+($SIgenes,$Gene2COG,$Gene2MGS,$COGprios) = readGene2tax($gene2taxF,$presortGenes,\@subsetMGS);#$maxNGenes);
 #%SIgenes=%{$hr1};%Gene2COG=%{$hr2}; %Gene2MGS = %{$hr3}; %COGprios = %{$hr4};
 my @specis = sort(keys(%{$SIgenes}));
 #sort specis by numbers, so start with MGS1, MGS2 etc
@@ -354,7 +359,7 @@ if (1 && $CatNotPrepped || $treeAbsent  || $deepRepair || $dirsNOTPrepped || $on
 		$refNameL = "FMG ref";
 	}
 	
-	my ($hr1,$Gene2COG_OG,$hr3,$hr4) = readGene2tax($gene2taxF);
+	my ($hr1,$Gene2COG_OG,$hr3,$hr4) = readGene2tax($gene2taxF,$presortGenes,\@subsetMGS);
 	%SIgenes_OG = %{$hr1};
 	#%SIgenes_OG=%{$hr1}; my %Gene2COG_OG=%{$hr2}; 
 	$hr1 = readFasta($refFAA,1,"\\s",$Gene2COG_OG); %FAAref = %{$hr1};
@@ -431,7 +436,7 @@ foreach my $MGS (@specis){ #loop creates per specI file structure to run buildTr
 		#deactivate for now, not needed really..
 	}
 	my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-	my $totMem = int($inputFNAsize *120)+10;$totMem = 6000 if ($totMem < 6000);
+	my $totMem = int($inputFNAsize *150)+10;$totMem = 6000 if ($totMem < 6000);
 	my $numCoreL = $numCores;	
 	if ($maxCores >0){ #scale cores according to used memory size
 		$numCoreL = int($maxCores * sqrt($inputFNAsize/$sizeOfDirs[0]));
@@ -1099,7 +1104,7 @@ sub evalFileStatus{
 			if ( -e "$outD2/all.cat.tmp" || @multiM ){
 				$CatNotPrepped ++; #tmp file exists, needs Part II
 			} else {
-				print "$scratchD/outs/$MGS\n";
+				#print "$scratchD/outs/$MGS\n";
 				$dirsNOTPrepped ++; #needs Part I
 			}
 			#print "$SIdirs{$MGS}\n";
@@ -1486,8 +1491,9 @@ sub createConsFastas{
 		#$vcf2fnaOpt = "-seqPlatform $SNPIHR->{SeqTech},$SNPIHR->{SeqTechSuppl} -t 1 -minCallDepth $minDepth,$minDepth -minCallQual $minCallQual ";
 		#$cmd = "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS ";# -oCtg $ofasCons.gz " ;
 		my $vcfFileS = "$cD/$lSNPdir/$lConsVCFsup";
+		my $skipTerm = ""; $skipTerm="-skipINDELs " if ($noIndels);
 		my $depthFileS = "$cD$lMAPdir/$sm$bamDepthFsuffixSup";
-		$vcf2fnaOpt = "-seqPlatform $seqPlatf,$secSeqTechS -t 1 -minCallDepth $minSNPDepth -minCallQual $minSNPCallQual ";
+		$vcf2fnaOpt = "-seqPlatform $seqPlatf,$secSeqTechS -t 1 $skipTerm -minCallDepth $minSNPDepth -minCallQual $minSNPCallQual ";
 		$cmd = "$vcf2fnaBin $vcf2fnaOpt -ref $refFA -inVCF $vcfFile,$vcfFileS -depthF $depthFile,$depthFileS  -oCtg /dev/null " ;
 	}
 

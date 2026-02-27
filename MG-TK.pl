@@ -1686,6 +1686,16 @@ sub spaceInAssGrp{
 	return $inputSizeloc;
 }
 
+sub rmEmptySmpls{
+	my @dirs = @_;
+	my @outs;
+	foreach my $D(@dirs){
+		next if (-e "$D/SMPL.empty");
+		push(@outs,$D);
+	}
+	return @outs;
+}
+
 sub submitGenomeBinner{
 	my ($nodeSpTmpD,$metaGassembly,$MetaBat2out,$cAssGrp,$smplIDs1) = @_; #$finalCommAssDir,
 	#$MFopt{DoMetaBat2} = 1: metabat2, 2: SemiBin 3: MetaDecoder, 4: Genome Face
@@ -1703,6 +1713,7 @@ sub submitGenomeBinner{
 	
 	#if ($MFconfig{rmBinFailAssmbly}){print"Warning submitGenomeBinner::\n\nremoving $finalCommAssDir\n\n";system"rm -r $finalCommAssDir";return;}
 	my @paths = @{$DOs{$cAssGrp}{wrdir}};#split /,/,$allPaths;
+	@paths = rmEmptySmpls(@paths);
 	my $smplIncl = scalar(@paths);
 	
 	my $CM1done = 0; my $CM2done = 0; my $eBinAssStat=0;
@@ -7667,7 +7678,7 @@ sub setDefaultMFconfig{
 	$MFconfig{filterFromSource}=1; #powerful option that skips the unzip step.. use careful
 	$MFconfig{doDateFileCheck} = 0; #very specific option for Moh's reads that were of different dates..
 	$MFconfig{DoFreeGlbTmp} = 0; 
-	$MFconfig{defaultReadLength} = 0; $MFconfig{defaultReadLengthX} = 5000;
+	$MFconfig{defaultReadLength} = 150; $MFconfig{defaultReadLengthX} = 5000;
 	$MFconfig{oldStylFolders} =0; #0=smpl name as out folder; 1=inputdir as out foler (legacy)
 	$MFconfig{mocatLinkDir} = "";
 	$MFconfig{wcKeysForJob} = ""; #EI specific system to register jobs under certain flag
@@ -7883,7 +7894,6 @@ sub getCmdLineOptions{
 	if (!$MFopt{DoAssembly}){
 		$MFopt{mapSupport2Assembly}=0;$MFopt{map2Assembly}=0;
 	}
-
 	die "ERROR:: \"-mappingMem\" argument contains characters: $MFopt{MapperMemory}" if ($MFopt{MapperMemory} !~ m/[\d-]+/);
 	die "ERROR:: \"-mapSortMem\" argument contains characters: $MFopt{mapSortMemGb}" if ($MFopt{mapSortMemGb} !~ m/[\d-]+/);
 	die "ERROR:: \"-assemblMemory\" argument contains characters: $MFopt{AssemblyMemory}" if ($MFopt{AssemblyMemory} !~ m/[\d-]+/);
@@ -7919,6 +7929,10 @@ sub getCmdLineOptions{
 		$MFopt{SB_env} ne "built_environment" && $MFopt{SB_env} ne "wastewater" && $MFopt{SB_env} ne "chicken_caecum" && $MFopt{SB_env} ne "global"){
 			die "-SB_env must be either: human_gut/dog_gut/ocean/soil/cat_gut/human_oral/mouse_gut/pig_gut/built_environment/wastewater/chicken_caecum/global\n";
 		}
+	}
+	if ($MFconfig{defaultReadLength} < 10){print "Warning: extremely short read length set(-inputReadLength): $MFconfig{defaultReadLength}\n";
+	}
+	if ($MFconfig{defaultReadLengthX} < 10){print "Warning: extremely short read length set(-inputReadLengthSuppl): $MFconfig{defaultReadLengthX}\n";
 	}
 	
 	$MFopt{memPJob} = int($MFopt{memPJob});

@@ -874,6 +874,7 @@ sub createTreeOpt{
 	$isSubTree = 1 if ($tcnt ne "");
 	$outgroupL = "" if ($isSubTree);
 	my $partiF=$multF.$partiExt;
+	if (-e "$partiF.gz"){system "gunzip $partiF";}
 	$partiF="" unless (-e $partiF);
 	#object to transfer options to tree (and get them back..)
 	my $BStag = ""; if ($bootStrap>0){$BStag="_BS$bootStrap";}
@@ -945,7 +946,7 @@ sub treeAtHeart{
 			$treeOpts{constraintTree} = $nwkPrune;
 		} else {
 			$treeOpts{constraintTree} = "";
-		}
+		} 
 
 	}
 	#print "cons: $treeOpts{constraintTree}\n";

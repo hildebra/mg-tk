@@ -41,6 +41,13 @@ if ($tmpD eq ""){
 	$tmpD =~ s/\$/\\\$/g;
 }
 
+if ($readLength<2){
+	print "WARNING: non-sensical read length parameter: $readLength\n";
+}
+if ($readLengthSup<2){
+	print "WARNING: non-sensical read length suppl parameter: $readLengthSup\n";
+}
+
 my $rdCovBin =getProgPaths("readCov");
 my $pigzBin = getProgPaths("pigz");
 
@@ -329,6 +336,7 @@ sub geneAbundance{
 	
 	#print "$rdCovBin $inF $assD/genePred/genes.gff $readLength";
 	my $cmd = "rm -f ${inFG}.*;$rdCovBin $inFG $genesGFF $readL;\n";
+	#die $cmd;
 	systemW $cmd;
 	#$cmd .= "gzip -f $outF $outF2 $outF3\nmv $outF.gz $outFfin\n mv $outF2.gz $outF2fin\nmv $outF3.gz $outF3fin\n";
 	

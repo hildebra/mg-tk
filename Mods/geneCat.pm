@@ -196,8 +196,16 @@ sub createGene2MGS{
 
 sub readGene2tax{
 	my $inF = $_[0];
-	my $limit = -1;
+	my $limit = -1;  my %subset; my $doMGSsubset=0;
 	$limit = $_[1] if (@_ > 1);
+	if (@_ > 2){
+		my $subsetAR = $_[2] ;
+		%subset= map {$_ => 1 } @{$subsetAR};
+		if (scalar(keys %subset)){
+			$doMGSsubset=1;
+			print"Subsetting readGene2tax (N=" . scalar(keys(%subset)) . ")\n"; 
+		}
+	}
 	my $SIgenes = {};my $Gene2COG= {};my $Gene2MGS= {};
 	my %uniqs; my $cogPrio= {};
 	#some stats
@@ -211,9 +219,14 @@ sub readGene2tax{
 		$totalGenes++;
 		my @spl = split (/\t/,$line,-1);
 		#only read a limited number of genes.. used for MGS to only take first few genes
-		if ($limit>0 && exists($totalTax{$spl[1]}) && $totalTax{$spl[1]}  >= $limit){
+		my $MGS = $spl[1];
+		if ($limit>0 && exists($totalTax{$MGS}) && $totalTax{$MGS}  >= $limit){
 			next;
 		} 
+		if ($doMGSsubset && !exists($subset{$MGS})){
+			#print "N $MGS ";
+			next;
+		}
 	
 		my $OG = $spl[2];
 		if ($OG eq "" || $OG eq "-"){ #make artificial OG
@@ -221,23 +234,23 @@ sub readGene2tax{
 			$OG="uniq$uniqs{$spl[1]}";
 			#die "$OG\n";
 		}
-		unless (exists($SIgenes->{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
-			push(@{$cogPrio->{$spl[1]}},$OG); ;
-			$SIgenes->{$spl[1]}{$OG} = $spl[0];
+		unless (exists($SIgenes->{$MGS}{$OG})){#only register gene if COG is not already reserved..
+			push(@{$cogPrio->{$MGS}},$OG); ;
+			$SIgenes->{$MGS}{$OG} = $spl[0];
 			$Gene2COG->{$spl[0]} = $OG;
-			$Gene2MGS->{$spl[0]} = $spl[1];
+			$Gene2MGS->{$spl[0]} = $MGS;
 			$inclGenes++;
-			$totalTax{$spl[1]} ++;
+			$totalTax{$MGS} ++;
 		}
 	}
 	close I;
-	print "Found ". scalar(keys %totalTax) ." groups with $inclGenes/$totalGenes included genes\n";
+	print "Found ". scalar(keys %totalTax) ." MGS with $inclGenes/$totalGenes included genes\n";
 	
 	#double check on low represented MGS
-	my @keys = sort { $totalTax{$a} <=> $totalTax{$b} } keys(%totalTax);
+	my @kk = sort { $totalTax{$a} <=> $totalTax{$b} } keys(%totalTax);
 	my $lcnt=0;
 	print "5 lowest MGS are: \n" ; 
-	foreach my $k (@keys){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5){print "\n";last;}}
+	foreach my $k (@kk){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5 || @kk < $lcnt+1){print "\n";last;}}
 	
 	return ($SIgenes,$Gene2COG,$Gene2MGS,$cogPrio);
 }
