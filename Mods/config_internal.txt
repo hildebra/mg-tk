@@ -227,6 +227,7 @@ mafft	mafft	env:MGTKphylo
 MUSCLE5	muscle
 raxml	raxmlHPC-PTHREADS-SSE3
 fasttree	FastTreeMP	env:MGTKphylo
+veryfasttree	VeryFastTree	env:MGTKphylo
 freebayes	freebayes	env:MGTKphylo
 ete3	ete3	env:MGTKphylo
 codeml	codeml	env:MGTKphylo

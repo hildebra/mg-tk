@@ -682,25 +682,25 @@ sub runSemiBin{
 	
 	# --environment human_gut, dog_gut, ocean, soil, cat_gut, human_oral, mouse_gut, pig_gut, built_environment, wastewater, chicken_caecum, global
 	my $smode = "single_easy_bin ";
-	my $senvDef = "--environment human_gut";my $senv = ""; 
-	if ($giveSBenv ne "") {$senv =  "--environment $giveSBenv" ; $senvDef = $senv;}
+	my $senvDef = "--environment human_gut";my $senv = $senvDef; 
 	if ($numBams > 1){$senv = "";}#multisample doesn't accept env flag
+	if ($giveSBenv ne "") {$senv =  "--environment $giveSBenv" ; }
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
 	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
-	my $cmd1 = "###preparing BAMs..\n$uncramCmd\n\n";
+	my $cmd1 = "\necho \"preparing BAMs..\"\n$uncramCmd\n\n";
 	$cmd1 .= "echo \"CRAM->BAM finished\"\n";
 #	my $cmd = "";
 	#my $output = "$outD/$nm.semibin";
 	my $cmd .= "\n\n###Running SemiBin...\n";
-	if ($giveSBenv ne ""){
-		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). "  $seqType --output $outDir $dflags\n"; 
+	if (@BAMS == 1 && $jgO ne ""){
+		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senv $seqType --output $outDir $dflags\n";
+#	} elsif (@BAMS == 1){ #by default run with def env, if only 1 bam.. too slow otherwise
+#		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $senv $seqType --output $outDir $dflags\n"; 
 
-	}elsif ($numBams == 1 && $jgO ne ""){
-		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senvDef $seqType --output $outDir $dflags\n";
 	} else {
 		#--reference-db-data-dir $semibinGTDB --training-type self 
-		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
+		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $senv $seqType --output $outDir $dflags\n";
 	}
 	#die $cmd;
 	return $cmd1.$cmd;

@@ -8,7 +8,7 @@ use strict;
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(runRaxMLng runRaxML readFMGdir prep40MGgenomes prepNOGSETgenomes getE100 getGenoGenes getFMG renameFMGs 
-			runFasttree runQItree fixHDs4Phylo getGenoName calcDisPos2 getTreeLeafs filterMSA MSA);
+			runFasttree runVeryFasttree runQItree fixHDs4Phylo getGenoName calcDisPos2 getTreeLeafs filterMSA MSA);
 use Mods::GenoMetaAss qw(filsizeMB systemW readFasta renameFastHD gzipwrite gzipopen);
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Mods::FuncTools qw(assignFuncPerGene readGene2Func);
@@ -206,6 +206,16 @@ sub runQItree{
 	systemW $cmd;
 	#$treNM .= ".nwk";
 	#"mv $treeOut/IQtree_fast_allsites.treefile $treeOut/$treNM";
+}
+
+sub runVeryFasttree{
+	my ($inMSA,$treeOut,$isAA,$ncore) = @_;
+	my $vfsttreeBin  = getProgPaths("veryfasttree");
+	my $ntFlag = "";
+	$ntFlag = "-nt -gtr" if (!$isAA);
+	my $cmd = "$vfsttreeBin -threads $ncore $ntFlag $inMSA > $treeOut\n";
+	systemW $cmd;
+
 }
 sub runFasttree{
 	my ($inMSA,$treeOut,$isAA,$ncore) = @_;

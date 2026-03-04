@@ -131,13 +131,10 @@ sub createConsSNPandSVs;
 #.74: 17.1.26: GenomeFace ini test version
 my $MATFILER_ver = 0.74;
 
+#----------------- defaults ----------------- 
 
 #operation mode?
 my $ARGV0 = "";$ARGV0 = $ARGV[0] if (@ARGV > 0);
-
-
-#----------------- defaults ----------------- 
-
 
 my %jmp=();
 my $logDir = ""; #this is the local logdir
@@ -167,6 +164,10 @@ my %MFcontstants;
 
 #MFopt: global object with options for MG-TK. Added in MF v0.5, slowly rebuild MF around this system
 my %MFopt; 
+
+#MGstats: global trackers of variables that can change during excecution
+my %MFstats;
+
 
 #keep track of DBs that the metagenome will be filtered against..
 my @filterHostDB = ();
@@ -518,7 +519,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	}
 	$binningDir .= (getBinSubdirName($MFopt{DoMetaBat2})) . "/";
 	#if ($MFopt{DoMetaBat2} == 3){$binningDir .= "MD/";} elsif ($MFopt{DoMetaBat2} == 2){$binningDir .= "SB/";} elsif ($MFopt{DoMetaBat2} == 1){$binningDir .= "MB2/";} else {die "Unkown binning option $MFopt{DoMetaBat2}\n";}
-#	die $cAssGrp;
 	my $BinningOut = "$binningDir/$smplIDs[-1]";#	$BinningOut = "$binningDir/SB/$smplIDs[-1]" if ($MFopt{DoMetaBat2} == 2);	$BinningOut = "$binningDir/MD/$smplIDs[-1]" if ($MFopt{DoMetaBat2} == 3);
 	
 	
@@ -539,8 +539,9 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			$statStr5.="SMPLID\tDIR\t".$statsHD5."\n".$curSmpl."\t$dir2rd\t".$curStats5."\n";
 		} else {$statStr.=$curSmpl."\t$dir2rd\t".$curStats."\n"; $statStr5.=$curSmpl."\t$dir2rd\t".$curStats5."\n";}
 	}
-	#die;
 	
+	my $SmplIsEmtpy = 0; $SmplIsEmtpy =1 if (-e "$curOutDir/SMPL.empty");
+
 	#detect what already exists..
 	my $efinAssLoc = 0; $efinAssLoc = 1  if (-s $finAssLoc && -e "$finalCommAssDir/$STOassmbleDone");
 	#die "$efinAssLoc\n$finalCommAssDir/$STOassmbleDone\n";
@@ -564,6 +565,13 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	my $eFinalMapDir = 0; $eFinalMapDir = 1 if (-s $STOmapFinal);
 	#upload2EBI 
 	my $DoUploadRawReads = 0; $DoUploadRawReads = 1 if ($MFconfig{uploadRawRds} ne ""); 
+	
+	if (0){
+		#TEMP CODE: find only samples where no EBI upload was logged
+		my ($teee1,$teee2) = getContamination("$curOutDir/LOGandSUB/prepEBI.sh.etxt","$curOutDir/LOGandSUB/prepEBI.sh.otxt","EBI");
+		$DoUploadRawReads = 0 if ($teee1 ne "?\t?\t?\t");
+		print "uplod rds: $DoUploadRawReads\n";
+	}
 	
 	
 	#print "$emetaGassembly   XX";
@@ -606,7 +614,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	
 	if ($efinAssLoc && $finAssLoc ne "$finalCommAssDirSingle/scaffolds.fasta.filt" && -s "$finalCommAssDirSingle/scaffolds.fasta.filt"){
 		print "Something wrong.. assembly group assembly and single assembly present:\n$finAssLoc\n$finalCommAssDirSingle/scaffolds.fasta.filt\n";
-		#die;
 		$locRedoAssMapping=1;$locRedoSNPcalling=1;$locRedoSVs=1;
 		system "rm -fr $finalCommAssDirSingle; mkdir -p $finalCommAssDirSingle;\n";
 		$eCovAsssembly=0;$eFinMapCovGZ=0;$eFinalMapDir=0;$eFinSupMapCovGZ=0;$eSuppCovAsssembly=0;$eSuppCovAsssembly=0;
@@ -615,8 +622,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if ($locStats{totRds}==0 && !defined($locStats{uniqAlign}) && -e $inputRawFile && $eFinMapCovGZ){ #do a deeper look
 		my $line = getFileStr("$inputRawFile",0); #open I,"<$inputRawFile"; my $line = <I>; close I; chomp($line);
 		#my @spl = split /,/,$line; my $inFileSize = -s $spl[0];
-		print "weird empty: $locStats{totRds} $line \nredoing..\n";
-		die;
+		print "weird empty: $locStats{totRds} $line \nredoing..\n";die;
 		$locRewrite = 1;$locRedoAssembl = 1;
 	}
 	if ( ($MFconfig{skipWrongPairedSmpls} || $MFconfig{OKtoRWassGrps}) && -e "$logDir/sdmReadCleaner.sh.etxt" && `tail -n 70 $logDir/sdmReadCleaner.sh.etxt | grep 'invalid paired read' ` ne ""){
@@ -693,16 +699,15 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	}
 	#debug case: binning was empty
 	if ($MFopt{DoMetaBat2} && ( $MFopt{BinnerRedoAll} || ($MFopt{BinnerRedoEmpty} && -e $BinningOut && !-s $BinningOut) ) ){
-		#die;
 		print "redoing binning due to empty bins (flag -redoEmptyBins 1) ..\n";
 		system "rm -rf $binningDir";
 	}
 
-	if ( (!$doPreAssmFlag || !$ePreAssmblPck) && 
+	if ( (!$doPreAssmFlag || !$ePreAssmblPck) && !$SmplIsEmtpy &&
 				((!$eFinMapCovGZ && $eCovAsssembly) || ($eSuppCovAsssembly && !$eFinSupMapCovGZ) ) #redo only contigstats related to coverage..
 				 || $MFconfig{redoCS}){
-		print "redoing contig stats global..\n";
-		#die;
+		#print "redoing contig stats global..\n";
+		#die "(!$doPreAssmFlag || !$ePreAssmblPck) && ((!$eFinMapCovGZ && $eCovAsssembly) || ($eSuppCovAsssembly && !$eFinSupMapCovGZ) )\n";
 		system("rm -rf $finalCommAssDir/ContigStats/ $ContigStatsDir $binningDir/");
 		$eCovAsssembly = 0; $eSuppCovAsssembly=0; #contigstats needs redoing..
 	}
@@ -742,7 +747,7 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		die "Deleting previous results..\n";
 		system("rm -f -r $curOutDir $smplTmpDir $collectFinished");
 		$efinAssLoc = 0;	$eFinMapCovGZ = 0;	$emetaGassembly =  0;
-	} elsif ($boolAssemblyOK && $eCovAsssembly) {
+	} elsif ($boolAssemblyOK && $eCovAsssembly && !$SmplIsEmtpy) {
 		#check that assembly path fits..
 		getAssemblPath($curOutDir,$finalCommAssDir);
 	}
@@ -780,7 +785,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		}
 	}
 	if (@bwt2outD == 0 ){$boolScndMappingOK = 1 ; $boolScndCoverageOK=1;}#|| !$MappingGo);	
-	#die "$boolScndMappingOK\n";
 	#print $boolScndMappingOK."\n$boolAssemblyOK\n";
 
 #--------------------- other flags --------------------------
@@ -814,7 +818,6 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 		$calcBinning=$MFopt{DoMetaBat2};
 		#die "$MFopt{DoMetaBat2} && $boolAssemblyOK && $AssemblyGo && $AsGrps{$cAssGrp}{MapDeps} !~ m/[^;]/ &&  (!-e $BinningOut.cm || !-s $BinningOut.cm2\n";
 	}
-	#die "$calcBinning\n";
 	
 
 
@@ -978,8 +981,8 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 	if (exists $map{$curSmpl}{readLengthX} && $map{$curSmpl}{readLengthX} != 0){
 		$hrefSeqSet->{samplReadLengthX} = $MFconfig{defaultReadLengthX}; #for any supplementary reads (eg PacBio)
 	}
-	if (-e "$curOutDir/SMPL.empty" && exists($inputFileSizeMB{$curSmpl}) && $inputFileSizeMB{$curSmpl} >= $MFconfig{skipSmallSmplsMB}){
-			system "rm -f $curOutDir/SMPL.empty";
+	if ($SmplIsEmtpy && exists($inputFileSizeMB{$curSmpl}) && $inputFileSizeMB{$curSmpl} >= $MFconfig{skipSmallSmplsMB}){
+			system "rm -f $curOutDir/SMPL.empty"; $SmplIsEmtpy=0;
 	}
 	if (-e "$curOutDir/SMPL.empty" || $jdep eq "EMPTY_DO_NEXT" || (exists($inputFileSizeMB{$curSmpl}) &&$inputFileSizeMB{$curSmpl} < $MFconfig{skipSmallSmplsMB} ) ){
 		
@@ -987,12 +990,15 @@ for ($JNUM=$from; $JNUM<$to;$JNUM++){
 			print "Skipping sample $curSmpl due to $inputFileSizeMB{$curSmpl} < $MFconfig{skipSmallSmplsMB} MB\n";
 			#still create essentials
 			#	my $coveragePerCtg = "$ContigStatsDir/Coverage.percontig.gz";
+			#!$eFinMapCovGZ && $eCovAsssembly) || ($eSuppCovAsssembly && !$eFinSupMapCovGZ)
 			my $geneCovTmpFile = $coveragePerCtg; $geneCovTmpFile =~ s/percontig.gz$/count_pergene/;
 			my $geneCntTmpFile = $coveragePerCtg; $geneCntTmpFile =~ s/percontig.gz$/pergene/;
 			my $geneMedTmpFile = $coveragePerCtg; $geneMedTmpFile =~ s/percontig.gz$/median.pergene/;
+			my $tmpMapCovGZ = "$finalMapDir/$SmplName-smd.bam.coverage.gz";
 			system "mkdir -p $ContigStatsDir" unless (-d $ContigStatsDir);
+			system "mkdir -p $finalMapDir" unless (-d $ContigStatsDir);
 			system "mkdir -p $curOutDir" unless (-d $curOutDir); $coveragePerCtg =~ s/\.gz$//;
-			system "touch $coveragePerCtg $geneCovTmpFile $geneCntTmpFile $geneMedTmpFile $curOutDir/SMPL.empty";
+			system "touch $tmpMapCovGZ $coveragePerCtg $geneCovTmpFile $geneCntTmpFile $geneMedTmpFile $curOutDir/SMPL.empty";
 		} else {
 			#print "Sample empty.. next\n";
 		}
@@ -6182,8 +6188,13 @@ sub optiDups{
 }
 
 sub getContamination{
-	my ($inFi,$inFi2) = @_;
-	my $outStr = "?\t?\t?\t";my $outStrDesc = "";$outStrDesc .= "FilteredContaRdsPerc\tFilteredContaRds\tFilteredNonContaRds\t";
+	my ($inFi,$inFi2,$idx) = @_;
+	my $outStr = "?\t?\t?\t";my $outStrDesc = "";
+	if ($idx eq ""){
+		$outStrDesc .= "FilteredContaRdsPerc\tFilteredContaRds\tFilteredNonContaRds\t";
+	} else {
+		$outStrDesc .= "FilteredContaRdsPerc_${idx}\tFilteredContaRds_${idx}\tFilteredNonContaRds_${idx}\t";
+	}
 	my $filStats = getFileStr($inFi,0);#`cat $inD/LOGandSUB/KrakHS.sh.etxt`; chomp $filStats;
 	#if ($filStats eq "" ){$outStr .= "?\t?\t?\t";	return ($outStr,$outStrDesc);}
 	
@@ -6406,10 +6417,17 @@ sub smplStats(){
 	$outStrDesc .= "InputIsPaired\tInputIsSingle\t";
 
 
-	my ($t1,$t2) = getContamination("$inD/LOGandSUB/KrakHS.sh.etxt","$inD/LOGandSUB/KrakHS.sh.otxt");
+	my ($t1,$t2) = getContamination("$inD/LOGandSUB/KrakHS.sh.etxt","$inD/LOGandSUB/KrakHS.sh.otxt","");
 	$locStats{contamination} = $t1;
 	$outStr .= $t1;	$outStrDesc .= $t2;
 	if ($do500Stat){		$outStr5 .= $t1;	$outStrDesc5 .= $t2;	}
+
+	#in case of EBI clean, also get stats for this..
+	if ($MFconfig{uploadRawRds} ne "" || -e "$inD/LOGandSUB/prepEBI.sh.etxt" || $MFstats{EBIstatTrigger}){
+		($t1,$t2) = getContamination("$inD/LOGandSUB/prepEBI.sh.etxt","$inD/LOGandSUB/prepEBI.sh.otxt","EBI");
+		$outStr .= $t1;	$outStrDesc .= $t2;
+		$MFstats{EBIstatTrigger} = 1;
+	}
 
 		
 	my @sdmStat ;#(0,0,0,0,0,0,0,0,0,0,0);
@@ -6898,11 +6916,11 @@ sub spadesAssembly{
 			$QSBoptHR->{useLongQueue} = $MFopt{SpadesLongtime};
 			$QSBoptHR->{tmpSpace} = $locDiskSpace;
 			#$QSBoptHR->{tmpSpace} = $HDDspace{spades}; #set option how much tmp space is required, and reset afterwards
-			($jname,$tmpCmd) = qsubSystem($logDir."spaderun.sh",$cmd,(int($nCores/2)+1),int($defMem*2)."G",$jname,$jDepe,"",1,$QSBoptHR->{Spades_Hosts},$QSBoptHR) ;
+			($jname,$tmpCmd) = qsubSystem($logDir."spaderun.sh",$cmd,(int($nCores/2)+1),int($defMem)."G",$jname,$jDepe,"",1,$QSBoptHR->{Spades_Hosts},$QSBoptHR) ;
 			$QSBoptHR->{tmpSpace} = $tmpSHDD;
 			$QSBoptHR->{useLongQueue} = 0;
 		} else {
-			($jname,$tmpCmd) = qsubSystem($logDir."spaderun.sh",$cmd,(int($nCores/2)+1),int($defMem*2)."G",$jname,$jDepe,"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
+			($jname,$tmpCmd) = qsubSystem($logDir."spaderun.sh",$cmd,(int($nCores/2)+1),int($defMem)."G",$jname,$jDepe,"",1,$QSBoptHR->{General_Hosts},$QSBoptHR) ;
 		}
 		#$QSBoptHR->{useLongQueue} = 0;
 	} else {
@@ -7107,8 +7125,8 @@ sub megahitAssembly{
 		#die "ts:$inputSloc\n";
 		$defTotMem = ($inputSizeloc*1.85 + 5e4)/1024;
 	}
-	my $defMem = int($defTotMem/$nCores);
-	$defTotMem = $defMem * $nCores; #total really available mem (in GB)
+	my $defMem = int($defTotMem);
+	#$defTotMem = $defMem; #total really available mem (in GB)
 	
 	my $locDiskSpace = $HDDspace{assembler};
 	if ($locDiskSpace eq "-1G" || $locDiskSpace eq "-1"){
@@ -7652,7 +7670,6 @@ sub setDefaultMFconfig{
 
 	$MFconfig{mateInsertLength} = 20000; #controls expected mate insert size , import for bowtie2 mappings
 
-
 	#more specific control: unfiniRew=rewrite unfinished sample dir; $redoCS = redo ContigStats completely; 
 	#removeInputAgain=remove unzipped files from scratch, after sdm; remove_reads_tmpDir = leave cleaned reads on scratch after everything finishes
 	$MFconfig{unfiniRew}=0; $MFconfig{redoCS}=0; $MFconfig{removeInputAgain}=1; $MFconfig{remove_reads_tmpDir}=1; 
@@ -7685,6 +7702,10 @@ sub setDefaultMFconfig{
 	$MFconfig{prefSinglFQgreps} = 0; #if grep of files (rawSrchString) has multi assignments, which grep to trust more?
 	$MFconfig{rmSmplLocks} = 0;
 	$MFconfig{uploadRawRds} = ""; #prepare raw input fastq's for upload 2 EBI? Clean reads will be stored in this dir
+
+
+#statistics collections etc, things that can count/change during run
+	$MFstats{EBIstatTrigger} = 0;
 
 	
 	print "Done. ";
@@ -7831,7 +7852,7 @@ sub getCmdLineOptions{
 		"getAssemblConsSNP=i" => \$MFopt{DoConsSNP},  #SNPs (onto self assembly) #calculates consensus SNP of assembly (useful for checking assembly gets consensus and Assmbl_grps)
 		"getAssemblConsSNPsuppRds=i" => \$MFopt{DoSuppConsSNP}, #same as getAssemblConsSNP, but SNP calling for support reads
 		"redoAssmblConsSNP=i" => \$MFopt{redoSNPcons},
-		"SNPmemPerJob=i" => \$MFopt{memPJob},
+		"SNPmemPerJob=i" => \$MFopt{memPJob}, #memory per assigned core, in GB
 		"redoGeneExtrSNP=i" => \$MFopt{redoSNPgene},
 		"SNPjobSsplit=i" => \$MFopt{SNPconsJobsPsmpl}, #how many parallel jobs are run on each 
 		"SNPminCallQual=i" => \$MFopt{SNPminCallQual},

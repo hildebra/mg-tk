@@ -12,6 +12,7 @@
 #2.1.25: v5.02: reduced threshold for including genes from MGS
 #14.2.25: v5.03: added treshrink
 #18.2.26: 5.04: MSA gz'ping
+#2.3.26: 5.05: added veryFastTRee
 
 use warnings;
 use strict;
@@ -19,7 +20,7 @@ use strict;
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 use Mods::GenoMetaAss qw( fileGZe fileGZs gzipopen systemW readFasta readFastHD writeFasta convertMSA2NXS quantile);
 use Mods::phyloTools qw(MSA filterMSA getTreeLeafs calcDisPos2 runRaxML runRaxMLng runQItree 
-			runFasttree fixHDs4Phylo getGenoGenes getFMG readFMGdir );
+			runFasttree runVeryFasttree fixHDs4Phylo getGenoGenes getFMG readFMGdir );
 			
 			
 use Getopt::Long qw( GetOptions );
@@ -86,7 +87,7 @@ my ($fnFna, $aaFna,$cogCats,$outD,$ncore,$Ete, $filt,$smplDef,$smplSep,$calcSyn,
 my ($continue,$isAligned) = (0,0);#overwrite already existing files?
 my $outgroup="";
 my $fixHeaders = 0;
-my ($doGubbins,$doCFML,$doRAXML,$doFastTree, $doIQTree,$doRAXMLng) = (0,0,0,0, 1, 0);#fastree as default tree builder
+my ($doGubbins,$doCFML,$doRAXML,$doFastTree,$doVeryFastTree, $doIQTree,$doRAXMLng) = (0,0,0,0,0, 0, 0);#fastree as default tree builder
 
 #check length of fasta to avoid frameshift
 my $doLengthCheck=1;
@@ -171,6 +172,7 @@ GetOptions(
 	"runRAxML=i" => \$doRAXML,
 	"runRaxMLng=i" => \$doRAXMLng,
 	"runFastTree=i" => \$doFastTree,
+	"runVeryFastTree=i" => \$doVeryFastTree,
 	"treeShrink=i" => \$useTreeShrink,
 	"runIQtree=i" => \$doIQTree,
 	"AutoModel=i" => \$treeAutoModel,
@@ -237,7 +239,7 @@ if ($bootStrap>0){print "Using bootstrapping in tree building\n";}
 #if (($calcDistMat || $calcDistMatExt) && $isAligned || !$clustalUse){die"Can't calc distance mat, unless clustalO is being used for MSA\n";}
 #else {$ntCntTotal = $filt;}
 
-$MSAreq = 0 if (!$doFastTree && !$doRAXML && !$doRAXMLng && !$doCFML && !$doGubbins && !$doIQTree);
+$MSAreq = 0 if (!$doFastTree && !$doVeryFastTree && !$doRAXML && !$doRAXMLng && !$doCFML && !$doGubbins && !$doIQTree);
 
 system "mkdir -p $tmpD" unless (-d $tmpD);
 my $cmd =""; my %usedGeneNms;
@@ -305,9 +307,9 @@ my %FAA ; my %FNA ; my @geneList; my @geneListF;
 my $doMSA = 1;
 my $treesDone =0; $treesDone=1 if (treePresent($tOhr) && treePresent($tOhrNSun) && treePresent($tOhrSyn));
 my $calcMSA=1; $calcMSA=0 if ($treesDone || fileGZe( $multAli) || !$continue);
-if (!$treesDone){#cleanup, avoid checkpoints..
-	system "rm -f $treeD/*";
-}
+#if (!$treesDone){#cleanup, avoid checkpoints..
+#	system "rm -f $treeD/*";
+#}
 $doMSA =0 if ($isAligned || (
 			$continue && (fileGZe($multAli) || !$calcMSA) && (fileGZe($multAliSyn) ||!$calcSyn)&& (fileGZe($multAliNonSyn) ||!$calcNonSyn)) );  ## checks if MSA already exists
 			
@@ -851,6 +853,9 @@ sub treePresent{
 	if ($doFastTree){
 		$ret=0 unless ($continue && -e $treeOpts{fastTrOut});
 	}
+	if ($doVeryFastTree){
+		$ret=0 unless ($continue && -e $treeOpts{VfastTrOut});
+	}
 	if ($doIQTree){
 		my $IQtree = "$treeOpts{IQtreeout}";
 		$ret=0 unless ($continue && -e "$IQtree.treefile");
@@ -894,6 +899,7 @@ sub createTreeOpt{
 					isSubTree => $isSubTree,
 					PhymTree => "$treeD/phyml${tcnt}_${siteTag}.nwk",
 					fastTrOut => "$treeD/FASTTREE${tcnt}_${siteTag}.nwk",
+					VfastTrOut => "$treeD/VERYFASTTREE${tcnt}_${siteTag}.nwk",
 					RAXtreeout => "$treeD/RXML${tcnt}_${siteTag}$BStag.nwk",
 					RAXNGtreeout => "$treeD/RXng${tcnt}_${siteTag}$BStag.nwk",
 					runSafe => 0,
@@ -966,6 +972,12 @@ sub treeAtHeart{
 			runFasttree($treeOpts{inMSA},$treeOpts{fastTrOut},$treeOpts{useAA},$treeOpts{ncore});
 		}
 		$phyloTree = $treeOpts{fastTrOut};
+	}
+	if ($doVeryFastTree){
+		unless ($continue && -e $treeOpts{VfastTrOut}){
+			runVeryFasttree($treeOpts{inMSA},$treeOpts{VfastTrOut},$treeOpts{useAA},$treeOpts{ncore});
+		}
+		$phyloTree = $treeOpts{VfastTrOut};
 	}
 	if ($doIQTree){
 		my $IQtree = "$treeOpts{IQtreeout}";

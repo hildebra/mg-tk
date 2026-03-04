@@ -1,14 +1,14 @@
 #!/usr/bin/perl
 #submits R scripts to work through phylos
 #args: [GeneCat dir] [intra_phylo_dir] [abundance MGS] [mapping file[ [cores]
-# perl strain_within_2.pl /g/bork3/home/hildebra/data/SNP/GCs/DramaGCv5/ /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat/intra_phylo/ /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat/MB2.clusters.ext.can.Rhcl.matL0.txt /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/maps/drama4.map 1
+
 use warnings;
 use strict;
 
 use Getopt::Long qw( GetOptions );
 
 use Mods::GenoMetaAss qw( readClstrRev systemW readMapS readFasta);
-use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive);
+use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive qsubSystemWaitMaxJobs);
 use Mods::IO_Tamoc_progs qw(getProgPaths );
 use Mods::geneCat qw(readGene2tax createGene2MGS);
 use Mods::TamocFunc qw ( getFileStr );
@@ -28,9 +28,11 @@ my $MGSTKdir = getProgPaths("MGSTKDir");
 #.25: 3.4.24: added Kasia's scoary scripts
 #.26: 11.7.24: replaced scoary scripts with treewas
 #.27: 6.1.26: added Anthony's network scripts, more qsub processes
-my $version = 0.27;
+#.28: 2.3.26: adapted for different phylo names
+my $version = 0.28;
 
 my $rewriteRanalysis = 0; my $doSubmit = 1;
+my $checkMaxNumJobs = 400;
 
 my $DiscTests =""; my $ContTests = "";
 my $familyVar = ""; my $groupStabilityVars = "";
@@ -64,7 +66,8 @@ GetOptions(
 
 my $cpDir = "";#$GCd/MGS/R_analysis/";
 #my $outD
-my $defTreeFile = "IQtree_allsites.treefile";
+#my $defTreeFile = "IQtree_allsites.treefile";
+my @defTreeFiles = ("IQtree_allsites.treefile","VERYFASTTREE_allsites.nwk","FASTTREE_allsites.nwk"); #multiple options to test for..
 my $defTreeFileBase = "IQtree_allsites";
 #die;
 die "MGS phylo dir doesn't exist!\n$FMGpD\n" unless (-d $FMGpD);
@@ -101,7 +104,11 @@ while ( my $entry = readdir DIR ) {
 	next unless (-d "$FMGpD/$entry/phylo/");
 	#my $destD = "$FMGpD/$entry/within/";
 	#system "cp $destD/$entry.nwk $FMGpD/$entry/phylo/IQtree.treefile " if (-e "$destD/$entry.nwk");
-	my $sizTree = -s "$FMGpD/$entry/phylo/$defTreeFile";
+	my $sizTree = 0; my $x=0;
+	while ($sizTree == 0 && $x < @defTreeFiles){
+		$sizTree = -s "$FMGpD/$entry/phylo/$defTreeFiles[$x]" if (-e "$FMGpD/$entry/phylo/$defTreeFiles[$x]");
+		$x++;
+	}
 	next unless ($sizTree);
 	#genuine MGS phylo dir-> store in %dirs %baseD
 	$dirs{$entry} = "$FMGpD/$entry/phylo/"; 
@@ -127,7 +134,14 @@ foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	my $destBaseD = $dirs{$d}; $destBaseD =~ s/(.*)\/phylo/$1\//; 
 	$destDs{$d} = $destD;
 	#my $locTree = "$destD ../phylo/$defTreeFile"; #two args in one..
-	if (!-e "$dirs{$d}/$defTreeFile"){
+	my $treePath = ""; my $x=0;
+	my $defTree="";
+	while (!-e $treePath && $x < @defTreeFiles){
+		$treePath = "$dirs{$d}/$defTreeFiles[$x]";
+		$defTree = $defTreeFiles[$x];
+		$x++;
+	}
+	if (!-e $treePath){
 		$treeAbsent++;
 		next;
 	}
@@ -135,28 +149,24 @@ foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	#next; 
 	next if ( #did script already finish analysis? -> skip dir
 			#-e "$destBaseD/codeml/WithinStrainDiv.txt" && 
-			
 			 -e "$destD/$d.Ranalysis.log" 
 			&& -e "$destD/$d.analysis.txt" 
-			#&& -e "$destD/$defTreeFileBase.analysis.Rdata"
-			#&& -e "$destD/$defTreeFileBase.analysis.txt"
 			);
-	#die "$destD\n";
-	#next if ($cnt == 0);
-	#die "$destD/$d.Ranalysis.log\n";
 	systemW "rm -rf $destD/*";
 	system "mkdir -p $destD" unless (-d $destD);
-	my $tmp = `cat $1/data.log`;
+	my $tmp;
+	if (-e "$1/data.log"){$tmp= `cat $1/data.log` ;}
+	elsif (-e "$1/data.log.gz"){$tmp= `zcat $1/data.log.gz` ;}
 	$tmp =~ m/OG:(.*)/; my $OG = $1;
 	#system "cp $dirs{$d}/$defTreeFile $destD/$d.nwk";
-	my $treeDef = "$dirs{$d}/$defTreeFile";
 	my $BinN = 1000;
 	if ($d =~ m/MB2bin(\d+)/){$BinN = $1;}
 	if ($BinN<30){$nCore = 5} else {$nCore = 5;}
 	
 	$cmd .= "echo \"At tree $d\"\n";
 	$wrHead=1 if ( $cnt == 0);
-	$cmd .= "$strainStatsR --path $destD --tree ../phylo/$defTreeFile --taxN $d --outgroup $OG --map $refMap --metagStats $MGstats --abMat $abMatrix --ncore $nCore --siteMode 1 --MFDir $MGSTKdir --wrColNms $wrHead --discPermTests \"$DiscTests\" --contPermTests \"$ContTests\" --familyCol \"$familyVar\" --groupStabilityVars \"$groupStabilityVars\" > $destD/$d.Ranalysis.log\n";
+	my $OGstr = "--outgroup $OG " if ($OG ne ""); 
+	$cmd .= "$strainStatsR --path $destD --tree ../phylo/$defTree --taxN $d $OGstr --map $refMap --metagStats $MGstats --abMat $abMatrix --ncore $nCore --siteMode 1 --MFDir $MGSTKdir --wrColNms $wrHead --discPermTests \"$DiscTests\" --contPermTests \"$ContTests\" --familyCol \"$familyVar\" --groupStabilityVars \"$groupStabilityVars\" > $destD/$d.Ranalysis.log\n";
 	$wrHead=0;
 	if (0){#rerun popgen stats??
 		my $RpogenS = getProgPaths("pogenStats");
@@ -170,6 +180,9 @@ foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	print "$d: "; 
 	$curBatch++;
 	if ($curBatch > $batchSize){
+		
+		qsubSystemWaitMaxJobs($checkMaxNumJobs);
+
 		my ($dep,$qcmd) = qsubSystem($destD."Ranalysis.sh",$cmd,$nCore,"20G","R$cnt","","",1,[],$QSBoptHR);
 		#die " $destD\n";
 		push(@jobs,$dep);
