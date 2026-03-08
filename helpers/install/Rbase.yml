@@ -1,8 +1,8 @@
 name: Rbase
 channels:
 - https://conda.anaconda.org/anaconda
-- https://conda.anaconda.org/bioconda
-- https://conda.anaconda.org/conda-forge
+- bioconda
+- conda-forge
 dependencies:
   - r-ade4
   - r-ape

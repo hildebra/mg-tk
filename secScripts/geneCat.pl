@@ -18,16 +18,16 @@ use File::Basename;
 use Getopt::Long qw( GetOptions );
 
 use Cwd; use English;
-use Mods::GenoMetaAss qw( fileGZe splitFastas readMapS systemW readGFF getAssemblPath resolve_path);  
+use Mods::GenoMetaAss qw( readFasta fileGZe splitFastas readMapS systemW readGFF getAssemblPath resolve_path);  
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive);
 use Mods::IO_Tamoc_progs qw(getProgPaths buildMapperIdx);
 use Mods::TamocFunc qw(getSpecificDBpaths readTabbed3 checkMF);
 use Mods::FuncTools qw(assignFuncPerGene calc_modules);
-use Mods::geneCat qw(readGeneIdx  readGeneIdxSpl sortFNA attachProteins attachProteins2 attachProteins3 );
+use Mods::geneCat qw(readGeneIdx  readGeneIdxSpl sortFNA attachProteins  attachProteins3 );
 
 sub geneCatFlow;
-
-sub readCDHITCls;sub readFasta; 
+sub addingSmpls;
+sub readCDHITCls;#sub readFasta; 
 sub writeBucket;  sub announceGeneCat; sub printL;
 sub mergeClsSam; sub secondaryCls;
 sub cleanUpGC; sub nt2aa; sub clusterFNA;
@@ -91,6 +91,18 @@ my $batchNum = -1;
 my $smplSep = "__"; #separator of samples and gene id in all MF fastas.. pretty static by now, do not modify!
 my $selfScript=Cwd::abs_path($PROGRAM_NAME);#dirname($0)."/".basename($0);
 my $rtkFunDelims = "-funcHieraSep \";\" -funcHAnnoAND \",\" -funcAnnoOR \"|\" "; #used to define for rtk how tax annotation strings treat hierachies, and annotations that should be summed (AND) or should be treated as equally likely (OR)
+
+
+#diamond func assigns:
+my $minBitSc = 45;
+my $minAlLeng=30;
+my $minPercSbjCov=0.5;
+my $minPerID = 25;
+my $minEVal=1e-8;
+
+
+
+
 
 #check all correct
 checkMF();
@@ -187,7 +199,7 @@ my $submSys = "";
 my $out = ""; my $refDB = ""; #for nt matches via minimap2
 my $requireAllAssemblies = 1; #break if some assemblies not present?
 my $SmplStart= -1; my $SmplStop= -1; my $SmplBatch= -1; #related to subSmplPrep
-my $skipPreCheck = 1;
+my $skipPreCheck = 0;
 my $doDecluter = 0;
 my $CalcgGneMatSuppl = 1;#calc supplementary coverage samples?
 
@@ -243,6 +255,14 @@ GetOptions(
 	"SmplStart=i" => \$SmplStart, #for subprepSmpls
 	"SmplStop=i" => \$SmplStop, #for subprepSmpls
 	"SmplBatch=i" => \$SmplBatch, #for subprepSmpls
+#flags for functional assignment
+	"FuncMinBitSc=f" => \$minBitSc,
+	"FuncMinAlLeng=i" => \$minAlLeng,
+	"FuncMinPercSbjCov=i" => \$minPercSbjCov,
+	"FuncMinPerID=f" => \$minPerID,
+	"FuncMinEVal=f" => \$minEVal,
+
+
 );
 
 
@@ -291,8 +311,14 @@ if ($tmpDirDef eq $tmpDir){
 	$tmpDir .= $1."/"; $GLBtmp.=$1."/";
 }
 
-#my $GCdir = $GCdir;#."GeneCatalog/";
 my $qsubDir = $GCdir."LOGandSUB/";
+
+#prep base dirs..
+if ($justCDhit==0){
+	if (-d $GCdir && -d $qsubDir){printL "Warning: outdir $GCdir exists.. delete and recreate? (7s wait)\n"; sleep 7;}
+	system ("rm -rf $GCdir/* $tmpDir*\n");#mkdir -p $GCdir/globalLOGs");
+} 
+
 
 my $primaryClusterFNA= "compl.incompl.$cdhID.fna";
 my $primaryClusterCLS= "compl.incompl.$cdhID.fna.clstr";
@@ -439,11 +465,7 @@ if (!-e $prepStone && (!-e "$GCdir/B0//compl.fna" || !-e "$GCdir/B0//compl.fna.g
 	printL "Genes were not collated, therefore switching to creation mode\n" if ($justCDhit == 1 );
 	$justCDhit = 0;
 }
-#prep base dirs..
-if ($justCDhit==0){
-	if (-d $GCdir && -d $qsubDir){printL "Warning: outdir $GCdir exists.. delete and recreate? (7s wait)\n"; sleep 7;}
-	system ("rm -rf $GCdir\n");#mkdir -p $GCdir/globalLOGs");
-} 
+
 system "mkdir -p $stoneDir" unless (-d $stoneDir); 
 
 
@@ -494,7 +516,7 @@ sub clusterMultiStep{
 			my @preCons = @{$QSBoptHR->{constraint}};
 			push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);#--constraint=sse4
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."mainCDhit.sh",$cmd,$numCor,int($totMem/$numCor)."G","MCLGC","","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."mainCDhit.sh",$cmd,$numCor,int($totMem)."G","MCLGC","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$QSBoptHR->{useLongQueue} = 0;
 			@{$QSBoptHR->{constraint}} = @preCons;
@@ -525,7 +547,7 @@ sub clusterMultiStep{
 		$bwtIdx = $bwtIdxT;
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."mapperIdx.sh",$cmd,$numCor3,int($totMem3/$numCor)."G","IDXmGC","","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."mapperIdx.sh",$cmd,$numCor3,int($totMem3)."G","IDXmGC","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$cmd = ""; $mapIdxJob = $dep;
 		}
@@ -582,7 +604,7 @@ sub clusterMultiStep{
 	 }
 	if ($submitLocal && $cmd ne ""){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."mini35.sh",$cmd,$numCor3,int($totMem3/$numCor3)."G","m35GC",$mapIdxJob,"",1,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDir."mini35.sh",$cmd,$numCor3,int($totMem3)."G","m35GC",$mapIdxJob,"",1,[],$QSBoptHR);
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$cmd = ""; push(@miniParJobs,$dep); #qsubSystemJobAlive( [$dep],$QSBoptHR ); 
 	}
@@ -617,7 +639,7 @@ sub clusterMultiStep{
 
 	if ($submitLocal && $cmd ne ""){
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."miniIncom.sh",$cmd,$numCor3,int($totMem3/$numCor3)."G","mInGC",$mapIdxJob,"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."miniIncom.sh",$cmd,$numCor3,int($totMem3)."G","mInGC",$mapIdxJob,"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		push(@miniParJobs,$dep); #
 	}
@@ -641,7 +663,7 @@ sub clusterMultiStep{
 		my @preCons = @{$QSBoptHR->{constraint}};
 		push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."mergeIncom.sh",$cmd,$numCor,int($totMem3/$numCor)."G","mEInGC",join(";",@miniParJobs,$dep1),"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."mergeIncom.sh",$cmd,$numCor,int($totMem3)."G","mEInGC",join(";",@miniParJobs,$dep1),"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$QSBoptHR->{useLongQueue} = 0;
 		@{$QSBoptHR->{constraint}} = @preCons;
@@ -695,6 +717,7 @@ sub clusterSingleStep{
 		#die "$cmd\n";
 		print "Will merg pre files..\n";
 		systemW $cmd;$cmd="";
+		sleep(10); #can be big opearation.. wait a sec..
 	}
 
 	$cmd .= clusterFNA( "$DB", "$tmpDir/$primaryClusterFNA" ,0.0,0.0,"$cdhID",$numCor0,0,$tmpDir."/fullCL/",$clustMMseq,$totMem);
@@ -715,7 +738,7 @@ sub clusterSingleStep{
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
 		push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
 		$QSBoptHR->{useHiMemQueue} = 1 if ($totMem > 1000);
-		my ($dep,$qcmd) = qsubSystem($qsubDir."fullClust.sh",$cmd,$numCor0,int($totMem/$numCor0)."G","fullGC",$dep,"",1,[],$QSBoptHR); $cmd = "";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."fullClust.sh",$cmd,$numCor0,int($totMem)."G","fullGC",$dep,"",1,[],$QSBoptHR); $cmd = "";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		$QSBoptHR->{useHiMemQueue} = 0;
 		@{$QSBoptHR->{constraint}} = @preCons;
@@ -768,90 +791,86 @@ sub geneCatFlow($ $ $ $ ){
 	my $emapStone = "$stoneDir/10.emap.stone";
 	my $preMGSstone="$stoneDir/11.preMGS.stone";
 	
-	
-	#get list of potential COGs
-	if (-d "$bdir/$COGdir") { #COGs were created
-		opendir(DIR, "$bdir/$COGdir/") or die $!;
-		my @cogfiles = grep {/^preclus\..*\.fna$/ && -f "$bdir/$COGdir/$_" } readdir(DIR); close DIR;
-		for (my $i=0; $i<@cogfiles; $i++){
-			$cogfiles[$i] =~ m/^preclus\.(.*)\.fna$/;
-			$FMGfileList{$1} = "$bdir/$COGdir/".$cogfiles[$i] unless (-e "$bdir/$1.fna.clstr" || -e "$bdir/$1.fna.ctsv");
+	my $COGdep="";my @COGlst=();
+	if (!-e $protStone || !-e $cogStone){
+		#get list of potential COGs
+		if (-d "$bdir/$COGdir") { #COGs were created
+			opendir(DIR, "$bdir/$COGdir/") or die $!;
+			my @cogfiles = grep {/^preclus\..*\.fna$/ && -f "$bdir/$COGdir/$_" } readdir(DIR); close DIR;
+			for (my $i=0; $i<@cogfiles; $i++){
+				$cogfiles[$i] =~ m/^preclus\.(.*)\.fna$/;
+				$FMGfileList{$1} = "$bdir/$COGdir/".$cogfiles[$i] unless (-e "$bdir/$1.fna.clstr" || -e "$bdir/$1.fna.ctsv");
+			}
 		}
-	}
 
-	#load marker gene specific cutoffs
-	my $dir2cutoffs = getProgPaths($speciesCutoff,0);
-	#DEBUG: print "$dir2cutoffs\n\n";open I,"<$dir2cutoffs" or die "Cant open $dir2cutoffs\n";;
-	
-	my %FMGcutoffs = %{readTabbed3($dir2cutoffs,1)};
-	#die;
-	if (0){ #DEBUG
-		my @kk = keys %FMGcutoffs;
-		die "$kk[0]: $FMGcutoffs{$kk[0]} ". @kk ."\n @kk\n";
-	}
-	my $relaxFMG = 0;#0.005;
-
-
-	
-	$cmd .= "rm -rf $tmpDir\n" unless (-e $clnLnStone && !-e $complStone);
-	$cmd .="mkdir -p $tmpDir\n";
-	#die "$clnLnStone\n$complStone\n$cmd\n";
-	if ($submitLocal && !-e $moveStone){systemW $cmd;$cmd="";}
-	
-	#cluster FMGs
-	my %FMGFL2 ; my $dirflag=0; my $cpFromP = -1;
-	my @COGlst = keys %FMGfileList;
-	#die "@COGlst\n";
-	$cmd .= "mkdir -p $bdir/$COGdir/\n" ;
-	$cmd .= "mkdir -p $tmpDir/$COGdir/\n" ;
-	my $preclustMMseq = $clustMMseq;
-	my $useMMSEQs4COG = 1;
-	print "Using mmseqs2 for COG clustering: $useMMSEQs4COG\n";
-	foreach my $cog ( @COGlst){
+		#load marker gene specific cutoffs
+		my $dir2cutoffs = getProgPaths($speciesCutoff,0);
+		#DEBUG: print "$dir2cutoffs\n\n";open I,"<$dir2cutoffs" or die "Cant open $dir2cutoffs\n";;
 		
-		die "can't find $cog in FMGcutoffs list\n" unless (exists $FMGcutoffs{$cog});
-		$FMGFL2{$cog} = "$bdir/$COGdir/$cog.$cdhID.fna";
-		#print "$FMGFL2{$cog} \n";
-		if (!-e $FMGFL2{$cog} || !-s  $FMGFL2{$cog}){#"$bdir/COG/$cog.$cdhID.fna"){
-			#$cmd .= $cdhitBin."-est -i $FMGfileList{$cog} -o $tmpDir/COG/$cog.$cdhID.fna -n 9 -G 1 -aS 0.95 -aL 0.6 -d 0 -c ". $FMGcutoffs{$cog}/100 ." -g 0 -T $numCor\n";
-			# $clustMMseq = 0; #use mmseq, and use it's slow mode instead..  
-			$cmd .= clusterFNA($FMGfileList{$cog},$FMGFL2{$cog},0.9,0.0,($FMGcutoffs{$cog}/100)-$relaxFMG,$numCor3,1,"$NodeTmpDir/$cog/",$useMMSEQs4COG,$totMemL);
-			$cpFromP=0;
-		} else {
-			$cpFromP = 1 if ($cpFromP == -1);
-			#$cmd .= "cp $bdir/COG/$cog.$cdhID.fna* $tmpDir/COG/;"; 
+		my %FMGcutoffs = %{readTabbed3($dir2cutoffs,1)};
+		#die;
+		if (0){ #DEBUG
+			my @kk = keys %FMGcutoffs;
+			die "$kk[0]: $FMGcutoffs{$kk[0]} ". @kk ."\n @kk\n";
+		}
+		my $relaxFMG = 0;#0.005;
+
+
+		
+		$cmd .= "rm -rf $tmpDir\n" unless (-e $clnLnStone && !-e $complStone);
+		$cmd .="mkdir -p $tmpDir\n";
+		#die "$clnLnStone\n$complStone\n$cmd\n";
+		if ($submitLocal && !-e $moveStone){systemW $cmd;$cmd="";}
+		
+		#cluster FMGs
+		my %FMGFL2 ; my $dirflag=0; my $cpFromP = -1;
+		@COGlst = keys %FMGfileList;
+		#die "@COGlst\n";
+		$cmd .= "mkdir -p $bdir/$COGdir/\n" ;
+		$cmd .= "mkdir -p $tmpDir/$COGdir/\n" ;
+		my $preclustMMseq = $clustMMseq;
+		my $useMMSEQs4COG = 1;
+		print "Using mmseqs2 for COG clustering: $useMMSEQs4COG\n";
+		foreach my $cog ( @COGlst){
+			
+			die "can't find $cog in FMGcutoffs list\n" unless (exists $FMGcutoffs{$cog});
+			$FMGFL2{$cog} = "$bdir/$COGdir/$cog.$cdhID.fna";
+			#print "$FMGFL2{$cog} \n";
+			if (!-e $FMGFL2{$cog} || !-s  $FMGFL2{$cog}){#"$bdir/COG/$cog.$cdhID.fna"){
+				#$cmd .= $cdhitBin."-est -i $FMGfileList{$cog} -o $tmpDir/COG/$cog.$cdhID.fna -n 9 -G 1 -aS 0.95 -aL 0.6 -d 0 -c ". $FMGcutoffs{$cog}/100 ." -g 0 -T $numCor\n";
+				# $clustMMseq = 0; #use mmseq, and use it's slow mode instead..  
+				$cmd .= clusterFNA($FMGfileList{$cog},$FMGFL2{$cog},0.9,0.0,($FMGcutoffs{$cog}/100)-$relaxFMG,$numCor3,1,"$NodeTmpDir/$cog/",$useMMSEQs4COG,$totMemL);
+				$cpFromP=0;
+			} else {
+				$cpFromP = 1 if ($cpFromP == -1);
+				#$cmd .= "cp $bdir/COG/$cog.$cdhID.fna* $tmpDir/COG/;"; 
+			}
+		}
+		$clustMMseq = $preclustMMseq;
+		
+		$cmd .= "cp $bdir/$COGdir/*.$cdhID.fna* $tmpDir/$COGdir/\n"; 
+		$cmd .= "touch $cogStone\n";
+		$cmd .= "\n";
+		#die $cpFromP;
+		if ($submitLocal ){ #this loop submits marker gene clusterings
+			if (!$cpFromP){
+				my @preCons = @{$QSBoptHR->{constraint}};
+				push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
+				my $preHDDspace = ${$QSBoptHR}{tmpSpace};
+				${$QSBoptHR}{tmpSpace} = "50G";#"${totMem}G"; #$totMem #doesn't need much, stores on scrach
+				my $memCOG = int($totMemL/2);if ($memCOG < 50){$memCOG=50;}
+				my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/2)."G","cCLGC","","",1,[],$QSBoptHR);
+				@{$QSBoptHR->{constraint}} = @preCons;
+				${$QSBoptHR}{tmpSpace} = $preHDDspace;
+				$COGdep = $dep;
+			} else { 
+				systemW $cmd;}
+			
+			$cmd = "";
 		}
 	}
-	$clustMMseq = $preclustMMseq;
-	foreach my $cog ( @COGlst){
-		last; #deactivated.. will be detected in 
-		#my ($tmpCmd,$bwtIdxT) =  buildMapperIdx($FMGFL2{$cog},$numCor,1,3);
-		#if (!-e $bwtIdxT){$cmd .= $tmpCmd."\n";}
-	}
-	
-	$cmd .= "cp $bdir/$COGdir/*.$cdhID.fna* $tmpDir/$COGdir/\n"; 
-	$cmd .= "touch $cogStone\n";
 	#die $cmd."\n";
 #		$cmd .=  "cp $tmpDir/COG/COG*.$cdhID.fna* $bdir/COG\n";
-	$cmd .= "\n";
-	my $COGdep="";
-	#die $cpFromP;
-	if ($submitLocal ){ #this loop submits marker gene clusterings
-		if (-e $FMGstone){
-			$cmd = "";
-		}elsif (!$cpFromP){
-			my @preCons = @{$QSBoptHR->{constraint}};
-			push(@{$QSBoptHR->{constraint}}, $avx2Constr) if ($clustMMseq);
-			my $preHDDspace = ${$QSBoptHR}{tmpSpace};
-			${$QSBoptHR}{tmpSpace} = "50G";#"${totMem}G"; #$totMem #doesn't need much, stores on scrach
-			my $memCOG = int($totMemL/2);if ($memCOG < 50){$memCOG=50;}
-			my ($dep,$qcmd) = qsubSystem($qsubDir."cogCluster.sh",$cmd,int($numCor/2),($memCOG/$numCor/2)."G","cCLGC","","",1,[],$QSBoptHR);
-			@{$QSBoptHR->{constraint}} = @preCons;
-			${$QSBoptHR}{tmpSpace} = $preHDDspace;
-			$COGdep = $dep;
-		} else { systemW $cmd;}
-		$cmd = "";
-	}
 
 	#die "$stoneDir/complCl.stone";
 
@@ -863,7 +882,7 @@ sub geneCatFlow($ $ $ $ ){
 		} else {
 			$cmd .= clusterMultiStep($complStone,$incomplStone,$clnLnStone,$cogStone,$bdir,$OutD,$cmd,$COGdep);
 		}
-	} elsif (!-e $declStone) { #restore files.. for post processing steps
+	} elsif ($doDecluter && !-e $declStone) { #restore files.. for post processing steps
 		$cmd .= "zcat $bdir/$primaryClusterFNA.gz > $tmpDir/$primaryClusterFNA;\n" unless (-e "$tmpDir/$primaryClusterFNA");
 		$cmd .= "zcat $bdir/$primaryClusterCLS.gz > $tmpDir/$primaryClusterCLS;\n" unless (-e "$tmpDir/$primaryClusterCLS");
 		if ($submitLocal){systemW $cmd;$cmd="";}
@@ -894,7 +913,7 @@ sub geneCatFlow($ $ $ $ ){
 		my $cmdL = "$pigzBin -p $numCor $bdir/*\n";
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."pigz1_GC.sh",$cmdL,$numCor3,int(20/$numCor3)."G","pigzGC","","",1,[],$QSBoptHR); 
+			my ($dep,$qcmd) = qsubSystem($qsubDir."pigz1_GC.sh",$cmdL,$numCor3,int(20)."G","pigzGC","","",1,[],$QSBoptHR); 
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 		} else {$cmd .= $cmdL;}
 	}
@@ -920,9 +939,9 @@ sub geneCatFlow($ $ $ $ ){
 		
 		if ($submitLocal){
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep1,$qcmd1) = qsubSystem($qsubDir."genemat1.sh",$cmd1,$numCorL,int($totMem3/$numCorL)."G","GM1","","",1,[],$QSBoptHR);
-			my ($dep2,$qcmd2) = qsubSystem($qsubDir."genemat2.sh",$cmd2,$numCorL,int($totMem3/$numCorL)."G","GM2","","",1,[],$QSBoptHR);
-			my ($dep3,$qcmd3) = qsubSystem($qsubDir."genemat3.sh",$cmd3,$numCorL,int($totMem3/$numCorL)."G","GM3","","",1,[],$QSBoptHR);
+			my ($dep1,$qcmd1) = qsubSystem($qsubDir."genemat1.sh",$cmd1,$numCorL,int($totMem3)."G","GM1","","",1,[],$QSBoptHR);
+			my ($dep2,$qcmd2) = qsubSystem($qsubDir."genemat2.sh",$cmd2,$numCorL,int($totMem3)."G","GM2","","",1,[],$QSBoptHR);
+			my ($dep3,$qcmd3) = qsubSystem($qsubDir."genemat3.sh",$cmd3,$numCorL,int($totMem3)."G","GM3","","",1,[],$QSBoptHR);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			@matDeps = ($dep1,$dep2,$dep3);
 			#qsubSystemJobAlive( [$dep1,$dep2,$dep3],$QSBoptHR ); 
@@ -964,7 +983,7 @@ sub geneCatFlow($ $ $ $ ){
 	}
 	print "Waiting for protein extraction..\n";
 	qsubSystemJobAlive( \@matDeps,$QSBoptHR ); 
-	die "Prot extraction unsuccessful\n" unless (-e $protStone);
+	die "Prot extraction unsuccessful\n" unless (-e $protStone && -e "$OutD/compl.incompl.$cdhID.prot.faa");
 	#die;
 	
 	#now decluter based on proteins.
@@ -1022,7 +1041,7 @@ sub geneCatFlow($ $ $ $ ){
 		if ($submitLocal && $cmd ne ""){
 			print "submitting specI tax abundance..\n";
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-			my ($dep,$qcmd) = qsubSystem($qsubDir."specI_GC.sh",$cmd,1,int(1/$numCor3)."G","SIGC","$depExtr","",1,[],$QSBoptHR);
+			my ($dep,$qcmd) = qsubSystem($qsubDir."specI_GC.sh",$cmd,1,int(5)."G","SIGC","$depExtr","",1,[],$QSBoptHR);
 			$cmd="";$SIdep = $dep;
 			$QSBoptHR->{tmpSpace} = $tmpSHDD;
 		}
@@ -1061,7 +1080,7 @@ sub geneCatFlow($ $ $ $ ){
 	if ($submitLocal && $cmd ne ""){
 		print "submitting kraken tax abundance..\n";
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-		my ($dep,$qcmd) = qsubSystem($qsubDir."krak_GC.sh",$cmd,$numCor3,int($totMem5/$numCor3)."G","krakGC","","",1,[],$QSBoptHR); $cmd="";
+		my ($dep,$qcmd) = qsubSystem($qsubDir."krak_GC.sh",$cmd,$numCor3,int($totMem5)."G","krakGC","","",1,[],$QSBoptHR); $cmd="";
 		$QSBoptHR->{tmpSpace} =$tmpSHDD;
 
 	}
@@ -1182,7 +1201,7 @@ sub geneCatFlow($ $ $ $ ){
 		print $qsubDir."CDHITexe.sh\n";
 		my $jobd = "";
 		$QSBoptHR->{useLongQueue} = 1;
-		my ($dep,$qcmd) = qsubSystem($qsubDir."CDHITexe.sh",$cmd,$numCor,int($totMem/$numCor)."G",$jobName,$jobd,"",$qsubNow,[],$QSBoptHR);
+		my ($dep,$qcmd) = qsubSystem($qsubDir."CDHITexe.sh",$cmd,$numCor,int($totMem)."G",$jobName,$jobd,"",$qsubNow,[],$QSBoptHR);
 		if ($qsubNow==0){
 			print "$qcmd\n";
 		}
@@ -1214,7 +1233,7 @@ sub ntMatchGC{
 	$cmd .= "$smtBin view $iTO | cut -f1,3 > $iTO2 \n";
 
 	$cmd .= "$rareBin sumMat -i $GCdir/$countMatrixF.gz -o $out.mat -t $numCor -refD $iTO2 \n"; #$rtkFunDelims
-	my ($dep,$qcmd) = qsubSystem($qsubDir."NucMap.sh",$cmd,$numCor,int($totMem5/$numCor)."G","IDXmGC","","",1,[],$QSBoptHR);
+	my ($dep,$qcmd) = qsubSystem($qsubDir."NucMap.sh",$cmd,$numCor,int($totMem5)."G","IDXmGC","","",1,[],$QSBoptHR);
 	#die $cmd;
 }
 
@@ -1224,6 +1243,7 @@ sub addingSmpls{
 	my @skippedSmpls;my $wrongSmplNms = ""; my @rmSrcDirs;
 	my %uniqueSampleNames; 	my $doubleSmplWarnString = ""; 
 	my @OCOMPL = (); my @O3P=(); my @O5P = (); my @OINC = (); #these arrays store complete & incomplete fasta seqs
+	my $okToRM = 1; #flag that allows routine to delete entire MGTK dirs, if fatal error found 
 
 	open QLOG,">$qsubDir/GeneCompleteness.txt.$batch";
 	#print QLOG "Smpl\tComplete\t3'_compl\t5'_compl\tIncomplete\tTotalGenes\n";
@@ -1281,27 +1301,30 @@ sub addingSmpls{
 		my $inFMGd = "$metaGD/ContigStats/FMG/";
 		#print "\n$metaGD\n";
 		#print "$dir2rd/assemblies/metag/scaffolds.fasta.filt\n";
-		if ((! fileGZe("$metaGD/scaffolds.fasta.filt") || ! fileGZe("$metaGD/longReads.fasta.filt")) && ! fileGZe("$metaGD/$path2nt")){# && -d $inFMGd){
+		if ( (! fileGZe("$metaGD/scaffolds.fasta.filt") && ! fileGZe("$metaGD/longReads.fasta.filt"))){# && -d $inFMGd){
 			print "Skipping $dir2rd\n";
 			die "no ass1\n $metaGD\n$dir2rd/assemblies/metag/assembly.txt\n" unless (-e "$metaGD/scaffolds.fasta.filt" && !-e "$metaGD/longReads.fasta.filt" ); 
-			die "no ass2\n $$metaGD/longReads.fasta.filt\n" unless (-e "$metaGD/longReads.fasta.filt" ); 
-			die "no NT\n" unless (-e "$metaGD/$path2nt");
+			die "no ass2\n $metaGD/longReads.fasta.filt\n" unless (-e "$metaGD/longReads.fasta.filt" ); 
 			push(@skippedSmpls,$map{$smpl}{dir});
 			next;
 		}
+		die "no NT: $metaGD/$path2nt\n" unless (fileGZe( "$metaGD/$path2nt"));
+
 		#next;
 		print "==== ".$dir2rd." ====\n";
 		#print LOG "==== ".$dir2rd." ====\n";
 		my $inGenesF = "$metaGD/$path2nt";
 		#my $inGenesFs = $inGenesF; $inGenesFs =~ s/\.fna$//;
-		my $fnaHref = readFasta($inGenesF);
+		my $fnaHref = readFasta($inGenesF,1,'\|');
 		my %fnas = %{$fnaHref}; my @scnts = (0,0,0,0,0);
 		my $gffHref= readGFF("$metaGD/$path2gff");
 		my %gff = %{$gffHref};
 		my %curFMGs; #FMGs and their ID
 		my %curFMGsTag; #checks that all FMGs were present in fasta.. can point to corrupted files
 		if ($doFMGseparation){
-			open I, "<$metaGD/$path2FMGids" or die "cant open FMGids:\n$metaGD/$path2FMGids\n";
+			my $FMGfile = "$metaGD/$path2FMGids";
+			
+			open I, "<$FMGfile" or die "cant open FMGids:\n$metaGD/$path2FMGids\n";
 			my $cnt = 0;
 			while (my $line = <I>){
 				chomp $line; my @spl = split(/\s+/,$line); #MM1__C104459_L=563;_1 COG0552
@@ -1321,8 +1344,8 @@ sub addingSmpls{
 					
 				}
 				die "fasta headers are not in required format:$spl[0]\n$metaGD/$path2FMGids\n" unless ($spl[0] =~ m/.*__.*L=\d+=_\d/);
-				$curFMGs{">".$spl[0]} = $spl[1];
-				$curFMGsTag{">".$spl[0]} = 0;
+				$curFMGs{$spl[0]} = $spl[1];
+				$curFMGsTag{$spl[0]} = 0;
 				#die "$spl[0]\n";
 				$cnt++;
 			}	
@@ -1332,30 +1355,33 @@ sub addingSmpls{
 		my $tooShrtCnt=0; my $prevSmpID = "";
 		foreach my $hd (keys %fnas){
 			if (length($fnas{$hd}) <= $minGeneL && !exists $curFMGs{$hd}){$tooShrtCnt++;next;}
-			my $shrtHd = $hd ;	#$shrtHd =~ m/(\S+)\s/; $shrtHd = $1;
-			#print $shrtHd."\n$hd\n";			print "$fnas{$hd}\n";
-			die "fasta headers are not in required format:$shrtHd\n$inGenesF\n" unless ($shrtHd =~ m/.*__.*L=\d+=_\d/);
-			my @spl = split /__/,$shrtHd;
-			if ($spl[0] ne $prevSmpID){if ($prevSmpID eq "") {$prevSmpID = $spl[0];} else {die "Mix of several samples?? $shrtHd, $spl[0] detected, expected sample $prevSmpID !! Aborting\n\n";} }
-			unless (exists $gff{$shrtHd}){
+			#my $hd = $hd ;	#$shrtHd =~ m/(\S+)\s/; $hd = $1;
+			#print $hd."\n$hd\n";			print "$fnas{$hd}\n";
+			die "fasta headers are not in required format:$hd\n$inGenesF\n" unless ($hd =~ m/.*__.*L=\d+=_\d/);
+			my @spl = split /__/,$hd;
+			if ($spl[0] ne $prevSmpID){if ($prevSmpID eq "") {$prevSmpID = $spl[0];} else {die "Mix of several samples?? $hd, $spl[0] detected, expected sample $prevSmpID !! Aborting\n\n";} }
+			unless (exists $gff{$hd}){
+				print "can't find gff entry for $hd\nDeleting entire gene prediction and coverage..\n$metaGD/$path2GPdir\n";
+				#die;
+				
 				system "rm -r $metaGD/$path2GPdir $metaGD/$path2CS"; $stopAndRedo=1; 
-				print "can't find gff entry for $shrtHd\nDeleting entire gene prediction and coverage..";next;
+				next;
 			}
-			unless ($gff{$shrtHd} =~ m/;partial=(\d)(\d);/){ die "Incorrect gene format for gene $hd \n in file $inGenesF\n";}
+			unless ($gff{$hd} =~ m/;partial=(\d)(\d);/){ die "Incorrect gene format for gene $hd \n in file $inGenesF\n";}
 			if (exists $curFMGs{$hd} && $doFMGseparation){
 				$allFMGs{$curFMGs{$hd}}{$hd} = $fnas{$hd}; $scnts[4] ++;
 				$curFMGsTag{$hd} = 1;
 			} elsif ($1==0 && $2==0){ #complete genes
-				print $OC $shrtHd."\n".$fnas{$hd}."\n";
+				print $OC ">".$hd."\n".$fnas{$hd}."\n";
 				$scnts[0] ++;
 			} elsif ($1==0 && $2==1){ #3' complete
-				print $O3 $shrtHd."\n".$fnas{$hd}."\n";
+				print $O3 ">".$hd."\n".$fnas{$hd}."\n";
 				$scnts[1] ++;
 			} elsif ($1==1 && $2==0){ #5' complete
-				print $O5 $shrtHd."\n".$fnas{$hd}."\n";
+				print $O5 ">".$hd."\n".$fnas{$hd}."\n";
 				$scnts[2] ++;
 			} else { #gene fragments, just map
-				print $OI $shrtHd."\n".$fnas{$hd}."\n";
+				print $OI ">".$hd."\n".$fnas{$hd}."\n";
 				$scnts[3] ++;
 			}
 		}
@@ -1392,6 +1418,7 @@ sub addingSmpls{
 			@OCOMPL=();@O3P=();@O5P=();@OINC=();#clean old seqs
 		}
 	}
+	close $O3;close $OC;close $O5; close $OI;
 	
 	if (@missedSmpls){
 		print "The following samples were without assembly/gene predictions:\n@missedSmpls\n";
@@ -1401,10 +1428,14 @@ sub addingSmpls{
 
 	}
 	if ($doubleSmplWarnString ne "" || $wrongSmplNms ne ""){
-		print "Recommended to remove: \n'rm -r @rmSrcDirs'\n\n" if (@rmSrcDirs > 0);
-		print $doubleSmplWarnString."\n\n\n$wrongSmplNms\n\n\n";
-		print "incomplete; aborting process\n";
-		exit(21);
+		print STDERR "Unrecoverable warnings occurred:\n";
+		print STDERR "Recommended to remove: \n'rm -r @rmSrcDirs'\n\n" if (@rmSrcDirs > 0);
+		print STDERR $doubleSmplWarnString."\n\n\n$wrongSmplNms\n\n\n" if ($wrongSmplNms ne "");
+		print STDERR "incomplete; aborting process\n";
+		system "rm -rf @rmSrcDirs" if ($okToRM);
+		$stopAndRedo = 1;
+		
+		#exit(21);
 	}
 	if ($stopAndRedo){
 		print "Something wrong while extracting metagenomic genes.. you will need to rerun MATAFILER, fatal assemblies have already been deleted and will now need to be re-assembled.\n";
@@ -1415,7 +1446,7 @@ sub addingSmpls{
 
 
 	if ($justCDhit==0 && $extraRdsFNA ne ""){
-		my $fnaHref = readFasta($extraRdsFNA);
+		my $fnaHref = readFasta($extraRdsFNA,1,'\|');
 		my %fnas = %{$fnaHref}; 
 		my $xcnts = 0; my $tooShrtCnt=0;
 		foreach my $hd (keys %fnas){
@@ -1423,7 +1454,7 @@ sub addingSmpls{
 			my $shrtHd = $hd ;	$shrtHd =~ m/(\S+)\s/; $shrtHd = $1;
 			#
 			#just assume that every gene is complete
-			print $OC $shrtHd."\n".$fnas{$hd}."\n";
+			print $OC ">".$shrtHd."\n".$fnas{$hd}."\n";
 			$xcnts ++;
 		}
 		print "Added $xcnts genes from external source\nSkipped $tooShrtCnt Genes (too short $minGeneL)\n";
@@ -1443,13 +1474,12 @@ sub addingSmpls{
 		open Ox,">$ccogf.$batch" or die "Can't open COG output file $ccogf.$batch\n";
 		#$FMGfileList{$cog} =  "$ccogf";
 		foreach my $geK (sort { length($cogFMG{$b}) <=> length($cogFMG{$a}) } keys %cogFMG) {
-			print Ox $geK."\n".$cogFMG{$geK}."\n";
+			print Ox ">".$geK."\n".$cogFMG{$geK}."\n";
 		}
 		close Ox;
 	}
 
 #	die;
-	close $O3;close $OC;close $O5; close $OI;
 	sleep (2); #give IO enough time
 	
 	#already in this process start appending files.. faster than waiting..
@@ -1524,28 +1554,28 @@ sub prepCDhit(){
 		#my $inFMGd = "$metaGD/ContigStats/FMG/";
 		if ($AsGrps{$cAssGrp}{CntAss}  >= $AsGrps{$cAssGrp}{CntAimAss} ){ $assGo = 1; $AsGrps{$cAssGrp}{CntAss}=0;}
 		unless ($assGo){ next;}#print "Not last in comb assembly: ".$map{$smpl}{dir}."\n";
-		if ((!-e "$metaGD/scaffolds.fasta.filt" || !-e "$metaGD/longReads.fasta.filt") && !-e "$metaGD/$path2nt"){# && -d $inFMGd){
+		if ((! fileGZe("$metaGD/scaffolds.fasta.filt") || !-e "$metaGD/longReads.fasta.filt") && ! fileGZe("$metaGD/$path2nt")){# && -d $inFMGd){
 			print "Skipping $dir2rd\n";
 			die "no ass1\n $metaGD\n$dir2rd/assemblies/metag/assembly.txt\n" unless (-e "$metaGD/scaffolds.fasta.filt" && !-e "$metaGD/longReads.fasta.filt" ); 
 			die "no ass2\n $metaGD/longReads.fasta.filt\n" unless (-e "$metaGD/longReads.fasta.filt" ); 
-			die "no NT\n" unless (-e "$metaGD/$path2nt");
+			die "no NT\n" unless ( fileGZe("$metaGD/$path2nt"));
 			#push(@skippedSmpls,$map{$smpl}{dir});
 			next;
 		}
 		my $inGenesF = "$metaGD/$path2nt";
 		my $inGenesGFF = "$metaGD/$path2gff";
 		my $problem = 0;
-		if (!-e $inGenesF){
-			print "Gene predictions not present: $inGenesF\n" ;
+		if (! fileGZe($inGenesF)){
+			print STDERR "Gene predictions not present: $inGenesF\n" ;
 			$problem = 1;
 		}
-		if (!-e $inGenesGFF){
-			print "Gene annotations not present: $inGenesGFF\n" ;
+		if (! fileGZe($inGenesGFF)){
+			print STDERR "Gene annotations not present: $inGenesGFF\n" ;
 			$problem = 1;
 		}
 		my $FMGf = "$metaGD/$path2FMGids";#"$inFMGd/FMGids.txt";
 		if ($doFMGseparation && !-e $FMGf ){
-			print "No FMG ids: $FMGf\n$JNUM : $dir2rd\n" ;
+			print STDERR "No FMG ids: $FMGf\n$JNUM : $dir2rd\n" ;
 			$problem = 1;
 		}
 		if ($problem ){
@@ -1579,7 +1609,7 @@ sub prepCDhit(){
 			#systemW $cmd."\n";
 			my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
 			my $numCor = 3;
-			my ($jdep,$txtBSUB) = qsubSystem($qsubDir."/preprocess/Preprocess.$batch.sh",$cmd,$numCor,int(30/$numCor)."G","PrPr$batch","","",1,[],$QSBoptHR);
+			my ($jdep,$txtBSUB) = qsubSystem($qsubDir."/preprocess/Preprocess.$batch.sh",$cmd,$numCor,int(30)."G","PrPr$batch","","",1,[],$QSBoptHR);
 			push(@jobs,$jdep);
 			$QSBoptHR->{tmpSpace} =$tmpSHDD;
 			$lastLocTo = $locTo;
@@ -1812,7 +1842,7 @@ sub canopyCluster{
 		my $tmpSHDD = $QSBoptHR->{tmpSpace};
 		$QSBoptHR->{tmpSpace} = "0"; #set option how much tmp space is required, and reset afterwards
 
-		my ($jdep,$txtBSUB) = qsubSystem($qsubDir."Canopy2CL.sh",$cmd,$NC,int($canMem/$NC)."G","CAN",$jdeps,"",1,[],$QSBoptHR);
+		my ($jdep,$txtBSUB) = qsubSystem($qsubDir."Canopy2CL.sh",$cmd,$NC,int($canMem)."G","CAN",$jdeps,"",1,[],$QSBoptHR);
 		print "Canopy MGS call send off\n"; 
 		$QSBoptHR->{useLongQueue} = 0;
 		$QSBoptHR->{tmpSpace} = $tmpSHDD;
@@ -1894,8 +1924,29 @@ sub protExtract{
 	my $protF = $inD."compl.incompl.$cdhID.prot.faa";
 	#my $incl = $inD."$countMatrixP.genes2rows.txt";
 	system("rm -f $protF");
+	
+	print "Checking files for consistency\n";
+
+	#simple check wc -l Matrix.genes2rows.txt rows == grep -c '^>' compl.incompl.95.fna
+	my $mt2gerowsN = `wc -l ${inD}/${countMatrixP}.genes2rows.txt`; 
+	#print "$mt2gerowsN\n";
+	chomp $mt2gerowsN; $mt2gerowsN = int($mt2gerowsN); $mt2gerowsN = 0 if (!defined($mt2gerowsN));
+	#print "$mt2gerowsN\n";
+	my $gcGeneNum =  `grep -c '^>' ${inD}/$primaryClusterFNA`;
+	#print "$gcGeneNum\n";
+	chomp $gcGeneNum; $gcGeneNum = int($gcGeneNum);
+	#print "$gcGeneNum\n";
+	
+	if ( ($mt2gerowsN-1) != $gcGeneNum){
+		die "unequal numbers of gene clusters ($gcGeneNum) and $countMatrixP.genes2rows.txt lines ($mt2gerowsN)\nAborting protExtract..\n";
+	} else {
+		print "protExtract: gene numbers match between fna and txt\n";
+	}
+	
+
 	print "Reading gene index\n";
-	my ($geneIdxH,$numGenes) = readGeneIdxSpl($inD."$countMatrixP.genes2rows.txt","__");
+	my ($geneIdxH,$numGenes) = readGeneIdxSpl($inD."${countMatrixP}.genes2rows.txt","__");
+
 
 	rewriteFastaHdIdx($inD.$primaryClusterFNA,$geneIdxH,$smplSep); #"compl.incompl.$cdhID.fna"
 	#my %geneIdx = %{$geneIdxH};
@@ -1919,59 +1970,13 @@ sub protExtract{
 		#print "SMPL  $curSmpl\n";
 		my $metaGD = getAssemblPath($map{$curSmpl2}{wrdir});
 		my $protIn = $metaGD."/".$path2aa;
-		die "prot file $protIn doesnt exits\n" unless (-e $protIn || -e $protIn.".gz");
+		die "prot file $protIn doesnt exits\n" unless ( fileGZe( $protIn ));
 		attachProteins3($curSmpl,$protF,$protIn,$geneIdxH->{$curSmpl},"__");
 		$cnt += scalar(keys(%{$geneIdxH->{$curSmpl}}));
 		print STDERR $curSmpl2." N=$cnt T=". (time - $start) ."s\n";
 		$geneIdxH->{$curSmpl} = undef;
 	}
 	
-	#---------- old routine , don't use any longer
-	if (0){
-		my ($geneIdxH,$numGenes) = readGeneIdx($inD."$countMatrixP.genes2rows.txt");
-		my %linV = %{$geneIdxH}; #represent gene name to matrix ID
-		my @ordG = sort keys %linV;
-		my $numProts=scalar @ordG;
-		for my $k (@ordG){
-			last;
-			my @tmp = split /__/,$k;
-			if (@tmp>1){$fSmpl= $tmp[0]; } else {$ctchStrXtr .= "'$k' ";	next; }#this is an extra protein
-			#print "$fSmpl ";
-			if ($curSmpl ne $fSmpl){ #this part writes all protein IDs collected for current sample to tmp file
-				#my @spl = split(/__/, $k);
-				#use faidx to extract all collected gene IDs for current sample
-				if ($curSmpl eq ""){
-					$curSmpl = $fSmpl; 
-				} else {
-					unless (exists ($map{$curSmpl})){$curSmpl = $map{altNms}{$curSmpl} if (exists ($map{altNms}{$curSmpl}));}
-					unless (exists ($map{$curSmpl})){#also extra protein, but with __ marker in them
-						print "sk_ $curSmpl\n"; $ctchStrXtr .= $ctchStr; $ctchStr="";$curSmpl="";next;
-					}
-					my $metaGD = getAssemblPath($map{$curSmpl}{wrdir});
-					my $protIn = $metaGD."/".$path2aa;
-					die "prot file $protIn doesnt exits\n" unless (-e $protIn || -e $protIn.".gz");
-					attachProteins2(\@ctchAr,$protF,$protIn,$geneIdxH);
-					print STDERR $curSmpl." N=$cnt T=". (time - $start) ."s\n";
-					$curSmpl = $fSmpl;$ctchStr="";
-					@ctchAr=();
-				}
-			}
-			#$ctchStr.="'$k' ";
-			push(@ctchAr,$k);
-			$cnt++;
-			#die "$ctchStr\n" if ($cnt == 10);
-		}
-		#last round
-		unless (exists ($map{$curSmpl})){$curSmpl = $map{altNms}{$curSmpl} if (exists ($map{altNms}{$curSmpl}));}
-		unless (
-			exists ($map{$curSmpl})){$ctchStrXtr .= $ctchStr; #prob extra protein
-		}else{	
-			print $curSmpl." $cnt\n";
-			my $metaGD = getAssemblPath($map{$curSmpl}{wrdir});
-			my $protIn = $metaGD."/".$path2aa;
-			attachProteins2(\@ctchAr,$protF,$protIn,$geneIdxH);
-		}
-	}
 	
 	print "rewritten $cnt proteins, expected $numGenes\n";
 	
@@ -2103,7 +2108,7 @@ sub writeBucket(){
 		open O,">$bdir"."incompl.fna" or die "Can't open B0 incompl.fna\n";foreach(sort {length $b <=> length $a} @OINC ){print O $_;} close O;  @OINC=();
 	}
 }
-sub readFasta($){
+sub readFasta_notUsed($){
   my ($fil) = @_;
   my %Hseq;
   if (-z $fil){ return \%Hseq;}
@@ -2236,10 +2241,10 @@ sub mergeClsSam(){
 	#system "cp $clFile $clFile.before"; #TODO, remove
 	my $logf = "$inD/log/Cluster.log";
 	systemW("mkdir -p $inD/log/");
-	open LOG,">$logf";
+	open LOGf,">$logf";
 	#read current clusters.. this needs to be extended by sam hits
 	my ($hr1,$hr2,$totN,$totM,$idsHr) = readCDHITCls($clFile);
-	print LOG "ComplGeneClus	$totN\nComplGeneClusMember	$totM\n";
+	print LOGf "ComplGeneClus	$totN\nComplGeneClusMember	$totM\n";
 	my %lnk  = %{$hr2};
 	my %cls = %{$hr1};
 	my %idsDistr = %{$idsHr};
@@ -2280,7 +2285,7 @@ sub mergeClsSam(){
 		}
 	}
 
-	#write the new clstr file out
+	#write the new clstr file out 
 	open O,">$outFcls"; my $totCls=0;
 	foreach my $cl (keys %cls){
 		$totCls++;
@@ -2288,7 +2293,7 @@ sub mergeClsSam(){
 		print O $ostr."\n";
 	}
 	close O;
-	#print LOG "final Clusters (incomplete + complete) : $totCls\n";
+	#print LOGf "final Clusters (incomplete + complete) : $totCls\n";
 	print "Results $outFcls\n";
 	
 	
@@ -2307,9 +2312,9 @@ sub mergeClsSam(){
 	systemW("cat $remClus.clstr >> $outFcls");
 	print "Concatenating Cluster Seed fna files\n";
 	systemW("cat $completeFNA $remClus > $outFfna");
-	print LOG "IncomplComplGeneClus	$inCclN\n";
-	print LOG "IncomplComplGeneClusMember	".($inCclNmember+$totM)."\n";
-	close LOG;
+	print LOGf "IncomplComplGeneClus	$inCclN\n";
+	print LOGf "IncomplComplGeneClusMember	".($inCclNmember+$totM)."\n";
+	close LOGf;
 	
 	unless (-d "$inD/$COGdir/" || -d "$GCd/B0/$COGdir/"){print"No COG specific genes found\n";return;}
 	
@@ -2440,7 +2445,7 @@ sub geneCatFunc_emapper{
 			if ($calcDia && (!-e $outF || !-s $outF) ){
 				#print "$cmd\n";
 				if ($doQsub){
-					my ($jobName,$mptCmd) = qsubSystem($qsubDir2."D$shrtDB.$i.sh",$cmd,$ncore,($mem/$ncore)."G","eMAP$i","","",1,[],$QSBoptHR); #$jdep.";".
+					my ($jobName,$mptCmd) = qsubSystem($qsubDir2."D$shrtDB.$i.sh",$cmd,$ncore,($mem)."G","eMAP$i","","",1,[],$QSBoptHR); #$jdep.";".
 					push(@jdeps,$jobName);
 					#die "$jobName\n";
 				} else {
@@ -2467,7 +2472,7 @@ sub geneCatFunc_emapper{
 		$cmd .= "#splitting eggNOG annotations in multiple categories that can be summed up to matrices\n$eSpl $tarAnno3\n";
 		#run 
 		#$cmd = "" if (-e "$tarAnno3");
-		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CombineEMAP.sh",$cmd,$ncore2,(80/$ncore2)."G","${shrtDB}_comb",join(";",@jdeps),"",1,[],$QSBoptHR); 
+		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CombineEMAP.sh",$cmd,$ncore2,(80)."G","${shrtDB}_comb",join(";",@jdeps),"",1,[],$QSBoptHR); 
 		#$jdep.";".
 		
 		$jdep = $jobName;
@@ -2484,7 +2489,7 @@ sub geneCatFunc_emapper{
 		my $cmd = "$rareBin sumMat -i $GCd/$countMatrixF.gz -o $outD/$shrt -t $matThr -refD $outD/$EMC.geneAss $rtkFunDelims -extHiera -hieraSrtDown\n";
 		$cmd .= "echo \"DONE matrix creation\"\n";
 		#my $jobName = "sum$shrt";
-		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."$shrt.sh",$cmd,$matThr,(50/$matThr)."G","${shrt}_mat",$jdep,"",1,[],$QSBoptHR); #$jdep.";".
+		my ($jobName,$mptCmd) = qsubSystem($qsubDir2."$shrt.sh",$cmd,$matThr,(50)."G","${shrt}_mat",$jdep,"",1,[],$QSBoptHR); #$jdep.";".
 		push(@jdeps,$jobName);
 	}
 	#clean up and marking stone that all worked out fine..
@@ -2493,7 +2498,7 @@ sub geneCatFunc_emapper{
 	$cmd .= "\ntouch $stone\n\n";
 	$cmd .= "$pigzBin -p $clnCores $tarAnno3 $outD/*.geneAss;\n";
 	$cmd .= "rm -f -r $GLBtmp/eggNOGmapper  $splDir;\n" ; #unless (-e $tarAnno && -s $tarAnno)
-	my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CleanEMAP.sh",$cmd,$clnCores,(70/$clnCores)."G","${shrtDB}_CLN",join(";",@jdeps),"",1,[],$QSBoptHR); #$jdep.";".
+	my ($jobName,$mptCmd) = qsubSystem($qsubDir2."CleanEMAP.sh",$cmd,$clnCores,(70)."G","${shrtDB}_CLN",join(";",@jdeps),"",1,[],$QSBoptHR); #$jdep.";".
 
 
 
@@ -2514,9 +2519,9 @@ sub geneCatFunc{
 	my $qsubDir2 = "$qsubDir/Funct/";
 	system "mkdir -p $qsubDir2" unless (-d $qsubDir2);
 	$QSBoptHR->{qsubDir} = $qsubDir2;
-	
-	my %optsDia = (eval=>1e-8,percID=>25,minPercSbjCov=>0.5,fastaSplits => $fastaSplits,ncore=>$ncore,align=>$funcAligner,
-			splitPath=>$GLBtmp,keepSplits=>!$doClean,redo=>$doClean, minAlignLen=>30, minBitScore=>45);
+		
+	my %optsDia = (eval=>$minEVal,percID=>$minPerID,minPercSbjCov=>$minPercSbjCov,fastaSplits => $fastaSplits,ncore=>$ncore,align=>$funcAligner,
+			splitPath=>$GLBtmp,keepSplits=>!$doClean,redo=>$doClean, minAlignLen=>$minAlLeng, minBitScore=>$minBitSc);
 			
 			
 	my ($allAss,$jdep) = assignFuncPerGene($query,$outD,$tmpD,$curDB,\%optsDia,$QSBoptHR,(!-e "$outD/${curDB}L0.txt")) ;

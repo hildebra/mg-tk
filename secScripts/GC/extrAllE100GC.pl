@@ -9,7 +9,7 @@ sub getGeneSeqsSubGenes;
 sub MGintoCats;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw(readMapS systemW readClstrRev readFasta gzipopen getAssemblPath);
+use Mods::GenoMetaAss qw(readMapS systemW readClstrRev readFasta gzipopen getAssemblPath fileGZe);
 use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive);
 
 my $smtBin = getProgPaths("samtools");#/g/bork5/hildebra/bin/samtools-1.2/samtools";
@@ -46,7 +46,7 @@ my %genesE1h;
 my $genesFMGfilesHR = {}; my %genesFMGstreams;
 my $genesGTDBfilesHR = {};
 my %seenAssembls; 
-if (!-e "$GCd/Mattrix.FMG.mat" && !-e "$GCd/Mattrix.FMG.mat.gz"){
+if (!fileGZe("$GCd/Mattrix.FMG.mat" )){
 	#$genesE1h{1}{gg} = "falk";
 	#die $genesE1h{1}{gg};
 	print "Reading reference FMG/GTDBs from assemblies..\n";
@@ -80,9 +80,9 @@ if (!-e "$GCd/Mattrix.FMG.mat" && !-e "$GCd/Mattrix.FMG.mat.gz"){
 		}
 		#read in FMG genes in assembly
 		my $FMGf = "$metaGD/ContigStats/FMG/FMGids.txt";
-		print STDERR " Extracting FMG genes..\n";
+		#print STDERR " Extracting FMG genes..\n";
 		$genesFMGfilesHR = MGintoCats($FMGf, $genesFMGfilesHR);
-		print STDERR " Extracting GTDB genes..\n";
+		#print STDERR " Extracting GTDB genes..\n";
 		my $GTDBf = "$metaGD/ContigStats/GTDBmg/marker_genes_meta.tsv";
 		$genesGTDBfilesHR = MGintoCats($GTDBf, $genesGTDBfilesHR);
 		
@@ -93,7 +93,7 @@ if (!-e "$GCd/Mattrix.FMG.mat" && !-e "$GCd/Mattrix.FMG.mat.gz"){
 #foreach my $cat (keys %genesFMGstreams){
 	#close $genesFMGstreams{$cat};
 #}
-if (!-e "$GCd/Mattrix.FMG.mat" && !-e "$GCd/Mattrix.FMG.mat.gz"){
+if (!fileGZe("$GCd/Mattrix.FMG.mat" )){
 	
 	my $allGs = {};
 	$allGs = getEgenes($genesFMGfilesHR,$allGs);
@@ -131,8 +131,8 @@ exit(0);
 
 
 sub MGintoCats{
-	my ($FMGf, $hr) = @_;
-	my %genesFMGfilesL = %{$hr};
+	my ($FMGf, $genesFMGfilesL) = @_;
+	#my %genesFMGfilesL = %{$hr};
 	if (-f $FMGf){
 		#open my $I,"<$FMGf" or die "Can't open FMG file $FMGf\n";
 		#print "$FMGf\n";
@@ -149,21 +149,21 @@ sub MGintoCats{
 		#print "N=$gCnt ";
 		#store between runs..
 		foreach my $cat (keys %genesFMG){
-			if (!exists($genesFMGfilesL{$cat})){
+			if (!exists($genesFMGfilesL->{$cat})){
 				my $tmpF = "$tmpD/cat.$cat.idx";
 				#print STDERR "Deleting $tmpF\n";
 				system "rm -f $tmpF";
-				$genesFMGfilesL{$cat} = $tmpF;
+				$genesFMGfilesL->{$cat} = $tmpF;
 				#open ($genesFMGstreams{$cat},">$tmpF") or die "can't open $tmpF\n";
 			}
-			open OOX,">>",$genesFMGfilesL{$cat} or die "Can't opebn write tmp $genesFMGfilesL{$cat}\n";
+			open OOX,">>",$genesFMGfilesL->{$cat} or die "Can't opebn write tmp $genesFMGfilesL->{$cat}\n";
 			foreach my $ge (keys %{$genesFMG{$cat}}){
 				print OOX "$ge\n";
 			}
 			close OOX;
 		}
 	} else {print "Can't find FMG file $FMGf\n";}
-	return \%genesFMGfilesL;
+	return $genesFMGfilesL;
 }
 
 sub getGeneSeqsSubGenes(){

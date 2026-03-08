@@ -249,7 +249,7 @@ $cmd .= "$vizTree $abundMatrix $treeFile $btout/phylo/IQtree_allsites.pdf \n";
 my $scrNm = "btwFMGtree";
 $scrNm = "btwCusFMGTree" if ($addRefGenos ne "");
 my $tmpSHDD = $QSBoptHR->{tmpSpace};	$QSBoptHR->{tmpSpace} = "0"; 
-my ($dep,$qcmd) = qsubSystem($btout.$scrNm.".sh",$cmd,$numCores,int($mem/$numCores)."G",$scrNm,"","",1,[],$QSBoptHR);
+my ($dep,$qcmd) = qsubSystem($btout.$scrNm.".sh",$cmd,$numCores,int($mem/$numCores+0.5)."G",$scrNm,"","",1,[],$QSBoptHR);
 #$cmd= "$bts  -aa  $btout/all.faa -smplSep '\\$SaSe' -cats $btout/all.cats -outD ${btout}_ST -runIQtree 1 -runFastTree 0 -runRaxMLng 0 -cores $numCores  -AAtree 1 -bootstrap 000 -NTfiltCount 300 -NTfilt 0.1 -NTfiltPerGene 0.5 -minOverlapMSA 2 -MSAprogram 2 -AutoModel 0 -iqFast 1 -superTree 1 \n";
 #($dep,$qcmd) = qsubSystem($btout."btweenTreeST.sh",$cmd,$numCores,"1G","FMGstStree","","",1,[],$QSBoptHR);
 

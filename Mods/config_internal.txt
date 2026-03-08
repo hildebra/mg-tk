@@ -19,6 +19,7 @@ MAGpipe	perl [MFLRDir]/secScripts/MGS.pl
 
 
 #local scripts 	ESSENTIAL
+fastHdChkENA	perl [MFLRDir]/secScripts/composition/checkFQhds4ENA.pl
 cLSUSSU_scr	perl [MFLRDir]/secScripts/miTag/catchLSUSSU.pl
 lotusLCA_cLSU_scr	[MFLRDir]/secScripts/miTag/lotus_LCA_blast3.pl
 krakCnts_scr	[MFLRDir]/secScripts/GC/krak_count_tax.pl
@@ -81,6 +82,7 @@ filterMB2core	[Rscript] [Rpath]/filterMB2.R	env:MGTK_R
 neighborTree	[Rscript] [Rpath]/neighborTree.R	env:MGTK_R
 vizBtwPhylo_R	[Rscript] [Rpath]/MGSTree_visual.R	env:MGTK_R
 normMiTag	[Rscript] [Rpath]/NormMiTag.R	env:MGTK_R
+qcMakeHTMLReport	[Rscript] [Rpath]/QC_make_html.R	env:MGTK_R
 
 
 ## taxonomic profiling, if requrested ##
@@ -110,6 +112,7 @@ baseSDMoptProto	[MFLRDir]/data/sdm_opt_proto.txt
 baseSDMopt454	[MFLRDir]/data/sdm_454.txt
 baseSDMoptPacBio	[MFLRDir]/data/sdm_PacBio.txt
 baseSDMoptONT	[MFLRDir]/data/sdm_ONT.txt
+baseSDMoptAVITI	[MFLRDir]/data/sdm_AVITI.txt
 
 #genecat
 mmS2clstr	perl [MFLRDir]/secScripts/GC/mmS2clstr.pl
@@ -224,6 +227,7 @@ mafft	mafft	env:MGTKphylo
 MUSCLE5	muscle
 raxml	raxmlHPC-PTHREADS-SSE3
 fasttree	FastTreeMP	env:MGTKphylo
+veryfasttree	VeryFastTree	env:MGTKphylo
 freebayes	freebayes	env:MGTKphylo
 ete3	ete3	env:MGTKphylo
 codeml	codeml	env:MGTKphylo
@@ -272,8 +276,11 @@ foldseek	foldseek
 ## binning ##
 #maxBin	perl [MFLRDir]/bin/MaxBin-1.4.2/run_MaxBin.pl
 metabat2	metabat2	env:MGTKbinners
-SemiBin	SemiBin	env:MGTKbinners
-SemiBin2	SemiBin2	env:MGTKbinners
+GenomeFace	GenomeFace	env:MGTKbinners
+# SemiBin	SemiBin	env:MGTKbinners
+SemiBin	SemiBin	env:MGTKsemibin
+# SemiBin2	SemiBin2	env:MGTKbinners
+SemiBin2	SemiBin2	env:MGTKsemibin
 semibinGTDB	[DBDir]/mmseqs2-GTDB/
 #MetaDecoder	metadecoder
 #checkm	[SINGcmd]/checkm.simg checkm
@@ -293,6 +300,7 @@ pogenStats	[Rscript] [MGSTKDir]/popGenStats.R	env:MGSTK
 vizPhylosSign_R	[Rscript] [MGSTKDir]/plotPhylos.R	env:MGSTK
 treewasRun_R	[Rscript] [MGSTKDir]/runTreewas.R	env:MGSTK
 processTreewas_R	[Rscript] [MGSTKDir]/processTreewasResults.R	env:MGSTK
+runNetworks_R	[Rscript] [MGSTKDir]/runNetworks.R	env:MGSTK
 
 #debugging
 noneeneoneono	noneeneoneono

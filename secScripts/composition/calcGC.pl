@@ -3,7 +3,7 @@
 use warnings;
 use strict;
 
-use Mods::GenoMetaAss qw(readGFF);
+use Mods::GenoMetaAss qw(readGFF gzipopen);
 
 sub evalGC;
 
@@ -14,7 +14,9 @@ $isGenes = 1 if (@ARGV > 2);
 #readGFF($ARGV[2]);
 
 
-open I,"<$inF" or die "Can't open $inF";
+#open I,"<$inF" or die "Can't open $inF";
+my ($FAS ,$status) = gzipopen($inF,"calcGC infile",1);
+
 open O,">$outF" or die "Can't open $outF";
 print O "contig\tGC\n";
 
@@ -31,7 +33,7 @@ my $curTag = ""; my $GC=0; my $AT=0;
 my $GC3=0; my $AT3=0; my $line = "";
 my $GC3c=0; my $AT3c=0;my $curCtg="";
 my $cnt=0;
-while (my $lin = <I>){
+while (my $lin = <$FAS>){
 	if ($lin =~ m/^>(.*)/){
 		my $ct1= $1;
 		if ($cnt > 0){
@@ -57,7 +59,7 @@ while (my $lin = <I>){
 	chomp $lin; $line .= $lin;
 }
 evalGC(1);
-close O; close I;
+close O; close $FAS;
 if ($isGenes){
 close O3 ;close OC3 ;
 }

@@ -30,6 +30,212 @@ sub randStr($){ #will be prefixed to jobname, to make jobs unique to each MF run
 }
 
 
+
+sub qsubSystem($ $ $ $ $ $ $ $ $ $){
+	#args: 1[file to save bash & error & output] 2[actual bash cmd] 3[cores reserved for job]
+	# 4["1G": Ram usage per core in GB] 5[0/1: synchronous execution] 6[name of job] 
+	# 7[name of job dependencies, separated by ";"]
+	# 8[0/1: excute in cwd?] 9[0/1: return qsub cmd or submit job to cluster]
+	# Falk Hildebrand, may 2015
+	my ($tmpsh,$cmd,$ncores,$memory,$jname,$waitJID,$cwd,$immSubm, $restrHostsAR, $optHR) = @_;
+	#$doSync, 5th arg
+	#14,12G
+	#die $tmpsh."\n";
+	#my $jname = $tmpsh;
+	#$jname =~ s/.*\///g;$jname =~ s/\.sh$//g;
+	#\n#\$ -N $tmpsh
+	return("") if ($cmd eq "");
+	my $LSF = 0;
+	my $qbin = "qsub";
+	my $xtra = "";
+	my $rTag = $optHR->{rTag};
+	my $qmode = $optHR->{qmode};
+	
+	my $tmpScratchTag = $optHR->{tmpSpaceTag};
+	#my $xtraNodeCmds = $optHR->{xtraNodeCmds};
+	my $submissionConfig = $optHR->{submissionConfig};
+	my @constrains = @{$optHR->{constraint}};# #SBATCH --constraint=
+	#die "@constrains";
+	my $lockFile = $optHR->{LOCKfile};
+	my $nthreads= $ncores;
+	if ($ncores =~ m/,/){my @spl = split /,/,$ncores;$ncores = $spl[1]; $nthreads=$spl[0];}
+	#different format for bsub and slurm
+	if ($memory =~ m/^[\.\d]+$/){$memory  = int($memory+0.5);}
+	if ($memory =~ m/^0G$/){$memory  = "1G";} #most likely a rounding error from too many cores..
+	if ($memory =~ s/G$//){$memory = int( ($memory* 1024 ) +0.5);};
+	my $tmpSpace = convert2Gb( $optHR->{tmpSpace} );
+	#die " $optHR->{tmpSpace}   $tmpSpace\n";
+	#my $tmpSpace2 = $optHR->{tmpMinG};
+	#my $wcKeysForJob = $optHR->{wcKeysForJob};
+	my $exclNodes = $optHR->{excludeNodes};
+	
+	
+	#die ($memory."\n");
+	#my $queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
+	my $queues = "\"".$optHR->{medQueue}."\"";#"\"medium_priority\"";
+	my $time = $optHR->{medTime};#"24:00:00";
+	if ($optHR->{useHiMemQueue} == 1){
+		$queues = "\"".$optHR->{highMemQueue}."\"";$optHR->{useHiMemQueue}=0;
+	} elsif ($optHR->{useLongQueue} ==1){
+		$queues = "\"".$optHR->{longQueue}."\"";#"\"medium_priority\"";
+		#$time = "335:00:00";
+		$optHR->{useLongQueue}=0;
+	} elsif ($optHR->{useGPUQueue} ==1){
+		$queues = "\"".$optHR->{gpuQueue}."\"";#"\"medium_priority\"";
+		#$time = "23:00:00";
+		$optHR->{useGPUQueue}=0;
+	} elsif ($optHR->{useShortQueue} ==1){
+		$queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
+		#$time = "00:45:00";
+		$optHR->{useShortQueue}=0;
+	}
+	my @jspl = split(";",$waitJID); @jspl = grep /\S/, @jspl;
+
+	if ($cwd ne "" && !-d $cwd){system "mkdir -p $cwd";}
+	#if ($memory > 250001){$queues = "\"scb\"";}
+	$tmpsh =~ m/^(.*\/)[^\/]+$/;
+	system "mkdir -p $1" unless (-d $1);
+	open O,">",$tmpsh or die "Can't open qsub bash script $tmpsh\n";
+	#die "$cmd\n";
+	#print "$memory   $queues\n";
+	#if (`hostname` !~ m/submaster/){
+	if ($qmode eq "slurm"){$LSF = 2;$qbin="sbatch";
+		#if ($memory > 250001){$queues = "\"bigmem\"";}
+		##SBATCH --cpus-per-task=$ncores\n
+		print O "#!/bin/bash\n#SBATCH -N 1\n#SBATCH --cpus-per-task=$ncores\n#SBATCH -o $tmpsh.otxt\n"; #\n#SBATCH -n  $ncores
+		
+		if ($nthreads != $ncores ){print O "#SBATCH --threads-per-core=1\n#SBATCH --hint=compute_bound\n";} #  specifically for iqtree/raxml
+		print O "#SBATCH -e $tmpsh.etxt\n#SBATCH --mem=$memory\n#SBATCH --export=ALL\n";
+		#print O "#SBATCH --kill-on-invalid-dep=yes\n";
+		#print O "#SBATCH --tmp=$tmpSpace\n" if ($tmpSpace>0);#SBATCH --gres=ssd\n
+		foreach my $subTerm ( split /;/, $submissionConfig){
+			print O "#SBATCH $subTerm\n" if ($submissionConfig ne "");
+		}
+		if ($tmpSpace>0 && $tmpScratchTag ne ""){
+			print O "#SBATCH $tmpScratchTag". int($tmpSpace+0.5) ."\n" ;
+		}
+		#"#SBATCH --gres=ssd"
+		print O "#SBATCH -p $queues\n";
+		#print O "#SBATCH --gres=tmp:${tmpSpace2}G\n" if ($tmpSpace2>0); #50g
+		print O "#SBATCH --time=$time\n" unless ($time eq "");
+		print O "#SBATCH --exclude=$exclNodes\n" unless ($exclNodes eq "");
+		#print O "#SBATCH --localscratch=ssd:50\n"; #for EI cluster
+		print O "#SBATCH --chdir=$cwd\n" if ($cwd ne "");
+		print O "#SBATCH -J $rTag$jname\n" if ($jname ne "");
+		print O "#SBATCH --wc=". $optHR->{wcKeysForJob} . "\n" if ($optHR->{wcKeysForJob} ne "");
+		if (@constrains){
+			print O "#SBATCH --constraint=". join(",",@constrains) ."\n" if (@constrains);
+		}
+		#foreach (@constrains){
+	#		print O "#SBATCH --constraint=$_\n" if ($_ ne "");
+		#}
+		if (length($waitJID) >3 && @jspl > 0) {
+			for (@jspl) {s/$rTag//;}
+			#$xtra .= "--dependency=afterok:".join(":",@jspl)." " if (@jspl > 0);
+			if ($optHR->{afterAny}){
+				print O "#SBATCH --dependency=afterany:".join(":",@jspl)."\n" ;
+			} else {
+				print O "#SBATCH --dependency=afterok:".join(":",@jspl)."\n" ;
+			}
+			#use this one for now, as slurm currently faults without a reason..
+			#$xtra .= "--dependency=afterany:".join(":",@jspl)." " if (@jspl > 0);
+		}
+
+		#print O "#\$ -S /bin/bash\n#\$ -v LD_LIBRARY_PATH=".$optHR->{cpplib}."\n";##\$ -v TMPDIR=/dev/shm\n";
+		#print O "#\$ -v PERL5LIB=".$optHR->{perl5lib}."\n"; #causes problems..
+	} elsif ($qmode eq "bash"){
+		$qbin="bash";$LSF=3;
+		print O "#!/bin/bash\n";
+	} elsif ($qmode eq "sge"){
+		print O "#!/bin/bash\n#\$ -S /bin/bash\n#\$ -cwd\n#\$ -pe ".$optHR->{qsubPEenv}." $nthreads\n#\$ -o $tmpsh.otxt\n#\$ -e $tmpsh.etxt\n#\$ -l h_rss=$memory\n";#h_vmem=$mem\n";
+		print O "#\$ -v LD_LIBRARY_PATH=".$optHR->{cpplib}."\n";#\$ -v TMPDIR=/dev/shm\n";
+#		print O "#\$ -v PERL5LIB=".$optHR->{perl5lib}."\n";
+		print O "#\$ -V\n";
+	} else {
+		$LSF = 1;$qbin="bsub";
+		print O "#!/bin/bash\n";
+		print O "export LD_LIBRARY_PATH=/g/bork3/home/hildebra/env/env/miniconda/lib/:/g/bork3/home/hildebra/env/zlib-1.2.8/:/g/bork8/costea/boost_1_53_0/:/shared/ibm/platform_lsf/9.1/linux2.6-glibc2.3-x86_64/lib:/g/bork3/x86_64/lib64:/g/bork3/x86_64/lib:\${LD_LIBRARY_PATH}\n\n";
+		#print O "export LD_LIBRARY_PATH=/g/bork3/home/hildebra/env/zlib-1.2.8:/g/bork3/x86_64/lib64:/lib:/lib64:/usr/lib64:\${LD_LIBRARY_PATH}\n\n";#:/g/software/linux/pack/python-2.7/lib/\nexport PATH=/g/bork3/home/zeller/py-virtualenvs/py2.7_bio1/bin/:\${PATH}\n\n";
+		##BSUB -n $ncores\n#BSUB -o $tmpsh.otxt\n#BSUB -e $tmpsh.etxt\n#BSUB -M $mem\n#\$ -v LD_LIBRARY_PATH=/g/bork3/x86_64/lib64:/lib:/lib64:/usr/lib64\n#\$ -v TMPDIR=/dev/shm\n#BSUB -q medium_priority\n";
+		my @restrHosts = @{$restrHostsAR};
+		if ( @restrHosts > 0){
+			$xtra .= " -m \"".join(" ",@restrHosts)."\" ";
+			$queues = "\"medium_priority scb\"";
+		}
+		$xtra .= "-n $nthreads -oo $tmpsh.otxt -eo $tmpsh.etxt -q $queues -M $memory -R \"select[(mem>=$memory)] ";
+		$xtra .= "rusage[tmp=$tmpSpace] " if ($tmpSpace>0);
+		$xtra .= "span[hosts=1]\" -R \"rusage[mem=$memory]\" "; #
+	}
+	#set abortion on program fails
+	print O "echo \$HOSTNAME;\n";
+	print O "set -eo pipefail\n";
+	print O "ulimit -c 0;\n";
+	#any xtra commands (like module load perl?)
+	print O "$optHR->{xtraNodeCmds}\n";
+	#prevent core dump files
+	#file location check availability
+	#print O $optHR->{LocationCheckStrg};
+
+	print O $cmd."\n";
+	close O;
+	#sleep (1);
+	my $depSet=0;
+	if ($LSF==2){#slurm
+		if ($optHR->{doSync} == 1){$qbin = "srun";}
+		
+	} elsif ($LSF==3){ #bash
+		$xtra = "";
+	} elsif ($LSF==1){ #bsub #-M memLimit; -q queueName;  -m "host_name[@cluster_name]; -n minProcessors; 
+		if ($optHR->{doSync} == 1){$xtra.="-K ";}
+		if ($jname ne ""){$xtra.="-J $rTag$jname ";}
+		if (length($waitJID) >3) {
+			my @jspl = split(";",$waitJID);
+			#remove empty elements
+			@jspl = grep /\S/, @jspl;
+			if (@jspl > 0 ){
+				$waitJID = join(") && done(",@jspl);
+				$xtra.="-w \"done($waitJID)\" ";
+			}
+		}
+		$tmpsh = " < ".$tmpsh;
+	} else{ #qsub
+		if ($optHR->{doSync} == 1){$xtra.="-sync y ";}
+		if ($jname ne ""){$xtra.="-N $rTag$jname ";}
+		if (length($waitJID) >3) {
+			if (@jspl > 0 ){$xtra.="-hold_jid ".join(",",@jspl) ." ";}
+		}
+			#$waitJID =~ s/;/,/g;$xtra.="-hold_jid $waitJID ";}
+	}
+	if ($cwd ne ""){if ($LSF==1) {$xtra.="-cwd $cwd"; }  elsif ($LSF == 0) {$xtra.="-wd $cwd";} }
+	my $qcm = "$qbin $xtra $tmpsh \n";
+	my $LOGhandle = "";
+	if (exists $optHR->{LOG}){ $LOGhandle = $optHR->{LOG};}
+	#if (@restrHosts > 0){die $qcm;}
+	if ($optHR->{doSubmit} != 0 && $immSubm){
+		system "rm -f $tmpsh.otxt $tmpsh.etxt";
+		print $LOGhandle $qcm."\n" unless ($LOGhandle eq "" || !defined($LOGhandle) );
+		#print("$qcm\n\n");
+		print "SUB:$jname\t";
+		#actual job excecution!
+		my $ret = `$qcm`; 
+		#take care of lockFile now.. but only if actual job submission happened
+		if ($lockFile ne "" && $ret !~ m/^sbatch: error:/ && ! -e $lockFile){
+			system "touch $lockFile" ;
+		}
+		if ($LSF == 2){#slurm get jobid
+			chomp $ret; $ret =~ m/(\d+)$/; #$ret = $1;
+			$jname=$1;
+		}
+	}
+	
+	#die "$qcm\n";
+	my $retJName = "$rTag$jname"; $retJName = "" if (!$immSubm); #return empty (for slurm), since no fwd job predictions..
+
+	return ($retJName,$qcm);
+}
+
+
+
 sub numPendingJobs($){
 	my ($optHR) = @_;
 	my $qmode = "slurm"; $qmode = $optHR->{qmode} if (defined($optHR->{qmode}));
@@ -210,7 +416,7 @@ sub qsubSystemJobAlive{
 		my $waitCnt = 0;
 		while ( $num =~ m/$_/){
 			print "Waiting for $jobsCheckd/".scalar @jobs ." jobs to finish\n" if ($waitCnt==0);
-			sleep (30);
+			sleep (60);
 			$num = `$cmd`; #chomp $num;
 			$waitCnt++;
 			if ($killFailedJobs){
@@ -289,208 +495,7 @@ sub qsubSystem2{
 	system $qcm;
 	return $qcm;
 }
-sub qsubSystem($ $ $ $ $ $ $ $ $ $){
-	#args: 1[file to save bash & error & output] 2[actual bash cmd] 3[cores reserved for job]
-	# 4["1G": Ram usage per core in GB] 5[0/1: synchronous execution] 6[name of job] 
-	# 7[name of job dependencies, separated by ";"]
-	# 8[0/1: excute in cwd?] 9[0/1: return qsub cmd or submit job to cluster]
-	# Falk Hildebrand, may 2015
-	my ($tmpsh,$cmd,$ncores,$memory,$jname,$waitJID,$cwd,$immSubm, $restrHostsAR, $optHR) = @_;
-	#$doSync, 5th arg
-	#14,12G
-	#die $tmpsh."\n";
-	#my $jname = $tmpsh;
-	#$jname =~ s/.*\///g;$jname =~ s/\.sh$//g;
-	#\n#\$ -N $tmpsh
-	return("") if ($cmd eq "");
-	my $LSF = 0;
-	my $qbin = "qsub";
-	my $xtra = "";
-	my $rTag = $optHR->{rTag};
-	my $qmode = $optHR->{qmode};
-	
-	my $tmpScratchTag = $optHR->{tmpSpaceTag};
-	#my $xtraNodeCmds = $optHR->{xtraNodeCmds};
-	my $submissionConfig = $optHR->{submissionConfig};
-	my @constrains = @{$optHR->{constraint}};# #SBATCH --constraint=
-	#die "@constrains";
-	my $lockFile = $optHR->{LOCKfile};
-	my $nthreads= $ncores;
-	if ($ncores =~ m/,/){my @spl = split /,/,$ncores;$ncores = $spl[1]; $nthreads=$spl[0];}
-	#different format for bsub and slurm
-	if ($memory =~ m/^[\.\d]+$/){$memory  = int($memory+0.5);}
-	if ($memory =~ m/^0G$/){$memory  = "1G";} #most likely a rounding error from too many cores..
-	if ($memory =~ s/G$//){$memory = int( ($memory* 1024 * $ncores ) +0.5);};
-	my $tmpSpace = convert2Gb( $optHR->{tmpSpace} );
-	#die " $optHR->{tmpSpace}   $tmpSpace\n";
-	#my $tmpSpace2 = $optHR->{tmpMinG};
-	#my $wcKeysForJob = $optHR->{wcKeysForJob};
-	my $exclNodes = $optHR->{excludeNodes};
-	
-	
-	#die ($memory."\n");
-	#my $queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
-	my $queues = "\"".$optHR->{medQueue}."\"";#"\"medium_priority\"";
-	my $time = $optHR->{medTime};#"24:00:00";
-	if ($optHR->{useHiMemQueue} == 1){
-		$queues = "\"".$optHR->{highMemQueue}."\"";$optHR->{useHiMemQueue}=0;
-	} elsif ($optHR->{useLongQueue} ==1){
-		$queues = "\"".$optHR->{longQueue}."\"";#"\"medium_priority\"";
-		#$time = "335:00:00";
-		$optHR->{useLongQueue}=0;
-	} elsif ($optHR->{useGPUQueue} ==1){
-		$queues = "\"".$optHR->{gpuQueue}."\"";#"\"medium_priority\"";
-		#$time = "23:00:00";
-		$optHR->{useGPUQueue}=0;
-	} elsif ($optHR->{useShortQueue} ==1){
-		$queues = "\"".$optHR->{shortQueue}."\"";#"\"medium_priority\"";
-		#$time = "00:45:00";
-		$optHR->{useShortQueue}=0;
-	}
-	my @jspl = split(";",$waitJID); @jspl = grep /\S/, @jspl;
 
-	if ($cwd ne "" && !-d $cwd){system "mkdir -p $cwd";}
-	#if ($memory > 250001){$queues = "\"scb\"";}
-	$tmpsh =~ m/^(.*\/)[^\/]+$/;
-	system "mkdir -p $1" unless (-d $1);
-	open O,">",$tmpsh or die "Can't open qsub bash script $tmpsh\n";
-	#die "$cmd\n";
-	#print "$memory   $queues\n";
-	#if (`hostname` !~ m/submaster/){
-	if ($qmode eq "slurm"){$LSF = 2;$qbin="sbatch";
-		#if ($memory > 250001){$queues = "\"bigmem\"";}
-		##SBATCH --cpus-per-task=$ncores\n
-		print O "#!/bin/bash\n#SBATCH -N 1\n#SBATCH --cpus-per-task=$ncores\n#SBATCH -o $tmpsh.otxt\n"; #\n#SBATCH -n  $ncores
-		
-		if ($nthreads != $ncores ){print O "#SBATCH --threads-per-core=1\n#SBATCH --hint=compute_bound\n";} #  specifically for iqtree/raxml
-		print O "#SBATCH -e $tmpsh.etxt\n#SBATCH --mem=$memory\n#SBATCH --export=ALL\n";
-		#print O "#SBATCH --kill-on-invalid-dep=yes\n";
-		#print O "#SBATCH --tmp=$tmpSpace\n" if ($tmpSpace>0);#SBATCH --gres=ssd\n
-		foreach my $subTerm ( split /;/, $submissionConfig){
-			print O "#SBATCH $subTerm\n" if ($submissionConfig ne "");
-		}
-		if ($tmpSpace>0 && $tmpScratchTag ne ""){
-			print O "#SBATCH $tmpScratchTag". int($tmpSpace+0.5) ."\n" ;
-		}
-		#"#SBATCH --gres=ssd"
-		print O "#SBATCH -p $queues\n";
-		#print O "#SBATCH --gres=tmp:${tmpSpace2}G\n" if ($tmpSpace2>0); #50g
-		print O "#SBATCH --time=$time\n" unless ($time eq "");
-		print O "#SBATCH --exclude=$exclNodes\n" unless ($exclNodes eq "");
-		#print O "#SBATCH --localscratch=ssd:50\n"; #for EI cluster
-		print O "#SBATCH --chdir=$cwd\n" if ($cwd ne "");
-		print O "#SBATCH -J $rTag$jname\n" if ($jname ne "");
-		print O "#SBATCH --wc=". $optHR->{wcKeysForJob} . "\n" if ($optHR->{wcKeysForJob} ne "");
-		if (@constrains){
-			print O "#SBATCH --constraint=". join(",",@constrains) ."\n" if (@constrains);
-		}
-		#foreach (@constrains){
-	#		print O "#SBATCH --constraint=$_\n" if ($_ ne "");
-		#}
-		if (length($waitJID) >3 && @jspl > 0) {
-			for (@jspl) {s/$rTag//;}
-			#$xtra .= "--dependency=afterok:".join(":",@jspl)." " if (@jspl > 0);
-			if ($optHR->{afterAny}){
-				print O "#SBATCH --dependency=afterany:".join(":",@jspl)."\n" ;
-			} else {
-				print O "#SBATCH --dependency=afterok:".join(":",@jspl)."\n" ;
-			}
-			#use this one for now, as slurm currently faults without a reason..
-			#$xtra .= "--dependency=afterany:".join(":",@jspl)." " if (@jspl > 0);
-		}
-
-		#print O "#\$ -S /bin/bash\n#\$ -v LD_LIBRARY_PATH=".$optHR->{cpplib}."\n";##\$ -v TMPDIR=/dev/shm\n";
-		#print O "#\$ -v PERL5LIB=".$optHR->{perl5lib}."\n"; #causes problems..
-	} elsif ($qmode eq "bash"){
-		$qbin="bash";$LSF=3;
-		print O "#!/bin/bash\n";
-	} elsif ($qmode eq "sge"){
-		print O "#!/bin/bash\n#\$ -S /bin/bash\n#\$ -cwd\n#\$ -pe ".$optHR->{qsubPEenv}." $nthreads\n#\$ -o $tmpsh.otxt\n#\$ -e $tmpsh.etxt\n#\$ -l h_rss=$memory\n";#h_vmem=$mem\n";
-		print O "#\$ -v LD_LIBRARY_PATH=".$optHR->{cpplib}."\n";#\$ -v TMPDIR=/dev/shm\n";
-#		print O "#\$ -v PERL5LIB=".$optHR->{perl5lib}."\n";
-		print O "#\$ -V\n";
-	} else {
-		$LSF = 1;$qbin="bsub";
-		print O "#!/bin/bash\n";
-		print O "export LD_LIBRARY_PATH=/g/bork3/home/hildebra/env/env/miniconda/lib/:/g/bork3/home/hildebra/env/zlib-1.2.8/:/g/bork8/costea/boost_1_53_0/:/shared/ibm/platform_lsf/9.1/linux2.6-glibc2.3-x86_64/lib:/g/bork3/x86_64/lib64:/g/bork3/x86_64/lib:\${LD_LIBRARY_PATH}\n\n";
-		#print O "export LD_LIBRARY_PATH=/g/bork3/home/hildebra/env/zlib-1.2.8:/g/bork3/x86_64/lib64:/lib:/lib64:/usr/lib64:\${LD_LIBRARY_PATH}\n\n";#:/g/software/linux/pack/python-2.7/lib/\nexport PATH=/g/bork3/home/zeller/py-virtualenvs/py2.7_bio1/bin/:\${PATH}\n\n";
-		##BSUB -n $ncores\n#BSUB -o $tmpsh.otxt\n#BSUB -e $tmpsh.etxt\n#BSUB -M $mem\n#\$ -v LD_LIBRARY_PATH=/g/bork3/x86_64/lib64:/lib:/lib64:/usr/lib64\n#\$ -v TMPDIR=/dev/shm\n#BSUB -q medium_priority\n";
-		my @restrHosts = @{$restrHostsAR};
-		if ( @restrHosts > 0){
-			$xtra .= " -m \"".join(" ",@restrHosts)."\" ";
-			$queues = "\"medium_priority scb\"";
-		}
-		$xtra .= "-n $nthreads -oo $tmpsh.otxt -eo $tmpsh.etxt -q $queues -M $memory -R \"select[(mem>=$memory)] ";
-		$xtra .= "rusage[tmp=$tmpSpace] " if ($tmpSpace>0);
-		$xtra .= "span[hosts=1]\" -R \"rusage[mem=$memory]\" "; #
-	}
-	#set abortion on program fails
-	print O "echo \$HOSTNAME;\n";
-	print O "set -eo pipefail\n";
-	print O "ulimit -c 0;\n";
-	#any xtra commands (like module load perl?)
-	print O "$optHR->{xtraNodeCmds}\n";
-	#prevent core dump files
-	#file location check availability
-	#print O $optHR->{LocationCheckStrg};
-
-	print O $cmd."\n";
-	close O;
-	#sleep (1);
-	my $depSet=0;
-	if ($LSF==2){#slurm
-		if ($optHR->{doSync} == 1){$qbin = "srun";}
-		
-	} elsif ($LSF==3){ #bash
-		$xtra = "";
-	} elsif ($LSF==1){ #bsub #-M memLimit; -q queueName;  -m "host_name[@cluster_name]; -n minProcessors; 
-		if ($optHR->{doSync} == 1){$xtra.="-K ";}
-		if ($jname ne ""){$xtra.="-J $rTag$jname ";}
-		if (length($waitJID) >3) {
-			my @jspl = split(";",$waitJID);
-			#remove empty elements
-			@jspl = grep /\S/, @jspl;
-			if (@jspl > 0 ){
-				$waitJID = join(") && done(",@jspl);
-				$xtra.="-w \"done($waitJID)\" ";
-			}
-		}
-		$tmpsh = " < ".$tmpsh;
-	} else{ #qsub
-		if ($optHR->{doSync} == 1){$xtra.="-sync y ";}
-		if ($jname ne ""){$xtra.="-N $rTag$jname ";}
-		if (length($waitJID) >3) {
-			if (@jspl > 0 ){$xtra.="-hold_jid ".join(",",@jspl) ." ";}
-		}
-			#$waitJID =~ s/;/,/g;$xtra.="-hold_jid $waitJID ";}
-	}
-	if ($cwd ne ""){if ($LSF==1) {$xtra.="-cwd $cwd"; }  elsif ($LSF == 0) {$xtra.="-wd $cwd";} }
-	my $qcm = "$qbin $xtra $tmpsh \n";
-	my $LOGhandle = "";
-	if (exists $optHR->{LOG}){ $LOGhandle = $optHR->{LOG};}
-	#if (@restrHosts > 0){die $qcm;}
-	if ($optHR->{doSubmit} != 0 && $immSubm){
-		system "rm -f $tmpsh.otxt $tmpsh.etxt";
-		print $LOGhandle $qcm."\n" unless ($LOGhandle eq "" || !defined($LOGhandle) );
-		#print("$qcm\n\n");
-		print "SUB:$jname\t";
-		#actual job excecution!
-		my $ret = `$qcm`; 
-		#take care of lockFile now.. but only if actual job submission happened
-		if ($lockFile ne "" && $ret !~ m/^sbatch: error:/ && ! -e $lockFile){
-			system "touch $lockFile" ;
-		}
-		if ($LSF == 2){#slurm get jobid
-			chomp $ret; $ret =~ m/(\d+)$/; #$ret = $1;
-			$jname=$1;
-		}
-	}
-	
-	#die "$qcm\n";
-	my $retJName = "$rTag$jname"; $retJName = "" if (!$immSubm); #return empty (for slurm), since no fwd job predictions..
-
-	return ($retJName,$qcm);
-}
 
 
 #handles deleting of lock file, if all jobs have finished for current sample

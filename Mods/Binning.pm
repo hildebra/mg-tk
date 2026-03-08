@@ -1,7 +1,9 @@
 package Mods::Binning;
 use Exporter qw(import);
-our @EXPORT_OK = qw(runMetaBat runSemiBin  runMetaDecoder runCheckM runCheckM2 
-				
+our @EXPORT_OK = qw(
+				runMetaBat runSemiBin  runMetaDecoder  runGenomeFace
+				runCheckM runCheckM2 
+				getBinSubdirName
 				createBin2 createBinFAA createBinCtgs
 				readMGS readMGSrev deNovo16S readMGSrevRed minQualFilter 
 				filterMGS_CM MB2assigns calcLCAcompl readCMquals);
@@ -13,6 +15,21 @@ use Mods::GenoMetaAss qw (systemW readFasta gzipopen getAssemblPath);
 use Mods::TamocFunc qw (cram2bsam);
 
 
+
+sub getBinSubdirName{
+	my ($BinSel) = @_;
+	my $BinnerName = "None";
+	if ($BinSel == 1){
+		$BinnerName = "MB2";
+	} elsif ($BinSel == 2){#SemiBin
+		$BinnerName = "SB";
+	}elsif ($BinSel == 3){#MetaDecoder
+		$BinnerName = "MD";
+	}elsif ($BinSel == 4){#GenomeFace
+		$BinnerName = "GF";
+	}
+	return $BinnerName;
+}
 
 
 sub readCMquals{
@@ -209,7 +226,7 @@ sub filterMGS_CM{
 sub readBinSB($){
 	my ($inF) = @_;
 	my %can2gene;
-	print "reading SemiBin file: $inF\n";
+	#print "reading SemiBin file: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -224,7 +241,7 @@ sub readBinSB($){
 sub readMGS($){
 	my ($inF) = @_;
 	my %can2gene;
-	print "reading MGS file: $inF\n";
+	#print "reading MGS file: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -238,7 +255,7 @@ sub readMGSrev($){
 	my ($inF) = @_;
 	my %g2c;
 	my $dbl=0;
-	print "reading MGS reverse: $inF\n";
+	#print "reading MGS reverse: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -256,7 +273,7 @@ sub readMGSrevRed($){
 	my ($inF) = @_;
 	my %g2c;
 	my $dbl=0;
-	print "reading MGS reverse: $inF\n";
+	#print "reading MGS reverse: $inF\n";
 	open I,"<$inF" or die "can't open canopy file $inF\n";
 	while (<I>){
 		chomp; my @spl = split /\t/;
@@ -404,9 +421,10 @@ sub createBinCtgs{
 	
 	my $hr;
 	if ($perFam){
-		print "Getting per family ref genomes\n";
+		print "Getting per family ref genomes for MAGs\n";
 		$hr = getRepresentBinsPerFamily($guideF,$hrMap);
 	} else {
+		print "Getting per AssmblGrp ref genomes for MAGs\n";
 		$hr = getRepresentBins($guideF);
 	}
 	my %repBins = %{$hr};
@@ -418,13 +436,13 @@ sub createBinCtgs{
 	foreach my $MGS (@allReps){
 		my $MAG = $repBins{$MGS};
 		if ($MAG =~ m/^Cano__/){
-			print "Could not retrieve MAG for $MGS : $MAG , because is Canopy\n";
+			print STDERR "Could not retrieve MAG for $MGS : $MAG , because is Canopy\n";
 			next;
 		}
 		my $smpl = ""; my $bin= "";
 		if ($MAG =~ m/^(.+)__(.+)$/){  $smpl = $1;  $bin=$2;
 		} else { #skip this MAG completely.. but not good
-			print "Could not match \"$MAG\" to sample and contig!\n";
+			print STDERR "Could not match \"$MAG\" to sample and contig!\n";
 			next;
 		}
 			
@@ -432,7 +450,7 @@ sub createBinCtgs{
 		$smpl = $map{altNms}{$smpl} if ( defined($map{altNms}{$smpl}) );
 		if ($lastSmpl ne $smpl){
 			$lastSmpl = $smpl;
-			print "Reading $smpl\n";
+			#print "Reading $smpl\n";
 			my $dirIn = $map{$smpl}{wrdir}; 
 			my $assDir = getAssemblPath($dirIn);
 			my $BinDir = "$assDir/Binning/SB/"; my $BinFile = "$BinDir/$smpl";
@@ -491,6 +509,7 @@ sub createBin2{
 		}
 		close O;
 	}
+	print "----------------------\nDone\nWrote representative MAGs (genes) to $binD\n----------------------\n";
 	
 }
 
@@ -652,7 +671,7 @@ sub runSemiBin{
 	if (@BAMS == 0){
 		#fake empty entry...
 		print "runSemiBin::No bams found, creating fake output\n";
-		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm .assStat";
+		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm.assStat";
 		open O,">$outDir/$nm.cm2";
 		print O "Name\tCompleteness\tContamination\tCompleteness_Model_Used Translation_Table_Used\tAdditional_Notes\n";
 		close O;
@@ -663,27 +682,27 @@ sub runSemiBin{
 	
 	# --environment human_gut, dog_gut, ocean, soil, cat_gut, human_oral, mouse_gut, pig_gut, built_environment, wastewater, chicken_caecum, global
 	my $smode = "single_easy_bin ";
-	my $senv = "--environment human_gut";$senv =  "--environment $giveSBenv" if ($giveSBenv ne "");
+	my $senvDef = "--environment human_gut";my $senv = $senvDef; 
+	if ($numBams > 1){$senv = "";}#multisample doesn't accept env flag
+	if ($giveSBenv ne "") {$senv =  "--environment $giveSBenv" ; }
 	my $dflags = " --random-seed 555 --tmpdir $tmpDir -p $cores";
 	my $seqType = "--sequencing-type=short_read ";
 	$seqType = "--sequencing-type=long_read " if ($seqTec eq "PB" || $seqTec eq "ONT" || $seqTec eq "hybrid");#PAcBIo/ONT
-	my $cmd1 = "###preparing BAMs..\n$uncramCmd\n\n";
+	my $cmd1 = "\necho \"preparing BAMs..\"\n$uncramCmd\n\n";
 	$cmd1 .= "echo \"CRAM->BAM finished\"\n";
 #	my $cmd = "";
 	#my $output = "$outD/$nm.semibin";
 	my $cmd .= "\n\n###Running SemiBin...\n";
-	if ($giveSBenv ne ""){
-		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
-
-	}elsif ($numBams == 1 && $jgO ne ""){
+	if (@BAMS == 1 && $jgO ne ""){
 		$cmd .= "$SBbin $smode --depth-metabat2 $jgO -i $fna $senv $seqType --output $outDir $dflags\n";
+#	} elsif (@BAMS == 1){ #by default run with def env, if only 1 bam.. too slow otherwise
+#		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $senv $seqType --output $outDir $dflags\n"; 
+
 	} else {
 		#--reference-db-data-dir $semibinGTDB --training-type self 
-		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $seqType --output $outDir $dflags\n";
+		$cmd .= "$SBbin $smode -i $fna -b  ". join(" ",@BAMS). " $senv $seqType --output $outDir $dflags\n";
 	}
-	
 	#die $cmd;
-	
 	return $cmd1.$cmd;
 
 }
@@ -718,7 +737,7 @@ sub runMetaDecoder{
 	}
 	if (@SAMS == 0){
 		#fake empty entry...
-		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm .assStat";
+		system "mkdir -p $outDir;touch $outDir/$nm;touch $outDir/$nm.assStat";
 		open O,">$outDir/$nm.cm2";
 		print O "Name\tCompleteness\tContamination\tCompleteness_Model_Used Translation_Table_Used\tAdditional_Notes\n";
 		close O;
@@ -739,12 +758,54 @@ sub runMetaDecoder{
 
 }
 
+
+
+
+
+sub runGenomeFace{
+	my ($jgO,$outD,$nm, $fna, $ncore, $tmpDir ) = @_;
+
+#!/bin/bash -e
+#SBATCH -t 30 
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH -p "ei-gpu"
+#SBATCH -G 1
+#SBATCH --mem "8G"
+#SBATCH --export ALL
+
+#sed -E 's|_[0-9]+ |\t|' FMGids.txt | awk -F'=' '$2>1000' > gfmarkers.txt
+#genomeface -i $FASTA -a jgi_depths.tsv -g gfmarkers.txt -m 1000 -o GF
+#find GF -name "\d+" -exec rm {} \ #similar to comeBin, the bins themselves are just files named by numbers e.g. 1234. Get rid of them if not needed. 
+#awk -F'\t' '{print $2 $1}' GF/bins.tsv > GF/outfile && rm GF/bins.tsv
+
+	#if (-e "$outD/GeFa.sto"){		return "";	}
+	my $numC = 1;
+	
+	#print "Running MetaBat..\n";
+	my $GFbin = getProgPaths("GenomeFace");
+	#my $mbBin = "/g/bork3/home/hildebra/bin/metabat/./metabat";
+	#my $outCtgNms = "$outD/$nm.ctgs.txt";
+	#my $outFna = "$outD/$nm.fasta.fna";
+	my $outFile = "$outD/$nm";
+	#my $outMat = "$outD/$nm.mat.txt";
+	#my $jgO = "$tmp/depth.jgi";
+	if (!-e $fna){die "Can't find requried scaffold file in metabat routine: $fna\n"; }
+	#start metabat
+	my $cmd = "";#$before."\n";
+	#$cmd .= "$mbBin -i $fna -a $jgO.depth.txt -o $outFna -p $jgO.pairs.sparse -l $outCtgNms --minCVSum  10 -t $numCore --saveCls $outMat -v\n";
+	$cmd .= "mkdir -p $outD\n";
+	$cmd .= "sed -E 's|_[0-9]+ |\\t|' FMGids.txt | awk -F'=' '\$2>1000' > $tmpDir/gfmarkers.txt\n";
+	$cmd .= "$GFbin -i $fna -a $jgO -g $tmpDir/gfmarkers.txt -m 1000 -o $outD \n"; #$outMat    --> replace with $21tmpDir
+	$cmd .= "awk -F'\\t' '{print \$2 \$1}' $outD/bins.tsv > $outFile \n rm $outD/bins.tsv\n";
+	#$cmd .= "echo \"$nm\" > $outD/GeFa.sto\n";
+	return $cmd;
+
+}
+
 sub runMetaBat{
 	my ($jgO,$outD,$nm, $fna ) = @_;
-	if (-e "$outD/MeBa.sto"){
-		#print "metabat2 done: $outD\n";
-		return "";
-	}
+	#if (-e "$outD/MeBa.sto"){		return "";	}
 	my $numC = 0;
 	$numC = $_[4] if (@_ > 4);
 	#print "Running MetaBat..\n";
@@ -761,7 +822,7 @@ sub runMetaBat{
 	#$cmd .= "$mbBin -i $fna -a $jgO.depth.txt -o $outFna -p $jgO.pairs.sparse -l $outCtgNms --minCVSum  10 -t $numCore --saveCls $outMat -v\n";
 	$cmd .= "mkdir -p $outD\n";
 	$cmd .= "$metab2Bin -i $fna -a $jgO -o $outD2 -l --saveCls -t $numC --noBinOut -m 2500 --minCVSum 1\n"; #$outMat
-	$cmd .= "echo \"$nm\" > $outD/MeBa.sto\n";
+	#$cmd .= "echo \"$nm\" > $outD/MeBa.sto\n";
 	return $cmd;
 	#die $cmd."\n";
 	#my $jobName = "MBat";

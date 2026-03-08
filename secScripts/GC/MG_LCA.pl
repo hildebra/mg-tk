@@ -22,7 +22,8 @@ sub submitJobs; sub missingLCAs;
 my $LCAbin = getProgPaths("LCA");
 
 #0.1: 7.12.23: added lambda3 support
-my $version = 0.1;
+#0.11: 13.2.26: version switching betweeen GTDB
+my $version = 0.11;
 
 my $GCd ="";#$ARGV[0]."/";
 my $cores = 1;#$ARGV[1];
@@ -60,17 +61,14 @@ if ($useGTDBmg eq "GTDB"){
 	$speciesLink = "GTDB_lnks"; $speciesCutoff = "GTDB_cutoff"; $subsetFile = "GTDBmg.subset.cats";
 	$speciesGTDB = "GTDB_GTDB"; $speciesDir = "GTDBPath"; $MGtag = "GTDBmg";
 }
-my $inSImap = getProgPaths($speciesLink);
-my $GTDBspecI = getProgPaths($speciesGTDB);
-my $SpecID=getProgPaths($speciesDir);#directoy with all 40 SpecI marker genes
-my %FMGcutoffs = %{readTabbed3(getProgPaths($speciesCutoff,0),1)};
-
 #make the distinction here, as not all Marker genes might be present in a certain experiment (e.g. no Archaea)
 my %FMGkeys = %{readTabbed3("$GCd/$subsetFile",1)};
 
 
-
-
+my $inSImap = getProgPaths($speciesLink);
+my $GTDBspecI = getProgPaths($speciesGTDB);
+my $SpecID=getProgPaths($speciesDir);#directoy with all 40 SpecI marker genes
+my %FMGcutoffs = %{readTabbed3(getProgPaths($speciesCutoff,0),1)};
 
 my $taxPerGene = "$SpecID/$MGtag.tax";
 reformatGTDBtax($taxPerGene, $inSImap,$GTDBspecI);
@@ -139,6 +137,7 @@ sub submitJobs{
 			$cmd .= "\n\n#At $COG\n";
 			$cmd .= lambdaBl($ifna,"$SpecID/$COG${xtrLab}.fna",$m8file,$cores,!$subm)."\n" unless (-e $CogTaxF || -e $m8file); #.rep
 			$cmd .= "$LCAbin  -i $m8file -r $taxPerGene -o $CogTaxF  -LCAfrac 0.8  -cover 0.9 -minAlignLen 70 -id $FMGcutoffs{$COG},90,80,60,50,30,0;\n" unless (-e $CogTaxF);
+			$cmd .= "rm -f $MGdir/$COG.fa $m8file\n";
 			$collectJobs++;
 		}
 		$COGcnt++;

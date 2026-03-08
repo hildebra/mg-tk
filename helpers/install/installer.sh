@@ -105,7 +105,7 @@ if ! find_in_mamba_env "MGTK\s" ; then
 else 
 	echo "Updating base MGTK conda environment.. Please be patient"
 					#	$MAMBA_E activate MGTK
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/MG-TK.yml #-q -y
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/MG-TK.yml #-q -y
 	
 	#echo "Updating R packages in MGTK environment"
 	#{ Rscript $INSTdir/reqPackages.R
@@ -116,14 +116,17 @@ fi
 
 $MAMBA_E activate MGTK
 
-if command -v foldseek &> /dev/null ; then
-	#prepare foldseek search
-	if [ ! -d $DBdir/PtostT5_W ];then
-		foldseek databases ProstT5 $DBdir/PtostT5_W $DBdir/tmp;
-	fi
-fi
+#took prostT5 out for now.. not used by default
+#if command -v foldseek &> /dev/null ; then
+#	echo "Preparing prostT5 for foldseek.."
+#	#prepare foldseek search
+#	if [ ! -d $DBdir/PtostT5_W ];then
+#		foldseek databases ProstT5 $DBdir/PtostT5_W $DBdir/tmp;
+#	fi
+#fi
 
 if command -v hostile &> /dev/null ; then
+	echo "Installing hostile human reference database"
 	export HOSTILE_CACHE_DIR=$DBdir/hostile/
 	hostile index fetch --name human-t2t-hla
 	#run a second time in cases it crashes..
@@ -163,19 +166,28 @@ fi
 
 #additional dependencies not in the main yml..
 if ! find_in_mamba_env "MGTKgtdbtk" ; then
-	echo "Installing MGTKgtdbtk environment"
+	echo "Creating MGTKgtdbtk environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/GTDBTK.yml 
 else 
 	echo "Updating MGTKgtdbtk environment"
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/GTDBTK.yml 
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/GTDBTK.yml 
 fi
 
+if ! find_in_mamba_env "MGTKsemibin" ; then
+	echo "Creating MGTKsemibin environment"
+	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/SemiBin.yml 
+else 
+	echo "Updating MGTKsemibin environment"
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/SemiBin.yml 
+fi
+
+
 if ! find_in_mamba_env "MGTKbinners" ; then
-	echo "Installing MGTKbinners environment"
+	echo "Creating MGTKbinners environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/Binners.yml
 else 
 	echo "Updating MGTKbinners environment"
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/Binners.yml
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/Binners.yml
 fi
 
 
@@ -184,7 +196,7 @@ CM2DB=$DBdir/CM2/
 MP4DB=$DBdir/MP4/
 
 if ! find_in_mamba_env "MGTKcheckm2" ; then
-	echo "Installing MGTKcheckm2 environment"
+	echo "Creating MGTKcheckm2 environment"
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/checkm2.yml 
 	$MAMBA_E activate MGTKcheckm2
 	#install checkM2 DB
@@ -195,7 +207,7 @@ if ! find_in_mamba_env "MGTKcheckm2" ; then
 	$MAMBA_E deactivate
 else 
 	echo "Updating checkm2 environment"
-	$MAMBA_E update -y -q -f $INSTdir/checkm2.yml 
+	$MAMBA_E install -y -q -f $INSTdir/checkm2.yml 
 	if [ ! -d $CM2DB ]; then
 		$MAMBA_E activate MGTKcheckm2
 		checkm2 database --download --path $CM2DB
@@ -242,7 +254,7 @@ if ! find_in_mamba_env "MGTKphylo" ; then
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/phylo.yml 
 else 
 	echo "Updating MGTKphylo environment"
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/phylo.yml 
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/phylo.yml 
 fi
 
 if ! find_in_mamba_env "MGTKwhokar" ; then
@@ -250,7 +262,7 @@ if ! find_in_mamba_env "MGTKwhokar" ; then
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/whokaryote.yml 
 else 
 	echo "Updating MGTKwhokar environment"
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/whokaryote.yml 
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/whokaryote.yml 
 fi
 
 if ! find_in_mamba_env "MGTK_R" ; then
@@ -258,7 +270,7 @@ if ! find_in_mamba_env "MGTK_R" ; then
 	$MAMBA_E create --channel-priority $CHNLprio -q -y -f $INSTdir/MGTK_R.yml 
 else 
 	echo "Updating MGTK_R environment"
-	$MAMBA_E update --channel-priority $CHNLprio -q -y -f $INSTdir/MGTK_R.yml 
+	$MAMBA_E install --channel-priority $CHNLprio -q -y -f $INSTdir/MGTK_R.yml 
 fi
 
 
@@ -277,10 +289,22 @@ fi
 
 rm -f $MFdir/helpers/install/runningInstall.sto
 
+echo ""
+echo ""
+echo "How to download GTDB & GTDBtk databases"
+echo ""
+echo "The database for GTDB and GTDBtk are needed for MAG classification."
+echo "These can be downloaded using the script 'helpers/install/get_gtdb.py' i.e."
+echo "    ./get_gtdb.py all -v 226 -t /path/to/download -d /path/to/extract/to --tk split"
+echo "will download and extract these databases, and configure MG-TK to use them."
+echo "See script help (./get_gtdb.py -h) for more information on usage."
+echo ""
+echo ""
 
 echo "Finished MG-TK install"
 echo ""
 echo "To run MG-TK, make sure you are in the MGTK environment (micromamba activate MGTK)."
 echo "You can rerun the installer.sh anytime, to ensure package were installed or are being updated."
 echo "Run \"MG-TK.pl -checkInstall\" to ensure that the installation was successful."
+
 exit 

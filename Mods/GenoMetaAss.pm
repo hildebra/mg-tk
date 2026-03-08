@@ -13,11 +13,14 @@ our @EXPORT_OK = qw(convertMSA2NXS gzipwrite gzipopen renameFastaCnts renameFast
 		readMapS getDirsPerAssmblGrp checkSeqTech is3rdGenSeqTech 
 		resetAsGrps
 		renameFastHD  prefixFAhd parse_duration resolve_path
-		clenSplitFastas getAssemblPath fileGZe fileGZs filsizeMB
+		clenSplitFastas getAssemblPath getAssemblGFF getAssemblContigs
+		fileGZe fileGZs filsizeMB
 		readClstrRev  readClstrRevGenes readClstrRevContigSubset readClstrRevSmplCtgGenSubset
 		unzipFileARezip systemW is_integer 
 		readGFF reverse_complement reverse_complement_IUPAC
-		readFasta writeFasta readFastHD splitFastas 
+		
+		readFasta 
+		writeFasta readFastHD splitFastas 
 		readTabByKey convertNT2AA runDiamond median mean quantile
 		getRawSeqsAssmGrp getCleanSeqsAssmGrp addFileLocs2AssmGrp iniCleanSeqSetHR
 		hasSuppRds
@@ -48,6 +51,7 @@ sub fileGZe{
 	my ($fil) = @_;
 	return 1 if (-e $fil);
 	return 1 if (-e "$fil.gz");
+	return 1 if ($fil =~ m/\.gz$/ && -e substr($fil,0,-3));
 	return 0;
 }
 
@@ -80,7 +84,8 @@ sub prefixFAhd{
 sub gzipwrite{
 	my ($outF,$descr) = @_;
 	$outF .= ".gz" if ( $outF !~ m/\.gz$/);
-	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!";
+	open (my $O, "| gzip -c > $outF") or die "error starting gzip pipe $outF\n$!\n\n";
+	#open my $O, ':>gzip', $outF or die "error starting gzip pipe $outF\n$!\n\n";
 	#my $pigzBin = getProgPaths("piz");
 	#open (my $O, "| $pigzBin -c > $outF") or die "error starting gzip pipe $outF\n$!";
 	return $O;
@@ -200,7 +205,6 @@ sub readFasta{
 	if (@_ > 3){
 		my $hr = $_[3]; %subs = %{$hr};
 		$doSubs = 1;
-		
 	}
 	my $Hseq = {}; 
 	
@@ -209,26 +213,29 @@ sub readFasta{
 	foreach my $fil (@files){
 		#next unless (-e $fil);
 		#my $FAS; my $status=0; 
-		my $doAdd = 1;
+		#my $doAdd = 1;
 		#open($FAS,"<","$fil") || die ("Couldn't open FASTA file $fil\n");
 		my ($FAS ,$status) = gzipopen($fil,"fasta file to readFasta",0);
 		if (@files == 1 && $status == 0){die "Can't open fasta file $fil\n";}
 		next if ($status==0);
 		my $temp; my $line; 
-		my $trHe =<$FAS>;  
+		my $trHe =<$FAS>;  my $srcHe = "";
 		if (!defined $trHe){#could be empty file
 			print "Empty:: $fil $status\n";
 			close $FAS;return $Hseq;
 		}
 		$trHe = substr($trHe,1);
-		if ($cutHd) {$trHe =~ s/$sepChr.*//;} chomp ($trHe); $trHe = "".$trHe;
+		if ($cutHd) {$trHe =~ s/$sepChr.*//;} 
+		elsif ($doSubs) {$srcHe = $trHe;$srcHe =~ s/$sepChr.*//;}
+		chomp ($trHe); $trHe = "".$trHe;
 		while($line = <$FAS>){
 			chomp($line);
 			if ($line =~ m/^>/){
 				#check if fasta within set..
-				if ($doSubs ){ 
-					if ( exists($subs{$trHe})){$doAdd = 1;} else {$doAdd =0;} 
-					$Hseq->{$trHe} = $temp if ($doAdd); 
+				if ($doSubs ){
+					if ( exists($subs{$trHe}) || ($srcHe ne "" && exists($subs{$srcHe})) ){
+						$Hseq->{$trHe} = $temp ;
+					}
 				} else { #a lot faster..
 					#finish old fas`
 					$Hseq->{$trHe} = $temp;
@@ -735,22 +742,30 @@ sub readGFF($){
 	my ($inF) =@_;
 	my %ret;my $sbcnt=1;
 	my $lcnt=0;
-	open I,"<$inF";
-	while (<I>){
+	#if (!-e $inF && -e "$inF.gz"){$inF .= ".gz";}
+	my $entries=0;
+	my ($GFF ,$status) = gzipopen($inF,"gff file to readGFF",1);
+
+	#open I,"<$inF";
+	while (<$GFF>){
 		if (m/^#/){$sbcnt=1;next;}
 		chomp;
 		$lcnt++;
 		my @spl = split(/\t/);
 		print "readGFF::too short: line $lcnt, $inF\n" unless (@spl > 7);
 		$spl[8] =~ m/^ID=\d+_(\d+)/;
-		my $k = ">".$spl[0]."_$1";
+		#my $k = ">".$spl[0]."_$1";
+		my $k = $spl[0]."_$1";
 		#print $k;
 		$ret{$k}=$_;
+		$entries++;
 	}
-	#die;
-	close I;
+	
+	close $GFF;
+	#die "Found $entries gff entries\n";
 	return \%ret;
 }
+
 
 
 sub getAssemblPath{
@@ -784,6 +799,29 @@ sub getAssemblPath{
 }
 
 
+
+sub getAssemblGFF{
+	my $cD = $_[0];
+	my $assmD = getAssemblPath($cD);
+	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
+
+	my $gffF = "$assmD//genePred/genes.gff";
+	$gffF .= ".gz" if (-e $gffF . ".gz");
+	if (!-s $gffF){print STDERR "getAssemblGFF::Could not find gff in dir $cD!:\n$gffF\n";die if ($dieOnFail);}
+	return $gffF;
+}
+
+sub getAssemblContigs{
+	my $cD = $_[0];
+	my $dieOnFail = 1; $dieOnFail = $_[1] if (@_ > 1);
+	my $assmD = getAssemblPath($cD);
+	my $ctgF = "$assmD/scaffolds.fasta.filt";
+	$ctgF .= ".gz" if (!-e $ctgF && -e "$ctgF.gz");
+	if (!-s $ctgF){print STDERR "getAssemblContigs::Could not find assembly in dir $cD!:\n$ctgF\n";die if ($dieOnFail);}
+	return $ctgF;
+}
+
+
 sub iniCleanSeqSetHR{
 	my ($seqSetHR) = @_;
 	my $HR = {arp1 => ${$seqSetHR}{pa1},arp2 => ${$seqSetHR}{"pa2"},singAr => ${$seqSetHR}{"pas"}, matAr => [],
@@ -807,20 +845,35 @@ sub getCleanSeqsAssmGrp{
 	my ($asG, $grp, $support) = @_;
 	my $specSmpl = "";$specSmpl = $_[3] if (@_ >= 4); #specific sample only??
 	my @smpls = ();@smpls = ($specSmpl) if ($specSmpl ne "");
-
-	my @pa1; my @pa2; my @pas; my @readTec;
+	
+	my $sizOut = scalar(@smpls);
+	my @pa1; $#pa1=$sizOut; my @pa2; $#pa2=$sizOut;my @pas; $#pas=$sizOut;my @readTec;$#readTec=$sizOut;
 	my %raws = %{${$asG}{$grp}{CleanSeqs}};
 	my @terms = ("arp1","arp2","singAr", "readTec","is3rdGen");
 	@terms = ("arpX1","arpX2","singArX", "readTecX","is3rdGenX") if ($support);
 	@smpls = keys %raws if (!@smpls);
+	my $cnt=0;
 	foreach my $smpl (@smpls){
-	#	print "$smpl\n";
-		push(@pa1, @{${$raws{$smpl}}{ $terms[0] }});
-		push(@pa2, @{${$raws{$smpl}}{ $terms[1] }});
-		push(@pas, @{${$raws{$smpl}}{ $terms[2] }});
-		push(@readTec, ${$raws{$smpl}}{ $terms[3] });
+		#print "$smpl\n";
+		
+		my $R1 = ""; 
+		if (defined( ${${$raws{$smpl}}{ $terms[0] }}[0] )){
+			$R1 = ${${$raws{$smpl}}{ $terms[0] }}[0] ;# && @{$raws{$smpl}}{ $terms[0] } > 0);
+			if (scalar(@{${$raws{$smpl}}{ $terms[0] }})>1){
+				print STDERR "Warning getCleanSeqsAssmGrp: detected >1 clean input read.. currently not supported!!\n @{${$raws{$smpl}}{ $terms[0] }}\nasG:$asG grp:$grp support:$support\n";
+			}
+		}
+		$pa1[$cnt] =  $R1;
+		my $R2 = ""; $R2 = ${${$raws{$smpl}}{ $terms[1] }}[0] if (defined( ${${$raws{$smpl}}{ $terms[1] }}[0] ) );# && @{$raws{$smpl}}{ $terms[1] } > 0);
+		$pa2[$cnt] = $R2;
+		my $single = ""; $single = ${${$raws{$smpl}}{ $terms[2] }}[0] if (defined( ${${$raws{$smpl}}{ $terms[2] }}[0] ));# && @{$raws{$smpl}}{ $terms[2] } > 0);
+		$pas[$cnt] =  $single;#$single;
+		#print "$cnt $single\n";
+		#my $rT = ""; $rT = ${$raws{$smpl}}{ $terms[3] } if (defined(${$raws{$smpl}}{ $terms[3] }));
+		$readTec[$cnt] = ${$raws{$smpl}}{ $terms[3] } ;
+		$cnt++;
 	}
-	#die "@pa1 - $grp - $support\n@pa2\n@pas\n";
+	#die "getCleanSeqsAssmGrp::\n@pa1 - $grp - $support\n@pa2\n@pas\n";
 	return (\@pa1, \@pa2, \@pas, \@readTec);
 }
 
@@ -828,7 +881,7 @@ sub hasSuppRds{
 	my ($asG, $grp,$smpl) = @_;
 	my %raws = %{${$asG}{$grp}{RawSeqs}};
 	my @smpls = keys %{${$asG}{$grp}{RawSeqs}};
-	print "GRP:$grp\n@smpls\n";
+	#print "GRP:$grp\n@smpls\n";
 #	if (  exists( ${  ${${$asG}{$grp}{RawSeqs}}{$smpl}}{"paXs"} )  ){
 	if (  exists( ${  $raws{$smpl}}{"paXs"} )  ){
 		return 1;
@@ -850,6 +903,7 @@ sub getRawSeqsAssmGrp{
 	#die "XX @smpls YY\n$support\n@terms\n@{${$raws{$smpls[0]}}{ $terms[2] }}\n";
 	foreach my $smpl (@smpls){
 		#print "$smpl\n"; 
+		die "GenoMetaAss.pm::getRawSeqsAssmGrp: $smpl not included in raw input vector!\n" unless (exists($raws{$smpl}));
 		push(@pa1, @{${$raws{$smpl}}{ $terms[0] }});
 		push(@pa2, @{${$raws{$smpl}}{ $terms[1] }});
 		push(@pas, @{${$raws{$smpl}}{ $terms[2] }});
@@ -1025,8 +1079,8 @@ sub checkSeqTech{
 	my $inT = $_[0];
 	my $msg = "Mapping file";
 	$msg = $_[1] if (@_ > 1);
-	if ($inT ne "" && $inT ne "ONT"&& $inT ne "hiSeq" && $inT ne "454" && $inT ne "SLR" && $inT ne "PB" && $inT ne "proto" && $inT ne "miSeq" && $inT ne "GAII" && $inT ne "GAII_solexa"){
-		die "$msg: Can't recognize SeqTech: \"$inT\"\nHas to be one of \"ONT\",\"PB\",\"proto\",\"SLR\",\"miSeq\",\"hiSeq\",\"GAII\",\"GAII_solexa\" or \"\"\n\n";
+	if ($inT ne "" && $inT ne "ONT"&& $inT ne "ill"&& $inT ne "hiSeq" && $inT ne "454" && $inT ne "SLR" && $inT ne "PB" && $inT ne "proto" && $inT ne "miSeq" && $inT ne "GAII" && $inT ne "GAII_solexa"){
+		die "$msg: Can't recognize SeqTech: \"$inT\"\nHas to be one of \"ONT\",\"PB\", \"proto\",\"SLR\", \"ill\", \"miSeq\", \"hiSeq\", \"GAII\",\"GAII_solexa\" or \"\"\n\n";
 	}
 }
 sub readMap{
@@ -1097,6 +1151,7 @@ sub readMap{
 		}
 		my @spl = split(/\t/,$line,-1);
 		if ($cnt == 0){
+			#read column headers -> check for MG-TK specific instructions
 			#die "@spl\n";
 			$smplCol = first_index { /^#SmplID$/ } @spl;
 			$dirCol = first_index { /^Path$/ } @spl;
@@ -1151,6 +1206,7 @@ sub readMap{
 		die "Use alphanumeric characters (a-zA-Z0-9.) for sampleID: $curSmp\n" if (!$relaxSmplID && $curSmp =~ m/[^a-zA-Z0-9\.]/);
 		
 		my $cdir = ""; 
+		#read in the path to sample
 		if ($dirCol >= 0 && @spl>= $dirCol && $spl[$dirCol] ne ""){
 			$cdir = $spl[$dirCol] ; 
 			$samplePathUsed=1;
@@ -1178,7 +1234,7 @@ sub readMap{
 		if ($DOWARN && $smplPrefixUsed && $samplePathUsed){die"Warning: in mapping file both \"SmplPrefix\" and \"Path\" are set for sample $curSmp!\nThis is not supported\n$warnDeactivateMsg";}
 
 		
-		
+		#old MATAFILER versions, deprecated in MG-TK
 		if ($folderStrClassical== -1){
 			if (-d  $dir2out.$cdir2 && !-d $dir2out.$curSmp){
 				if ($infFoldClass==0){die "readMap: Inferring old/new folder structure failed, as both folders seem to be valid\n";}
@@ -1196,10 +1252,11 @@ sub readMap{
 		}
 		#die "$ret{$curSmp}{wrdir}\n";
 		
+		#base info for sample on current map line
 		$ret{$curSmp}{SmplID} = $curSmp;
 		$ret{$curSmp}{mapFinSmpl} = $curSmp;
 		$ret{$curSmp}{assFinSmpl} = $curSmp;
-		#ONT,PB,proto,miSeq,GAII
+		#ONT,PB,proto,miSeq,GAII etc
 		if ($SeqTech >= 0) { my $RT=$spl[$SeqTech];checkSeqTech($RT);$ret{$curSmp}{SeqTech} = $RT; } else {$ret{$curSmp}{SeqTech} = "";}
 		if ($SeqTechS >= 0) { my $RT=$spl[$SeqTechS];checkSeqTech($RT);$ret{$curSmp}{SeqTechSingl} = $RT; } else {$ret{$curSmp}{SeqTechSingl} = "";}
 		
@@ -1207,18 +1264,22 @@ sub readMap{
 		if ($rLenCol >= 0){$ret{$curSmp}{readLength} = $spl[$rLenCol];} else {$ret{$curSmp}{readLength} = 0;}
 		if ($ExcludeAssemble >= 0){$ret{$curSmp}{ExcludeAssem} = $spl[$ExcludeAssemble];} else {$ret{$curSmp}{ExcludeAssem} = 0;}
 		#cut first basepairs from each read.. (read1 and read2)
+		
+		#instructions to remove X bases at 5' read 2
 		$ret{$curSmp}{cut5pR2} = 0;
 		if ($cut5pR2 >= 0){
 			if (defined ($spl[$cut5pR2]) && length($spl[$cut5pR2]) > 0){
 				$ret{$curSmp}{cut5pR2} = $spl[$cut5pR2];
 			}
 		} 
+		#instructions to remove X bases at 5' read 1
 		$ret{$curSmp}{cut5pR1} = 0;
 		if ($cut5pR1 >= 0){
 			if (defined ($spl[$cut5pR1]) && length($spl[$cut5pR1]) > 0){
 				$ret{$curSmp}{cut5pR1} = $spl[$cut5pR1];
 			}
 		} 
+		
 		#read only the first few reads in each sample..
 		$ret{$curSmp}{firstXrdsRd} = 0;
 		if ($firstXrdsRd >= 0){
@@ -1300,7 +1361,7 @@ sub readMap{
 			#print $agBP{$spl[$MapGroupCol]}{CntAimMap}. " :$spl[$MapGroupCol]\n" ;
 		} else {$ret{$curSmp}{MapGroup} = $Scnt; $agBP{$Scnt}{CntAimMap}=0;}
 		
-		if ($FamGroupCol >= 0 && $spl[$FamGroupCol] ne ""){
+		if ($FamGroupCol >= 0 && scalar(@spl) > $FamGroupCol && $spl[$FamGroupCol] ne "" ){
 			my $curF = $spl[$FamGroupCol];
 			$ret{$curSmp}{FamGroup} = $curF;
 			#if (!exists($agBP{$curF}{CntAimFam})){$agBP{$curF}{CntAimFam}=0;}

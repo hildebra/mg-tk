@@ -1,35 +1,38 @@
 #!/usr/bin/perl
 #submits R scripts to work through phylos
 #args: [GeneCat dir] [intra_phylo_dir] [abundance MGS] [mapping file[ [cores]
-# perl strain_within_2.pl /g/bork3/home/hildebra/data/SNP/GCs/DramaGCv5/ /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat/intra_phylo/ /g/scb/bork/hildebra/SNP/GCs/DramaGCv5//Binning/MetaBat/MB2.clusters.ext.can.Rhcl.matL0.txt /g/bork3/home/hildebra/dev/Perl/reAssemble2Spec/maps/drama4.map 1
+
 use warnings;
 use strict;
 
 use Getopt::Long qw( GetOptions );
 
 use Mods::GenoMetaAss qw( readClstrRev systemW readMapS readFasta);
-use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive);
+use Mods::Subm qw(qsubSystem emptyQsubOpt qsubSystemJobAlive qsubSystemWaitMaxJobs);
 use Mods::IO_Tamoc_progs qw(getProgPaths );
 use Mods::geneCat qw(readGene2tax createGene2MGS);
 use Mods::TamocFunc qw ( getFileStr );
 
 sub sumSummaries;
-my $strainStatsR = getProgPaths("treeSubGrpsR");
-my $RpogenS = getProgPaths("pogenStats");
-my $MFdir = getProgPaths("MGSTKDir");
-my $vizPhylos = getProgPaths("vizPhylosSign_R");
-my $treewasRun_R = getProgPaths("treewasRun_R");
-my $processTreewas_R = getProgPaths("processTreewas_R");
+sub strainNetwork;
+sub treeWas;
+sub visualizeSignPhylos;
+
+
+my $MGSTKdir = getProgPaths("MGSTKDir");
 
 #.21: added $DiscTests $ContTests
 #.22: R interface updated
 #.23: Perl interface updated
 #.24: added familyVar and groupStabilityVars arguments for stability calculations 
-#.25: 3.4.24 added Kasia's scoary scripts
-#.26: 11.7.24 replaced scoary scripts with treewas
-my $version = 0.26;
+#.25: 3.4.24: added Kasia's scoary scripts
+#.26: 11.7.24: replaced scoary scripts with treewas
+#.27: 6.1.26: added Anthony's network scripts, more qsub processes
+#.28: 2.3.26: adapted for different phylo names
+my $version = 0.28;
 
 my $rewriteRanalysis = 0; my $doSubmit = 1;
+my $checkMaxNumJobs = 400;
 
 my $DiscTests =""; my $ContTests = "";
 my $familyVar = ""; my $groupStabilityVars = "";
@@ -63,7 +66,8 @@ GetOptions(
 
 my $cpDir = "";#$GCd/MGS/R_analysis/";
 #my $outD
-my $defTreeFile = "IQtree_allsites.treefile";
+#my $defTreeFile = "IQtree_allsites.treefile";
+my @defTreeFiles = ("IQtree_allsites.treefile","VERYFASTTREE_allsites.nwk","FASTTREE_allsites.nwk"); #multiple options to test for..
 my $defTreeFileBase = "IQtree_allsites";
 #die;
 die "MGS phylo dir doesn't exist!\n$FMGpD\n" unless (-d $FMGpD);
@@ -100,7 +104,11 @@ while ( my $entry = readdir DIR ) {
 	next unless (-d "$FMGpD/$entry/phylo/");
 	#my $destD = "$FMGpD/$entry/within/";
 	#system "cp $destD/$entry.nwk $FMGpD/$entry/phylo/IQtree.treefile " if (-e "$destD/$entry.nwk");
-	my $sizTree = -s "$FMGpD/$entry/phylo/$defTreeFile";
+	my $sizTree = 0; my $x=0;
+	while ($sizTree == 0 && $x < @defTreeFiles){
+		$sizTree = -s "$FMGpD/$entry/phylo/$defTreeFiles[$x]" if (-e "$FMGpD/$entry/phylo/$defTreeFiles[$x]");
+		$x++;
+	}
 	next unless ($sizTree);
 	#genuine MGS phylo dir-> store in %dirs %baseD
 	$dirs{$entry} = "$FMGpD/$entry/phylo/"; 
@@ -118,13 +126,22 @@ my $treeAbsent = 0;
 my @k2d = sort { $sizTrees{$b} <=> $sizTrees{$a} } keys(%sizTrees);
 
 my $cmd = "ulimit -s 20000\n";my $destD =""; my $wrHead=0; 
+my $strainStatsR = getProgPaths("treeSubGrpsR");
+
 foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	$cnt++;
 	$destD = $dirs{$d}; $destD =~ s/(.*)\/phylo/$1\/within/; 
 	my $destBaseD = $dirs{$d}; $destBaseD =~ s/(.*)\/phylo/$1\//; 
 	$destDs{$d} = $destD;
 	#my $locTree = "$destD ../phylo/$defTreeFile"; #two args in one..
-	if (!-e "$dirs{$d}/$defTreeFile"){
+	my $treePath = ""; my $x=0;
+	my $defTree="";
+	while (!-e $treePath && $x < @defTreeFiles){
+		$treePath = "$dirs{$d}/$defTreeFiles[$x]";
+		$defTree = $defTreeFiles[$x];
+		$x++;
+	}
+	if (!-e $treePath){
 		$treeAbsent++;
 		next;
 	}
@@ -132,30 +149,27 @@ foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	#next; 
 	next if ( #did script already finish analysis? -> skip dir
 			#-e "$destBaseD/codeml/WithinStrainDiv.txt" && 
-			
 			 -e "$destD/$d.Ranalysis.log" 
 			&& -e "$destD/$d.analysis.txt" 
-			#&& -e "$destD/$defTreeFileBase.analysis.Rdata"
-			#&& -e "$destD/$defTreeFileBase.analysis.txt"
 			);
-	#die "$destD\n";
-	#next if ($cnt == 0);
-	#die "$destD/$d.Ranalysis.log\n";
 	systemW "rm -rf $destD/*";
 	system "mkdir -p $destD" unless (-d $destD);
-	my $tmp = `cat $1/data.log`;
+	my $tmp;
+	if (-e "$1/data.log"){$tmp= `cat $1/data.log` ;}
+	elsif (-e "$1/data.log.gz"){$tmp= `zcat $1/data.log.gz` ;}
 	$tmp =~ m/OG:(.*)/; my $OG = $1;
 	#system "cp $dirs{$d}/$defTreeFile $destD/$d.nwk";
-	my $treeDef = "$dirs{$d}/$defTreeFile";
 	my $BinN = 1000;
 	if ($d =~ m/MB2bin(\d+)/){$BinN = $1;}
 	if ($BinN<30){$nCore = 5} else {$nCore = 5;}
 	
 	$cmd .= "echo \"At tree $d\"\n";
 	$wrHead=1 if ( $cnt == 0);
-	$cmd .= "$strainStatsR --path $destD --tree ../phylo/$defTreeFile --taxN $d --outgroup $OG --map $refMap --metagStats $MGstats --abMat $abMatrix --ncore $nCore --siteMode 1 --MFDir $MFdir --wrColNms $wrHead --discPermTests \"$DiscTests\" --contPermTests \"$ContTests\" --familyCol \"$familyVar\" --groupStabilityVars \"$groupStabilityVars\" > $destD/$d.Ranalysis.log\n";
+	my $OGstr = "--outgroup $OG " if ($OG ne ""); 
+	$cmd .= "$strainStatsR --path $destD --tree ../phylo/$defTree --taxN $d $OGstr --map $refMap --metagStats $MGstats --abMat $abMatrix --ncore $nCore --siteMode 1 --MFDir $MGSTKdir --wrColNms $wrHead --discPermTests \"$DiscTests\" --contPermTests \"$ContTests\" --familyCol \"$familyVar\" --groupStabilityVars \"$groupStabilityVars\" > $destD/$d.Ranalysis.log\n";
 	$wrHead=0;
 	if (0){#rerun popgen stats??
+		my $RpogenS = getProgPaths("pogenStats");
 		$cmd .= "$RpogenS $destBaseD $refMap $destBaseD/codeml/ $destBaseD/MSA/clnd/ 10,20,30,100,200,500\n";
 	}
 	
@@ -166,6 +180,9 @@ foreach my $d (@k2d){#loop over MGS intra-phylo dirs, submit R analysis
 	print "$d: "; 
 	$curBatch++;
 	if ($curBatch > $batchSize){
+		
+		qsubSystemWaitMaxJobs($checkMaxNumJobs);
+
 		my ($dep,$qcmd) = qsubSystem($destD."Ranalysis.sh",$cmd,$nCore,"20G","R$cnt","","",1,[],$QSBoptHR);
 		#die " $destD\n";
 		push(@jobs,$dep);
@@ -245,13 +262,12 @@ if (0){
 
 #die;
 #summary  of R stats
-#create summary tables
-
-
+#create summary tables 
 if (1 || !-e $RsummaryTab){
 	system "rm -f $RsummaryTab";
 	#reset output report file
-	open O,">$RsummaryTab" or die $!;  close O;
+	#open O,">$RsummaryTab" or die $!;  close O;
+	system "touch $RsummaryTab";
 
 	foreach my $d (@k2d){
 		my $clsts = "$destDs{$d}/${d}.Ranalysis.log";
@@ -263,45 +279,25 @@ if (1 || !-e $RsummaryTab){
 		
 		my $TXTreport = "$destDs{$d}/${d}.analysis.txt";
 
-		if (-e $TXTreport){
+		if (-e $TXTreport && -s $TXTreport){
 			my $cmd = "cat $TXTreport >> $RsummaryTab;";
 			system $cmd;
 		}
-		next;
 	}
 }
 
+## run network of similar samples
+strainNetwork();
 
-
-
+#die;
 
 # functional enrichments of strains in conditions defined by user
-my $funCmd = "";
-my $treewasOut = "$FMGpD/GeneEnrich/";
-my $treewasOutfile = "$treewasOut/treeWAS_results.csv";
-my $summaryOutfile = "$treewasOut/treeWAS_results_functions.csv";
-my $treeWasStone = "$FMGpD/GeneEnrich/treeWAS.sto";
-my $MGSd = $FMGpD; $MGSd =~ s/\/[^\/]+[\/]+$/\//;
-$funCmd .= "mkdir -p $treewasOut\n";
-$funCmd .= "#1st command: run treewas job\n";
-$funCmd .= "$treewasRun_R --gene_cat_dir \"$GCd\" --n_threads $nCoreHeavy --metadata_vars \"$groupStabilityVars\" -o \"$treewasOut\" --mgs_dir \"$MGSd\" --metadata_file \"$refMap\" -r \"$MFdir\" -i \"$individualVar\" \n";
-$funCmd .= "#2nd command: process results\n";
-$funCmd .= "$processTreewas_R -i \"$treewasOutfile\" --gene_cat_dir \"$GCd\" --annot_files \"NOG,CZy,KGM\", --out_file \"$summaryOutfile\" --n_threads $nCoreHeavy -r \"$MFdir\" \n";
-$funCmd .= "\ntouch $treeWasStone\n";
-
-if (!-e $treeWasStone){
-	my ($dep,$qcmd) = qsubSystem($treewasOut."treeWAS.sh",$funCmd,$nCoreHeavy,"6G","treewas","","",1,[],$QSBoptHR);
-}
+treeWas();
 
 
-#"$strainStatsR $destD ../phylo/$defTreeFile $d $OG $refMap $MGstats $abMatrix $nCore 1 $MFdir $wrHead $DiscTests $ContTests > $destD/$d.Ranalysis.log\n";
-#my $taxFile = "$GCd/Anno/Tax/GTDBmg_MGS/specI.tax";
-my $taxFile = "$FMGpD/../Annotation/MGS.GTDB.LCA.tax";
-my $cmdPic = "$vizPhylos $RsummaryTab $taxFile $FMGpD phylo $MFdir $refMap -1\n";
+visualizeSignPhylos();
 
-print "Printing figures of most significant phylogenies\nThis might take several hours..\n";
-print $cmdPic;
-system $cmdPic;
+
 
 #die "$FMGpD/Rsummary.tab";
 
@@ -448,3 +444,58 @@ sub sumSummaries($ $){
 
 
 
+sub strainNetwork{ #submits Anthony's script to build a network
+	my $netDir = "$FMGpD/networks/";
+	my $networkStone = "$netDir/networks.sto";
+	if (!-e $networkStone){
+		my $networkScr = getProgPaths("runNetworks_R");#"Rscript $MGSTKdir/runNetworks.R";
+		system "mkdir -p $netDir" unless (-d "$netDir");
+		my $edgeTresh = 4;
+		my $cmd = "$networkScr -i $FMGpD -o $netDir -m $refMap -e $edgeTresh ;\n";
+		$cmd .= "#consider the following options to change: -c [Column for clustering samples] -e [num shared strains for edges]\n";
+		$cmd .= "touch $networkStone;\n";
+		print "Running network of shared strains..\n$cmd\n";
+		#system $cmd;
+		my $nCore = 1;
+		my ($dep,$qcmd) = qsubSystem($netDir."Network.sh",$cmd,$nCore,"20G","Network","","",1,[],$QSBoptHR);
+
+	}
+}
+
+
+
+
+sub treeWas{
+	# functional enrichments of strains in conditions defined by user
+	my $funCmd = "";
+	my $treewasRun_R = getProgPaths("treewasRun_R");
+	my $processTreewas_R = getProgPaths("processTreewas_R");
+	my $treewasOut = "$FMGpD/GeneEnrich/";
+	my $treewasOutfile = "$treewasOut/treeWAS_results.csv";
+	my $summaryOutfile = "$treewasOut/treeWAS_results_functions.csv";
+	my $treeWasStone = "$FMGpD/GeneEnrich/treeWAS.sto";
+	my $MGSd = $FMGpD; $MGSd =~ s/\/[^\/]+[\/]+$/\//;
+	$funCmd .= "mkdir -p $treewasOut\n";
+	$funCmd .= "#1st command: run treewas job\n";
+	$funCmd .= "$treewasRun_R --gene_cat_dir \"$GCd\" --n_threads $nCoreHeavy --metadata_vars \"$groupStabilityVars\" -o \"$treewasOut\" --mgs_dir \"$MGSd\" --metadata_file \"$refMap\" -r \"$MGSTKdir\" -i \"$individualVar\" \n";
+	$funCmd .= "#2nd command: process results\n";
+	$funCmd .= "$processTreewas_R -i \"$treewasOutfile\" --gene_cat_dir \"$GCd\" --annot_files \"NOG,CZy,KGM\", --out_file \"$summaryOutfile\" --n_threads $nCoreHeavy -r \"$MGSTKdir\" \n";
+	$funCmd .= "\ntouch $treeWasStone\n";
+
+	if (!-e $treeWasStone){
+		my ($dep,$qcmd) = qsubSystem($treewasOut."treeWAS.sh",$funCmd,$nCoreHeavy,"6G","treewas","","",1,[],$QSBoptHR);
+	}
+}
+
+
+
+sub visualizeSignPhylos{
+	#my $taxFile = "$GCd/Anno/Tax/GTDBmg_MGS/specI.tax";
+	my $vizPhylos = getProgPaths("vizPhylosSign_R");
+	my $taxFile = "$FMGpD/../Annotation/MGS.GTDB.LCA.tax";
+	my $cmdPic = "$vizPhylos $RsummaryTab $taxFile $FMGpD phylo $MGSTKdir $refMap -1\n";
+
+	print "Printing figures of most significant phylogenies\nThis might take several hours..\n";
+	print $cmdPic;
+	system $cmdPic;
+}

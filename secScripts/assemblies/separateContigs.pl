@@ -9,10 +9,9 @@ use Getopt::Long qw( GetOptions );
 
 
 sub readFasta;
-sub readGFF;
 sub geneAbundance; sub runMaxBin;
 sub findMicrSat;
-use Mods::GenoMetaAss qw(systemW is_integer reverse_complement_IUPAC);
+use Mods::GenoMetaAss qw(systemW is_integer reverse_complement_IUPAC gzipopen fileGZs fileGZe);
 use Mods::IO_Tamoc_progs qw(getProgPaths );
 use Mods::phyloTools qw( getE100);
 
@@ -42,11 +41,18 @@ if ($tmpD eq ""){
 	$tmpD =~ s/\$/\\\$/g;
 }
 
+if ($readLength<2){
+	print "WARNING: non-sensical read length parameter: $readLength\n";
+}
+if ($readLengthSup<2){
+	print "WARNING: non-sensical read length suppl parameter: $readLengthSup\n";
+}
+
 my $rdCovBin =getProgPaths("readCov");
 my $pigzBin = getProgPaths("pigz");
 
 my $inScaffs = "$assD/scaffolds.fasta.filt";
-my $proteins = "$assD/genePred/proteins.shrtHD.faa";
+my $proteinsAA = "$assD/genePred/proteins.shrtHD.faa";
 my $genesNT = "$assD/genePred/genes.shrtHD.fna";
 my $genesGFF = "$assD/genePred/genes.gff";
 my $genesAA = "$assD/genePred/proteins.shrtHD.faa";
@@ -58,8 +64,39 @@ my $cleanUp = 0;#1=do overwrite
 if ($cleanUp){
 	system "rm -r $outD";
 }
-system "mkdir -p $outD";
-system "mkdir -p $outDab";
+system "mkdir -p $outD" unless (-d $outD);
+system "mkdir -p $outDab" unless (-d $outDab);
+system "mkdir -p $tmpD" unless (-d $tmpD);
+
+
+#gzipped prot/gene files need to be unzipped for hmms etc
+my $unzpped=0;
+$genesGFF .= ".gz" if (-e "$genesGFF.gz" && !-e $genesGFF);
+$proteinsAA .= ".gz" if (-e "$proteinsAA.gz" && !-e $proteinsAA);
+$genesNT .= ".gz" if (-e "$genesNT.gz" && !-e $genesNT);
+
+
+if ($proteinsAA =~ m/\.gz$/){
+	my $newAA = "$tmpD/protsAA.faa"; $unzpped=1;
+	my $cmd = "$pigzBin -d -p $Nthreads -c $proteinsAA > $newAA;";
+	systemW $cmd;
+	$proteinsAA = $newAA;
+}
+if ($genesNT =~ m/\.gz$/){
+	my $newNT = "$tmpD/genesNT.fna"; $unzpped=1;
+	my $cmd = "$pigzBin -d -p $Nthreads -c $genesNT > $newNT;";
+	systemW $cmd;
+	$genesNT = $newNT;
+}
+if ($genesGFF =~ m/\.gz$/){
+	my $newGFF = "$tmpD/genes.gff"; $unzpped=1;
+	my $cmd = "$pigzBin -d -p $Nthreads -c $genesGFF > $newGFF;";
+	systemW $cmd;
+	$genesGFF = $newGFF;
+}
+
+
+
 
 #figure out mapping names
 die "Mapping is not done yet (or not copied)\n" if (!-e "$inD/mapping/done.sto");
@@ -70,7 +107,7 @@ $SmplNm =~ s/-smd.bam\n?//;
 #system "cp $inScaffs $outD";
 ######################### ini calcs
 #$cmd = "";
-#$cmd .= "cut -f1 -d \" \" $proteins > $proteins.shrtHD.faa\n" unless (-e "$proteins.shrtHD.faa");
+#$cmd .= "cut -f1 -d \" \" $proteinsAA > $proteinsAA.shrtHD.faa\n" unless (-e "$proteins.shrtHD.faa");
 #$cmd .= "cut -f1 -d \" \" $genesNT > $genesNT.shrtHD.fna\n" unless (-e "$genesNT.shrtHD.fna");
 #systemW $cmd unless ($cmd eq "");
 ###############################   Coverage per gene  ###############################
@@ -106,7 +143,7 @@ if ($subparts =~ m/G/ && !-e "$outDGTDB/marker_genes_meta.tsv"){ #GTDB markers, 
 	#$FMGd/extract_gtdb_mg.py
 	my $GTDBmgScr =  getProgPaths("GTDBmg_scr");
 	#python /hpc-home/hildebra/dev/python/extract_gtdb_mg/extract_gtdb_mg.py  --threads 4 --aa /hpc-home/hildebra/grp/data/projects/postDrama//AssmblGrp_s27/metag//genePred/proteins.shrtHD.faa --overwrite_tmp --tmp /nbi/local/ssd/50677730/MATAFILER//IN217/extract_gtdb_mg_tmp/ -o /hpc-home/hildebra/grp/data/projects/postDrama//AssmblGrp_s27/metag//ContigStats//GTDBmg// --list_only
-	$cmd = "$GTDBmgScr  --threads $Nthreads --aa $proteins --nt $genesNT --overwrite_tmp --tmp $tmpD/extract_gtdb_mg_tmp/ --list_only -s --meta -o $outDGTDB/\n";
+	$cmd = "$GTDBmgScr  --threads $Nthreads --aa $proteinsAA --nt $genesNT --overwrite_tmp --tmp $tmpD/extract_gtdb_mg_tmp/ --list_only -s --meta -o $outDGTDB/\n";
 	#$cmd .= "mv $outDGTDB/marker_genes.tsv $outDGTDB/GTDBids.txt\n";
 	print $cmd;
 	systemW $cmd;
@@ -125,7 +162,7 @@ if ( $subparts =~ m/F/  && !-e "$outDFMG/FMGids.txt"){
 	my $FMGrwkScr = getProgPaths("FMGrwk_scr");
 	print "Searching for fetch MG core proteins in predicted genes..    ";
 		system("mkdir -p $outDFMG");
-		$cmd = "perl $FMGd/fetchMG.pl -m extraction -o $outDFMG -l $FMGd/lib -t $Nthreads -d $genesNT $proteins"; # -x $FMGd/bin  -b $FMGd/lib/MG_BitScoreCutoffs.uncalibrated.txt
+		$cmd = "perl $FMGd/fetchMG.pl -m extraction -o $outDFMG -l $FMGd/lib -t $Nthreads -d $genesNT $proteinsAA"; # -x $FMGd/bin  -b $FMGd/lib/MG_BitScoreCutoffs.uncalibrated.txt
 		$cmd .= "; $FMGrwkScr $outDFMG";
 		if ( !-s "$outDFMG/COG0012.faa" && !-s "$outDFMG/COG0016.faa"){
 			systemW $cmd;
@@ -140,7 +177,7 @@ if ( $subparts =~ m/F/  && !-e "$outDFMG/FMGids.txt"){
 
 	############################### essential 100 proteins ###############################
 if ( $subparts =~ m/E/ && !-e "$oDess/e100split.sto"){
-	getE100($oDess,$proteins,$genesNT,$Nthreads);
+	getE100($oDess,$proteinsAA,$genesNT,$Nthreads);
 	sleep (3);
 	systemW("touch $oDess/e100split.sto;");
 	#required for maxbin
@@ -190,6 +227,8 @@ if ( ( !-s "$inD/Binning/MetaBat/MeBa.sto" || !-s "$inD/Binning/MetaBat/$SmplNm.
 if (-e "$outD/microsat.txt" && $subparts =~ m/s/ && int(-s "$outD/microsat.txt") == 0 ){
 	findMicrSat($inScaffs,"$outD/microsat.txt");
 }
+
+system "rm -rf $tmpD";
 
 print "all done\n";
 exit(0);
@@ -264,7 +303,7 @@ sub geneAbundance{
 	my $stone = "$outDab/$oPrefix.stone";
 	#print $stone."\n\n";
 	my $inFG = $inF.".gz";
-	if ( (-e $outF7fin || -e "$outF7fin.gz") && (-s $outFfin || -s "$outFfin.gz") && -e $stone){
+	if ( fileGZe( $outF7fin)  && fileGZs($outFfin)  && -e $stone){
 		print "Coverage $isSupport was already calculated in $outDab\n";
 		#some cleanup operations.. good to run, if already here..
 		if (-s $inFG && -s $inF){system "rm -f $inF";}
@@ -296,7 +335,8 @@ sub geneAbundance{
 	#die ("$clnCmd");
 	
 	#print "$rdCovBin $inF $assD/genePred/genes.gff $readLength";
-	my $cmd = "rm -f ${inFG}.*;$rdCovBin $inFG $assD/genePred/genes.gff $readL;\n";
+	my $cmd = "rm -f ${inFG}.*;$rdCovBin $inFG $genesGFF $readL;\n";
+	#die $cmd;
 	systemW $cmd;
 	#$cmd .= "gzip -f $outF $outF2 $outF3\nmv $outF.gz $outFfin\n mv $outF2.gz $outF2fin\nmv $outF3.gz $outF3fin\n";
 	
@@ -315,29 +355,3 @@ sub geneAbundance{
 	systemW "touch $stone\n";
 	#print $stone."\n\n";
 }
-
-sub readGFF($){
-	my ($inF) = @_;
-	my %gff;
-	open I,"<",$inF or die "Can't find ".$inF."\n";
-	my $curChrCnt = 0;
-	while (my $line = <I>){
-		next if ($line =~ m/^#/);
-		chomp $line; 
-		#die $line."\n";
-		my @spl = split (/\t/,$line);
-		my $chr = $spl[0];
-		if (exists($gff{$chr})){
-			$curChrCnt ++;
-		} else {
-			$curChrCnt = 0;
-		}
-		#die $spl[3]."\n";
-		$gff{$chr}{$curChrCnt}{start} = $spl[3];
-		$gff{$chr}{$curChrCnt}{stop} = $spl[4];
-	}
-	close I;
-	print "\nFinished reading gff\n";
-	return \%gff;
-}
-

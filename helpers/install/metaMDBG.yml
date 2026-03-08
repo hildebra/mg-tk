@@ -1,8 +1,8 @@
 name: MGTKmetaMDBG
 channels:
-- https://conda.anaconda.org/conda-forge
+- conda-forge
 - https://conda.anaconda.org/anaconda
-- https://conda.anaconda.org/bioconda
+- bioconda
 - https://repo.anaconda.com/pkgs/main
 dependencies:
   - metaMDBG >= 0.3

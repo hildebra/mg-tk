@@ -2,14 +2,14 @@ package Mods::geneCat;
 use warnings;
 use strict;
 use Mods::IO_Tamoc_progs qw(getProgPaths);
-use Mods::GenoMetaAss qw(  systemW gzipopen readFasta);
+use Mods::GenoMetaAss qw( fileGZe systemW gzipopen readFasta);
 use Mods::FuncTools qw( readGene2Func);
 use Mods::math qw( meanArray);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(readGeneIdx readGeneIdxSpl correlation calculate_spearman_correlation read_matrix checkAntiOcc
 				readGene2tax createGene2MGS sortFNA readMG_LCA
-				attachProteins attachProteins2 attachProteins3 );
+				attachProteins  attachProteins3 );
 
 
 sub readMG_LCA{
@@ -54,7 +54,7 @@ sub readMG_LCA{
 sub attachProteins3{
 	my ($curSmpl,$prF,$protIn,$hrGI,$SEP) = @_;
 	my %gene2num = %{$hrGI};
-	die "Protein file does not exist: $protIn\n" unless (-e $protIn);
+	die "Protein file does not exist: $protIn\n" unless (fileGZe($protIn));
 	my $hr = readFasta($protIn);
 	my %fas = %{$hr};
 	#print "$protIn\n";
@@ -84,49 +84,6 @@ sub attachProteins3{
 	$tmpStr="";
 }
 
-
-sub attachProteins2{
-	my ($inT,$prF,$protIn) = ($_[0],$_[1],$_[2]);
-	
-	my %gene2num; my $doRename=0;
-	if (@_ > 3){
-		$doRename=1;
-		my $hr = $_[3];
-		%gene2num = %{$hr};
-	}
-	die "Protein file does not exist: $protIn\n" unless (-e $protIn);
-	my $hr = readFasta($protIn);
-	my %fas = %{$hr};
-	#print "$protIn\n";
-	#my $protStore = `cat $inT | xargs $samBin faidx $protIn`;
-	#die length($protStore)."\n";
-	#my @prots = @{$inT};
-	my $tmpStr = "";
-	my @inTa = @{$inT};
-	foreach my $pr (@inTa){
-		#$pr = substr $pr,1; #s/^>//;
-		#1 identify protein
-		my $seq = "";
-		if (!exists($fas{$pr})){
-			print "Can't find $pr in $protIn\n";
-		} else {
-			$seq = $fas{$pr};
-		}
-		if ($doRename){
-			unless(exists($gene2num{$pr})){die "can not identify $pr gene in index file while rewritign prot names\n$protIn\n";}
-			#print "$gene2num{$spl[0]}\n $pr\n";
-			foreach my $pr (@{$gene2num{$pr}}){
-				$tmpStr .= ">".$pr."\n".$seq."\n";
-			}
-		} else {
-			$tmpStr .= ">".$pr."\n".$seq."\n";
-		}
-	}
-	open Oe,">>$prF" or die "Can't open $prF\n";
-	print Oe $tmpStr;
-	close Oe;
-	$tmpStr="";
-}
 
 sub attachProteins{#"$basD/tmp.txt",$protF){
 	my ($inT,$prF,$protIn) = ($_[0],$_[1],$_[2]);
@@ -208,8 +165,9 @@ sub createGene2MGS{
 		#not needed here..
 		#$MGS{$spl[0]} = \@genes;
 		my $cMGS =$spl[0];
-		if (exists($MGS{$cMGS} )){ print "Found $cMGS double!\n";}
-		$MGS{$cMGS} = 1;
+		if (!exists($MGS{$cMGS} )){ #print "Found $cMGS double!\n";}
+			$MGS{$cMGS} = 1; #catalogue MGS..
+		}
 		foreach my $x (@genes){
 			#desired format: 23075792        specI_v2_0561   COG0201
 			my $curCOG = "";
@@ -238,23 +196,37 @@ sub createGene2MGS{
 
 sub readGene2tax{
 	my $inF = $_[0];
-	my $limit = -1;
+	my $limit = -1;  my %subset; my $doMGSsubset=0;
 	$limit = $_[1] if (@_ > 1);
-	my %SIgenes;my %Gene2COG;my %Gene2MGS;
-	my %uniqs; my %cogPrio;
+	if (@_ > 2){
+		my $subsetAR = $_[2] ;
+		%subset= map {$_ => 1 } @{$subsetAR};
+		if (scalar(keys %subset)){
+			$doMGSsubset=1;
+			print"Subsetting readGene2tax (N=" . scalar(keys(%subset)) . ")\n"; 
+		}
+	}
+	my $SIgenes = {};my $Gene2COG= {};my $Gene2MGS= {};
+	my %uniqs; my $cogPrio= {};
 	#some stats
 	my %totalTax; my $totalGenes=0; my $inclGenes=0;
 	open I,"<$inF" or die "Can't open gene 2 tax (specI/MGS) file:\n$inF\n";
 	my $curTax = ""; my $curTcnt=0;
 	
+	#format: "MGS.0   52031098        730     0       1       1"
 	while (my $line = <I>){
 		chomp $line;
 		$totalGenes++;
 		my @spl = split (/\t/,$line,-1);
 		#only read a limited number of genes.. used for MGS to only take first few genes
-		if ($limit>0 && exists($totalTax{$spl[1]}) && $totalTax{$spl[1]}  >= $limit){
+		my $MGS = $spl[1];
+		if ($limit>0 && exists($totalTax{$MGS}) && $totalTax{$MGS}  >= $limit){
 			next;
 		} 
+		if ($doMGSsubset && !exists($subset{$MGS})){
+			#print "N $MGS ";
+			next;
+		}
 	
 		my $OG = $spl[2];
 		if ($OG eq "" || $OG eq "-"){ #make artificial OG
@@ -262,25 +234,25 @@ sub readGene2tax{
 			$OG="uniq$uniqs{$spl[1]}";
 			#die "$OG\n";
 		}
-		unless (exists($SIgenes{$spl[1]}{$OG})){#only register gene if COG is not already reserved..
-			push(@{$cogPrio{$spl[1]}},$OG); ;
-			$SIgenes{$spl[1]}{$OG} = $spl[0];
-			$Gene2COG{$spl[0]} = $OG;
-			$Gene2MGS{$spl[0]} = $spl[1];
+		unless (exists($SIgenes->{$MGS}{$OG})){#only register gene if COG is not already reserved..
+			push(@{$cogPrio->{$MGS}},$OG); ;
+			$SIgenes->{$MGS}{$OG} = $spl[0];
+			$Gene2COG->{$spl[0]} = $OG;
+			$Gene2MGS->{$spl[0]} = $MGS;
 			$inclGenes++;
-			$totalTax{$spl[1]} ++;
+			$totalTax{$MGS} ++;
 		}
 	}
 	close I;
-	print "Found ". scalar(keys %totalTax) ." groups with $inclGenes/$totalGenes included genes\n";
+	print "Found ". scalar(keys %totalTax) ." MGS with $inclGenes/$totalGenes included genes\n";
 	
 	#double check on low represented MGS
-	my @keys = sort { $totalTax{$a} <=> $totalTax{$b} } keys(%totalTax);
+	my @kk = sort { $totalTax{$a} <=> $totalTax{$b} } keys(%totalTax);
 	my $lcnt=0;
 	print "5 lowest MGS are: \n" ; 
-	foreach my $k (@keys){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5){print "\n";last;}}
+	foreach my $k (@kk){print "$k $totalTax{$k};\t";$lcnt++;  if ($lcnt>5 || @kk < $lcnt+1){print "\n";last;}}
 	
-	return (\%SIgenes,\%Gene2COG,\%Gene2MGS,\%cogPrio);
+	return ($SIgenes,$Gene2COG,$Gene2MGS,$cogPrio);
 }
 
 

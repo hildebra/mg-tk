@@ -26,7 +26,8 @@ use Getopt::Long qw( GetOptions );
 #.25: 9.12.23: added extraction of representative MGS genome in contigs (highest qual MAG)
 #.26: 13.8.24: added -genomesPerFamily flag & function
 #.27: 12.11.24: removed necessity for -canopies flag
-my $MGSpipelineVersion = 0.26;
+#.28: 28.12.25: multi scaling flags for strainScr1 added
+my $MGSpipelineVersion = 0.28;
 
 use Mods::IO_Tamoc_progs qw(getProgPaths jgi_depth_cmd);
 use Mods::GenoMetaAss qw(readMap getDirsPerAssmblGrp readClstrRev unzipFileARezip getAssemblPath systemW gzipopen);
@@ -317,7 +318,7 @@ foreach my $Doo (@DoosD){ #this loops ensures Binner predictions exist for each 
 	#print "$MBout\n";
 	#die "$bef$MBcmd$postCmd";
 	print "$paths[-1]\n";
-	my ($jobName2, $tmpCmd) = qsubSystem($paths[-1]."LOGandSUB/${BinnerShrt}_bin.sh",$bef.$MBcmd.$postCmd,$numCore,int($memG/$numCore)."G",$jobName,"","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($paths[-1]."LOGandSUB/${BinnerShrt}_bin.sh",$bef.$MBcmd.$postCmd,$numCore,int($memG)."G",$jobName,"","",1,[],\%QSBopt);
 	$cnt++;
 	push (@jobs, $jobName2);
 	#die $paths[-1]."LOGandSUB/MB2_bin.sh";
@@ -338,7 +339,7 @@ foreach my $Doo (@DoosD){
 	if ($ignoIncomplMAGs && (!-e $MBout || -s $MBout ==0 ) ){
 		push (@missedMAGs, $smplIDs[-1]);
 		#$missedMAGs++; 
-		print "no MAG file: $MBout\n";
+		printL "no MAG file: $MBout\n";
 		next; 
 	}
 	#check if maybe emtpy Bin?
@@ -351,7 +352,8 @@ foreach my $Doo (@DoosD){
 	die "Bin $MBout seems incomplete\n" unless (-e "$MBout$cmSuffix" && -e "$MBout.assStat");
 	$cnt++;
 }
-print "Missed MAGs from " . scalar(@missedMAGs). " assembly groups\n:@missedMAGs\n" if (@missedMAGs);
+printL "Done reading MAGs\n";
+printL "Missed MAGs from " . scalar(@missedMAGs). " assembly groups\n:@missedMAGs\n" if (@missedMAGs);
 system "touch $iniMB2sto" unless (-e $iniMB2sto);
 
 #if ($cnt){	print "Waiting for jobs to finish.. restart when done\n";	exit(0);}
@@ -430,6 +432,13 @@ if ($useRHClust && (!-e "$finalClusters" || $rewrRHCL)){
 
 #die;
 
+printL "---------------------------------------------------------------------\n";
+printL "Stage I clustering done, MGS calculated.\nProgressing to Stage II: annotations, phylogenies and abundances\n";
+printL "Using $finalClustersFilt as MGS rep\n";
+printL "---------------------------------------------------------------------\n";
+
+
+
 #get checkM quality for new Bins
 my $binD = "$outD/Genomes/MGS_GC/";system "mkdir -p  $binD" unless (-d $binD);
 my $binDctg = "$outD/Genomes/MGS_ctg/";system "mkdir -p  $binDctg" unless (-d $binDctg);
@@ -437,31 +446,11 @@ my $binDctgFam = "$outD/Genomes/MGS_ctg_fam/";system "mkdir -p  $binDctgFam" unl
 
 #gget repr genomes for each MGS
 if (!-e $BinExtrSto){
-	print "\n\nCreating reference genome fasta's for all MGS based on contigs in\n$binDctg\n\n";
-
-	if ($doBinCtgsPerFam){
-		print "Also creating family-wise ref genomes\n";
-		createBinCtgs($binDctgFam,$hrM,"$logDir/MAGvsGC.txt.gz",1);
-		#die;
-	}
-
-	createBinCtgs($binDctg,$hrM,"$logDir/MAGvsGC.txt.gz",0);
-	#do I really need per family genomes??
-	
-	#die;
 	print "Creating reference genome fasta's for all MGS based on gene cat genes in\n$binD\n";
 	createBin2($binD,"$finalClustersFilt","$GCd/compl.incompl.95.prot.faa","faa");
 	createBin2($binD,"$finalClustersFilt","$GCd/compl.incompl.95.fna","fna");
-	
-	system "touch $BinExtrSto";
 }
 
-#die;
-
-printL "---------------------------------------------------------------------\n";
-printL "Stage I clustering done, MGS calculated.\nProgressing to Stage II: annotations, phylogenies and abundances\n";
-printL "Using $finalClustersFilt as MGS rep\n";
-printL "---------------------------------------------------------------------\n";
 
 
 #clean up a bit..
@@ -477,15 +466,30 @@ my @jobs2wait=();
 my $GTDBtaxF = "$annoDir/GTDBTK.tax";
 if (!-e $GTDBtaxF || !-e"$annoDir/gtdbtk.summary.tsv" || !-e $GTDBtaxSto){
 	my $GTDBtax = getProgPaths("taxPerMGSgtdb_scr");
-	my $cmd = "$GTDBtax $binD $canCore $nodeTmpD/GTDBmgs/ $outD\n";
+	my $memGTDB = 230; 
+	$memGTDB = 300;#high mem situation..
+	my $cmd = "$GTDBtax $binD $numCore $nodeTmpD/GTDBmgs/ $outD\n";
 	$cmd .= "mv $outD/GTDBTK.tax $outD/gtdbtk.summary.tsv $annoDir\n\ntouch $GTDBtaxSto";
 	#changed mem from 370 to 100 with GTDB-TK 2.1.0
 	my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "150G"; 
-	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$canCore,int(200/$canCore)."G","GTDB_MGS","","",1,[],\%QSBopt);
+	my ($jobName2, $tmpCmd) = qsubSystem($logDir."/GTDB.Rhcl.sh",$cmd,$numCore,int($memGTDB)."G","GTDB_MGS","","",1,[],\%QSBopt);
 	$QSBopt{tmpSpace} =$tmpSHDD;
 	push(@jobs2wait,$jobName2);
-	
 }
+
+if (!-e $BinExtrSto){
+	print "\n\nCreating reference genome fasta's for all MGS based on contigs in\n$binDctg\n\n";
+	if ($doBinCtgsPerFam){
+	#do I really need per family genomes??
+		print "Also creating family-wise ref genomes\n";
+		createBinCtgs($binDctgFam,$hrM,"$logDir/MAGvsGC.txt.gz",1);
+		#die;
+	}
+
+	createBinCtgs($binDctg,$hrM,"$logDir/MAGvsGC.txt.gz",0);
+	system "touch $BinExtrSto";
+}
+
 #wait for checkm/GTDB
 qsubSystemJobAlive( \@jobs2wait,\%QSBopt );
 die "GTDBtax missing\n$GTDBtaxF\n" if ( !-e $GTDBtaxF);
@@ -561,7 +565,10 @@ unless (-e $ABmgsSton2){
 #die;
 #/hpc-home/hildebra/geneCats/Chicken2/Cultured_genomes/99_ani_dRep/*.fasta
 #and just call between MGS treebuild scr
-my $treeMem = "100";
+my $treeMem = "120";
+if ($numSamples > 2000){ #scale with the number of assembly groups
+	$treeMem = "200";
+}
 my $phyloBetween = getProgPaths("MGSPhyloBetween_scr");
 my $baseTreeCmd = "$phyloBetween -GCd $GCd -MGS $finalClustersFilt -mem $treeMem -c $canCore -MSAprogram 4 -fast 0 ";
 my $wait4tree = 2; $wait4tree = 2 if ($doStrains);
@@ -620,14 +627,27 @@ if ($wait4stone ne ""){
 
 my $strain1scr = getProgPaths("MGS_strain1_scr");
 my $iniTree = "$outD/between_phylo/phylo/IQtree_allsites.treefile";
+my $memUsage = 30; #in Gb
+my $NsubJobs = 0 ; #split job up?
+my $preCompCons = 0;
+
+if ($numSamples > 1500){#scale with the number of assembly groups
+	$memUsage = 120; $NsubJobs = 30; $preCompCons = 0; 
+} elsif ($numSamples > 700){
+	$memUsage = 120; $NsubJobs = 10; $preCompCons = 0;#at a certain size it makes more sense to handle  preCompCons this in-job
+} elsif ($numSamples > 400){
+	$memUsage = 70; $NsubJobs = 4; $preCompCons = 10;
+} elsif ($numSamples > 150){ #
+	$memUsage = 50; $NsubJobs = 0; $preCompCons = 5;
+}
 #my $prunTree = "$outD/between_phylo/prunned.nwk";
 #
 #my $ph2Cmd = "$strain1scr $GCd $finalClustersFilt.mgs $canCore $iniTree 0 1\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
-my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -onlySubmit 1 -submit 1 -reSubmit 0 -redoSubmissionData 0 \n#consider adapting options: -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
+my $ph2Cmd = "$strain1scr -GCd $GCd -MGS $finalClustersFilt -MGset $useGTDBmg -maxCores $canCore  -MGSphylo $iniTree -rmMSA 1 -preCompConsSNP $preCompCons -selfMemGb $memUsage -onlySubmit 1 -submit 1 -reSubmit 0 -maxSubJob $NsubJobs -redoSubmissionData 0 \n#consider adapting options: \n#-rmMSA 0 -presortGenes 1700 -maxGenes 500 -MGSminGenesPSmpl 5 -multiGeneSmplMax 0.15 -conspGeneSmplMax 0.05 -nodeTmp [path]\n";#$outD/between_phylo/phylo/IQtree.treefile\n";
 printL $ph2Cmd;
 #systemW $ph2Cmd;
-my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "0"; 
-my ($jobName2, $tmpCmd) = qsubSystem($logDir."/strainMGS.sh",$ph2Cmd,1,int(150/1)."G","strainKickoff",$treedep,"",1,[],\%QSBopt) ;
+my $tmpSHDD = $QSBopt{tmpSpace};	$QSBopt{tmpSpace} = "20"; #needs some tmp space for on the fly creations.. 
+my ($jobName2, $tmpCmd) = qsubSystem($logDir."/strainMGS.sh",$ph2Cmd,1,int($memUsage/1)."G","strainKickoff",$treedep,"",1,[],\%QSBopt) ;
 $QSBopt{tmpSpace} =$tmpSHDD;
 
 #get phylogenies intra-species.. this requires a lot of power and best called from big cluster..
@@ -993,7 +1013,7 @@ sub refine_Rhcl_MGS(){
 		my $req_CMmem = 200;	my $cmC = "";
 		$cmC .= runCheckM($binDpre,$ChkMevalF,"$nodeTmpD/cmMGS/",$numCore,0) ;	
 		$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM.Rhclst.sh",$cmC,$numCore,int($req_CMmem/$numCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM.Rhclst.sh",$cmC,$numCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 
@@ -1003,7 +1023,7 @@ sub refine_Rhcl_MGS(){
 		my $req_CMmem = 50;	my $cmC = "";
 		$cmC .= runCheckM2($binDpre,$ChkMevalF,"$nodeTmpD/cmMGS/",$canCore,0) ;	
 		$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.Rhclst.sh",$cmC,$canCore,int($req_CMmem/$canCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.Rhclst.sh",$cmC,$canCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 
@@ -1255,7 +1275,7 @@ sub CanopyPrep{
 		my $req_CMmem = 50;	my $cmC = "";
 		$cmC .= runCheckM2($binCanDir,$ChkMevalF,"$nodeTmpD/cmCANO/",$canCore,0) ;	
 		#$cmC .= "\ntouch $RHcCMstone\n";
-		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.cano0.sh",$cmC,$canCore,int($req_CMmem/$canCore)."G","ChMrhcl","","",1,[],\%QSBopt);
+		my ($jobName2, $tmpCmd) = qsubSystem($logDir."/checkM2.cano0.sh",$cmC,$canCore,int($req_CMmem)."G","ChMrhcl","","",1,[],\%QSBopt);
 		push(@jobs2wait,$jobName2);
 	}
 

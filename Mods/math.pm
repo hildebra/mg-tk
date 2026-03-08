@@ -6,7 +6,7 @@ use strict;
 use Mods::IO_Tamoc_progs qw(getProgPaths);
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(avgArray medianArray  nonZero meanArray roundAr round roundF quantileArray); 
+our @EXPORT_OK = qw(avgArray medianArray quantileArrayR nonZero meanArray roundAr round roundF quantileArray); 
 
 
 #N non-zero values in array
@@ -82,4 +82,45 @@ sub quantileArray
     my @vals = sort {$a <=> $b} @_;
     my $len = @vals;
     return $vals[int($len*$frac)];
+}
+
+sub quantileArrayR {
+    # Usage:
+    #   my $q50  = quantileArray(\@arr, 0.5);
+    #   my ($q10, $q90) = quantileArray(\@arr, 0.1, 0.9);
+
+    my ($aref, @thresholds) = @_;
+
+    die "quantileArray: need an array ref and at least one threshold\n"
+        unless ref($aref) eq 'ARRAY' && @thresholds;
+    die "quantileArray: array is empty\n"
+        unless @$aref;
+
+    for my $t (@thresholds) {
+        die "quantileArray: threshold $t out of range [0,1]\n"
+            unless $t >= 0 && $t <= 1;
+    }
+
+    my @sorted = sort { $a <=> $b } @$aref;
+    my $n      = scalar @sorted;
+
+    my @results;
+    for my $t (@thresholds) {
+        my $pos = $t * ($n - 1);      # floating point position in sorted array
+        my $lo  = int($pos);          # lower index
+        my $hi  = $lo + 1;            # upper index
+        my $frac = $pos - $lo;        # interpolation fraction
+
+        my $quantile;
+        if ($hi >= $n) {
+            # $t == 1.0 edge case: clamp to last element
+            $quantile = $sorted[-1];
+        } else {
+            # linear interpolation between neighbours
+            $quantile = $sorted[$lo] * (1 - $frac) + $sorted[$hi] * $frac;
+        }
+        push @results, $quantile;
+    }
+
+    return wantarray ? @results : $results[0];
 }
