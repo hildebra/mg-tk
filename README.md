@@ -1,5 +1,11 @@
 <p align="center"><img src="/../dev/images/mgtk-logo.png?raw=true" alt="MG-TK" width=500 align="center"></img></p>
 
+
+## IMPORTANT! - THIS REPOSITORY IS OUTDATED!
+## PLEASE USE [MATAFILER4](https://github.com/hildebra/MATAFILER4)
+
+This repository is no longer used and the supported version of this software is the MATAFILER4 repository, above. 
+
 ## Introduction 
 
 MG-TK is a pipeline developed to 
